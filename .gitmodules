@@ -1,0 +1,3 @@
+[submodule "dl"]
+	path = dl
+	url = https://github.com/dafne-imaging/dafne-dl.git
