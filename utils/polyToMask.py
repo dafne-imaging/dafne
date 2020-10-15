@@ -5,37 +5,21 @@ Created on Wed Mar  4 11:17:15 2015
 @author: francesco
 """
 import numpy as np
-
-# very simple queue
-class Queue:
-    def __init__(self):
-        self.items = []
-
-    def isEmpty(self):
-        return self.items == []
-
-    def enqueue(self, item):
-        self.items.insert(0,item)
-
-    def dequeue(self):
-        return self.items.pop()
-
-    def size(self):
-        return len(self.items)
+from collections import deque
 
 # recursively flood a mask in place
 def flood(seedX, seedY, mask):
     # check if we are on countour or out of bounds
     sz = mask.shape
-    q = Queue()
+    q = deque()
     if (mask[seedX][seedY] == 1):
         return
-    q.enqueue((seedX, seedY))
+    q.append((seedX, seedY))
     
     # function to determine if a point is out of bound
     isOutOfBound = lambda p: p[0] < 0 or p[1] < 0 or p[0] >= sz[0] or p[1] >= sz[1]
-    while not q.isEmpty():
-        currentNode = q.dequeue()
+    while q: # iterate until empty
+        currentNode = q.popleft()
         if isOutOfBound(currentNode) or mask[currentNode[0]][currentNode[1]] == 1:
             continue
         # travel right (east)
@@ -46,8 +30,8 @@ def flood(seedX, seedY, mask):
             # change color
             mask[e][currentNode[1]] = 1
             # add north and south to the queue
-            q.enqueue((e, currentNode[1]-1))
-            q.enqueue((e, currentNode[1]+1))
+            q.append((e, currentNode[1]-1))
+            q.append((e, currentNode[1]+1))
         # travel left (west)
         for w in range(currentNode[0]-1, -1, -1):
             # exit if we reached a countour
@@ -56,8 +40,8 @@ def flood(seedX, seedY, mask):
             # change color
             mask[w][currentNode[1]] = 1
             # add north and south to the queue
-            q.enqueue((w, currentNode[1]-1))
-            q.enqueue((w, currentNode[1]+1))
+            q.append((w, currentNode[1]-1))
+            q.append((w, currentNode[1]+1))
             
     
 # old recursive implementation that crashed python :(
