@@ -1,0 +1,7 @@
+numpy
+scipy
+matplotlib
+pyqt5
+nibabel
+pydicom
+pypotrace
