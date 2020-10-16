@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, Polygon
-from .polyToMask import polyToMask
+from utils.polyToMask import polyToMask
 import scipy.ndimage as ndimage
 import time
 #import similaritymeasures
