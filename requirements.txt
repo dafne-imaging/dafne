@@ -5,3 +5,4 @@ pyqt5
 nibabel
 pydicom
 pypotrace
+dill

@@ -34,7 +34,7 @@ import re
 
 import subprocess
 
-from utils.dicomUtils.dicom3D import load3dDicom, save3dDicom
+from utils.dicomUtils import load3dDicom, save3dDicom
 
 if os.name == 'posix':
     def checkCapsLock():
@@ -372,32 +372,6 @@ class MuscleSegmentation(ImageShow):
         print(minDeriv)
         return (xpoints[minDeriv], ypoints[minDeriv])
         
-    # Deep-learning-based knot optimization
-    #def optimizeKnotDL(self, knot):
-        #from edgeDetectDL import PATCHSIZE, findEdge
-        #from padorcut import padorcut
-        #im = np.copy(self.image)
-        #row = int(knot[1])
-        #col = int(knot[0])
-        
-        #imPatch = im[(row-PATCHSIZE):(row+PATCHSIZE), (col-PATCHSIZE):(col+PATCHSIZE)]
-        #imPatch = ndimage.shift(imPatch, (-knot[0]+col, -knot[1]+row))
-        
-        #print(imPatch.shape)
-        
-        #imPatch -= np.min(imPatch)
-        #imPatch /= np.max(imPatch)
-     
-        #newRowCol = findEdge(imPatch)[0]
-
-        #print (newRowCol)
-        
-        #newRowCol = (newRowCol-0.5)*PATCHSIZE*2
-
-        
-        #return (newRowCol[1]+knot[0], newRowCol[0]+knot[1])
-        
-    
      # optimizes a knot along an (approximate) normal to the curve, going from inside the ROI to outside
     def optimizeKnot3(self, roi, knotIndex):
         
