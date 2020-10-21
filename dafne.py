@@ -11,6 +11,7 @@ Created on Tue Mar  3 12:10:41 2015
 
 import matplotlib
 import argparse
+import matplotlib.pyplot as plt
 matplotlib.use("Qt5Agg")
 
 from ui.MuscleSegmentation import MuscleSegmentation

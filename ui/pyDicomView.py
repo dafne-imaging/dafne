@@ -42,6 +42,7 @@ class ImageShow:
         self.fig.canvas.mpl_connect('motion_notify_event', self.mouseMoveCB)
         self.fig.canvas.mpl_connect('scroll_event', self.mouseScrollCB)
         self.fig.canvas.mpl_connect('key_press_event', self.keyPressCB)
+        self.fig.canvas.mpl_connect('key_release_event', self.keyReleaseCB)
             
         # stack of images
         self.imList = []
@@ -160,7 +161,11 @@ class ImageShow:
             self.curImage = len(self.imList) - 1
         self.displayImage(self.imList[int(self.curImage)], self.cmap)
         self.redraw()
-        
+
+    def keyReleaseCB(self, event):
+        print("key release")
+        pass
+
     def keyPressCB(self, event):
         event.step = 0
         if event.key == 'right' or event.key == 'down':
