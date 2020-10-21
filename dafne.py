@@ -5,16 +5,15 @@ Created on Tue Mar  3 12:10:41 2015
 
 @author: francesco
 """
-
-#import sip
-#sip.setapi('QString', 1)
+from ui.MuscleSegmentation import MuscleSegmentation
+from dl.LocalModelProvider import LocalModelProvider
 
 import matplotlib
 import argparse
 import matplotlib.pyplot as plt
 matplotlib.use("Qt5Agg")
 
-from ui.MuscleSegmentation import MuscleSegmentation
+MODELS_DIR = 'models'
 
 if __name__ == "__main__":
     
@@ -31,8 +30,17 @@ if __name__ == "__main__":
     
     imFig = MuscleSegmentation()
     #imFig.loadDirectory("image0001.dcm")
+
+
+    dl_model_provider = LocalModelProvider(MODELS_DIR)
+    available_models = dl_model_provider.available_models()
+
+    available_models.remove('Classifier')
+    imFig.setModelProvider(dl_model_provider)
+    imFig.setAvailableClasses(available_models)
+
     imFig.loadDirectory(args.path)
-    
+
     if args.save_dicoms:
         imFig.saveDicom = True
     

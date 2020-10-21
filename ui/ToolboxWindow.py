@@ -31,6 +31,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     subroi_deleted = pyqtSignal(int)
     roi_changed = pyqtSignal(str, int)
     roi_clear = pyqtSignal()
+    classification_changed = pyqtSignal(str)
 
     NO_STATE=0
     ADD_STATE=1
@@ -46,8 +47,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.current_subroi = 0
         self.suppress_roi_change_emit = False
         self.valid_roi_selected = False
-        self.autosegment_button.clicked.connect(self.autosegment_triggered.emit)
         self.roi_combo.currentTextChanged.connect(self.send_roi_changed)
+        self.roi_combo.currentTextChanged.connect(self.repopulate_subrois)
         self.subroi_combo.currentTextChanged.connect(self.send_roi_changed)
         self.roi_add_button.clicked.connect(self.add_roi)
         self.subroi_add_button.clicked.connect(self.subroi_added.emit)
@@ -62,9 +63,24 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.removeall_button.clicked.connect(self.clear_roi)
 
+        self.classification_combo.currentTextChanged.connect(self.on_classification_changed)
+        self.autosegment_button.clicked.connect(self.on_do_segmentation)
+
     def _confirm(self, text):
         w = QMessageBox.warning(self, "Warning", text, QMessageBox.Ok | QMessageBox.Cancel)
         return w == QMessageBox.Ok
+
+    @pyqtSlot(list)
+    def set_available_classes(self, classes):
+        self.classification_combo.clear()
+        self.classification_combo.addItems(classes)
+
+    @pyqtSlot(str)
+    def set_class(self, class_str):
+        self.classification_combo.setCurrentText(class_str)
+
+    def get_class(self):
+        return self.classification_combo.currentText()
 
     @pyqtSlot()
     def manage_knot_toggle(self):
@@ -144,22 +160,28 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.roi_combo.setCurrentIndex(0)
             self.current_roi = self.roi_combo.currentText()
 
-        # populate subroi combo
-        n_subrois = len(self.all_rois[self.current_roi])
-        if current_subroi_number < n_subrois and current_subroi_number >= 0:
-            self.current_subroi = current_subroi_number
-        else:
-            self.current_subroi = 0
-
-        print("setcurrentroi: current subroi", self.current_subroi)
-
-        self.subroi_combo.clear()
-        for n in range(n_subrois):
-            self.subroi_combo.addItem(str(n))
+        self.repopulate_subrois(current_subroi_number)
 
         self.suppress_roi_change_emit = False
         self.subroi_combo.setCurrentIndex(self.current_subroi)
         self.valid_roi_selected = True
+
+    @pyqtSlot()
+    def repopulate_subrois(self, current_subroi_number = 0):
+        # populate subroi combo
+        try:
+            n_subrois = len(self.all_rois[self.current_roi])
+        except:
+            return
+        print("N_Subrois:", n_subrois)
+        if n_subrois > current_subroi_number >= 0:
+            self.current_subroi = current_subroi_number
+        else:
+            self.current_subroi = 0
+
+        self.subroi_combo.clear()
+        for n in range(n_subrois):
+            self.subroi_combo.addItem(str(n))
 
     def valid_roi(self):
         return self.valid_roi_selected
@@ -167,7 +189,6 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @pyqtSlot()
     def send_roi_changed(self):
         if self.suppress_roi_change_emit:
-            print("Change emit suppressed")
             return
         print("Roi change:",self.roi_combo.currentText(), self.subroi_combo.currentIndex())
         self.roi_changed.emit(self.roi_combo.currentText(), self.subroi_combo.currentIndex())
@@ -197,3 +218,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @ask_confirm("This will clear the ROI of the current slice")
     def clear_roi(self):
         self.roi_clear.emit()
+
+    @pyqtSlot()
+    def on_classification_changed(self):
+        self.classification_changed.emit(self.classification_combo.currentText())
+
+    @pyqtSlot(name="on_do_segmentation")
+    @ask_confirm("This might replace the existing segmentation")
+    def on_do_segmentation(self, *args, **kwargs):
+        self.autosegment_triggered.emit()

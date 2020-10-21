@@ -50,7 +50,9 @@ class ImageShow:
         self.cmap = cmap
         self.isImageRGB = False
         self.basepath = ''
-        
+
+        self.resolution = [1,1,1]
+
         # These methods can be defined in a subclass and called when some event occurs
         #self.leftPressCB = None
         #self.leftMoveCB = None     
@@ -281,7 +283,8 @@ class ImageShow:
         except:
             ds.decompress()
             pixelData = ds.pixel_array.astype(numpy.float32)
-        
+
+        self.resolution = [float(ds.PixelSpacing[0]), float(ds.PixelSpacing[1]), float(ds.SliceThickness)]
         return pixelData
         
     # append one image to the internal list
@@ -322,9 +325,11 @@ class ImageShow:
             dataset = niimage.as_reoriented(orients).get_fdata()
             if numpy.max(dataset) < 1:
                 dataset *= 1000
+            self.resolution = niimage.header.get_zooms()[0:3]
             for sl in range(dataset.shape[2]):
                 self.appendImage(numpy.flipud(numpy.fliplr(dataset[:,:,sl].T)))
             self.basepath = os.path.dirname(path)
+
         elif ext.lower() in npy_ext:
             data = numpy.load(path).astype(numpy.float32)
             self.loadNumpyArray(data)

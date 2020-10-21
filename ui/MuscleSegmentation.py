@@ -9,7 +9,7 @@ import matplotlib
 
 matplotlib.use("Qt5Agg")
 
-import sys, os
+import sys, os, time
 
 # print(sys.path)
 SCRIPT_DIR = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__))))
@@ -109,6 +109,11 @@ class MuscleSegmentation(ImageShow, QObject):
         self.roiSame = ROI_SAME_COLOR
         self.saveDicom = False
 
+        self.model_provider = None
+        self.dl_classifier = None
+        self.dl_segmenters = {}
+        self.classifications = []
+
         # self.fig.canvas.setCursor(Qt.BlankCursor)
         self.app = None
 
@@ -138,6 +143,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.roi_changed.connect(self.changeRoi)
 
         self.toolbox_window.roi_clear.connect(self.clearCurrentROI)
+
+        self.toolbox_window.autosegment_triggered.connect(self.doSegmentation)
 
         # tb = self.fig.canvas.toolbar
         # tb.addSeparator()
@@ -821,6 +828,16 @@ class MuscleSegmentation(ImageShow, QObject):
         self.loadROIPickle()
         self.refreshCB()
 
+    def appendImage(self, im):
+        ImageShow.appendImage(self, im)
+        print("new Append Image")
+        if not self.dl_classifier: return
+        class_input = {'image': self.imList[-1], 'resolution': self.resolution[0:2]}
+        class_str = self.dl_classifier(class_input)
+        print("Classification", class_str)
+        self.classifications.append(class_str)
+
+
     def saveResults(self):
         print("Saving results...")
         if not self.basepath: return
@@ -910,3 +927,50 @@ class MuscleSegmentation(ImageShow, QObject):
             self.toolbox_window.restore_knot_button_state()
 
         # plt.show()
+
+    ## Deep learning functions
+    def setModelProvider(self, modelProvider):
+        self.model_provider = modelProvider
+        self.dl_classifier = modelProvider.load_model('Classifier')
+
+    def setAvailableClasses(self, classList):
+        self.toolbox_window.set_available_classes(classList)
+
+    def displayImage(self, im, cmap = None):
+        ImageShow.displayImage(self, im, cmap)
+        self.toolbox_window.set_class(self.classifications[int(self.curImage)]) # update the classification combo
+
+    @pyqtSlot(str)
+    def changeClassification(self, newClass):
+        self.classifications[int(self.curImage)] = newClass
+
+    @pyqtSlot()
+    def doSegmentation(self):
+        # run the segmentation
+        imIndex = int(self.curImage)
+        class_str = self.classifications[imIndex]
+        try:
+            segmenter = self.dl_segmenters[class_str]
+        except KeyError:
+            segmenter = self.model_provider.load_model(class_str)
+            self.dl_segmenters[class_str] = segmenter
+
+        t = time.time()
+        inputData = {'image': self.imList[imIndex], 'resolution': self.resolution[0:2]}
+        print("Segmenting image...")
+        masks_out = segmenter(inputData)
+        print("Done")
+        for name, mask in masks_out.items():
+            splineInterpList = SplineInterpROIClass.FromMask(mask) # run mask tracing
+            nContours = len(splineInterpList)
+            if name not in self.allROIs:
+                self.allROIs[name] = []
+            nSubrois = len(self.allROIs[name])
+            for contourIndex, contour in enumerate(splineInterpList):
+                if contourIndex >= nSubrois:
+                    self.allROIs[name].append({})
+                self.allROIs[name][contourIndex][imIndex] = contour
+        print("Segmentation time:", time.time() -t)
+        self.toolbox_window.set_rois_list(self.allROIs)
+        self.refreshCB()
+
