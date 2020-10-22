@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog
 
 def ask_confirm(text):
     def decorator_confirm(func):
-        #@functools.wraps(func)
+        @functools.wraps(func)
         def wrapper(obj, *args, **kwargs):
             if obj._confirm(text):
                 func(obj, *args, **kwargs)
@@ -24,7 +24,13 @@ def ask_confirm(text):
 
 class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
-    autosegment_triggered = pyqtSignal()
+    do_autosegment = pyqtSignal()
+    contour_optimize = pyqtSignal()
+    contour_simplify = pyqtSignal()
+    contour_propagate_fw = pyqtSignal()
+    contour_propagate_bw = pyqtSignal()
+    calculate_transforms = pyqtSignal()
+
     roi_added = pyqtSignal(str)
     roi_deleted = pyqtSignal(str)
     subroi_added = pyqtSignal(int)
@@ -40,7 +46,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     ADD_STATE=1
     REMOVE_STATE=2
 
-    def __init__(self):
+    def __init__(self, activate_registration=True):
         super(ToolboxWindow, self).__init__()
         self.setupUi(self)
         self.setWindowFlag(Qt.WindowCloseButtonHint, False)
@@ -71,6 +77,24 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.undoButton.clicked.connect(self.undo.emit)
         self.redoButton.clicked.connect(self.redo.emit)
+
+        self.optimizeButton.clicked.connect(self.contour_optimize.emit)
+        self.simplifyButton.clicked.connect(self.contour_simplify.emit)
+
+        self.calcTransformsButton.clicked.connect(self.do_registration)
+        self.propagateForwardButton.clicked.connect(self.contour_propagate_fw.emit)
+        self.propagateBackButton.clicked.connect(self.contour_propagate_bw.emit)
+
+        if not activate_registration:
+            self.registrationGroup.setVisible(False)
+
+    @pyqtSlot(bool)
+    def undoEnable(self, enable):
+        self.undoButton.setEnabled(enable)
+
+    @pyqtSlot(bool)
+    def redoEnable(self, enable):
+        self.redoButton.setEnabled(enable)
 
     def _confirm(self, text):
         w = QMessageBox.warning(self, "Warning", text, QMessageBox.Ok | QMessageBox.Cancel)
@@ -235,4 +259,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @pyqtSlot(name="on_do_segmentation")
     @ask_confirm("This might replace the existing segmentation")
     def on_do_segmentation(self, *args, **kwargs):
-        self.autosegment_triggered.emit()
+        self.do_autosegment.emit()
+
+    @pyqtSlot()
+    @ask_confirm("This will calculate nonrigid transformations for all slices. It will take a few minutes")
+    def do_registration(self):
+        self.do_registration.emit()

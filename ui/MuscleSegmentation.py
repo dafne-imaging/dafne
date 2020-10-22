@@ -33,7 +33,11 @@ import os.path
 from collections import deque
 import functools
 
-# import SimpleITK as sitk
+try:
+    import SimpleITK as sitk # this requires simpleelastix! It is NOT available through PIP
+except:
+    pass
+
 import re
 
 import subprocess
@@ -101,10 +105,11 @@ def snapshotSaver(func):
     def wrapper(self, *args, **kwargs):
         self.saveSnapshot()
         func(self, *args, **kwargs)
+
     return wrapper
 
-class MuscleSegmentation(ImageShow, QObject):
 
+class MuscleSegmentation(ImageShow, QObject):
     undo_possible = pyqtSignal(bool)
     redo_possible = pyqtSignal(bool)
 
@@ -112,7 +117,7 @@ class MuscleSegmentation(ImageShow, QObject):
         ImageShow.__init__(self, *args, **kwargs)
         QObject.__init__(self)
         self.fig.canvas.mpl_connect('close_event', self.closeCB)
-        #self.instructions = "Shift+click: add point, Shift+dblclick: optimize/simplify, Ctrl+click: remove point, Ctrl+dblclick: delete ROI, n: propagate fw, b: propagate back"
+        # self.instructions = "Shift+click: add point, Shift+dblclick: optimize/simplify, Ctrl+click: remove point, Ctrl+dblclick: delete ROI, n: propagate fw, b: propagate back"
         self.setupToolbar()
         self.roiStack = None
         self.transforms = {}
@@ -148,7 +153,16 @@ class MuscleSegmentation(ImageShow, QObject):
         self.currentHistoryPoint = 0
 
     def setupToolbar(self):
-        self.toolbox_window = ToolboxWindow()
+
+        try:
+            sitk,Elastix
+            showRegistrationGui = True
+        except:
+            print("Elastix is not available")
+            showRegistrationGui = False
+
+
+        self.toolbox_window = ToolboxWindow(activate_registration=showRegistrationGui)
         self.toolbox_window.show()
 
         self.toolbox_window.roi_added.connect(self.addRoi)
@@ -161,12 +175,19 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.toolbox_window.roi_clear.connect(self.clearCurrentROI)
 
-        self.toolbox_window.autosegment_triggered.connect(self.doSegmentation)
+        self.toolbox_window.do_autosegment.connect(self.doSegmentation)
 
         self.toolbox_window.undo.connect(self.undo)
         self.toolbox_window.redo.connect(self.redo)
-        self.undo_possible.connect(self.toolbox_window.undoButton.setEnabled)
-        self.redo_possible.connect(self.toolbox_window.redoButton.setEnabled)
+        self.undo_possible.connect(self.toolbox_window.undoEnable)
+        self.redo_possible.connect(self.toolbox_window.redoEnable)
+
+        self.toolbox_window.contour_simplify.connect(self.simplify)
+        self.toolbox_window.contour_optimize.connect(self.optimize)
+
+        self.toolbox_window.calculate_transforms.connect(self.calcTransforms)
+        self.toolbox_window.contour_propagate_fw.connect(self.propagate)
+        self.toolbox_window.contour_propagate_bw.connect(self.propagateBack)
 
         # tb = self.fig.canvas.toolbar
         # tb.addSeparator()
@@ -228,7 +249,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.redo_possible.emit(self.canRedo())
 
     def canUndo(self):
-        return self.currentHistoryPoint < len(self.history)-1
+        return self.currentHistoryPoint < len(self.history) - 1
 
     def canRedo(self):
         return self.currentHistoryPoint > 0
@@ -253,10 +274,9 @@ class MuscleSegmentation(ImageShow, QObject):
     def undo(self):
         if not self.canUndo(): return
         if self.currentHistoryPoint == 0:
-            self.saveSnapshot() # push current status into the history for redo
+            self.saveSnapshot()  # push current status into the history for redo
         self.currentHistoryPoint += 1
         self._changeHistory()
-
 
     @pyqtSlot()
     def redo(self):
@@ -264,7 +284,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.currentHistoryPoint -= 1
         self._changeHistory()
         if self.currentHistoryPoint == 0:
-            self.history.popleft() # remove current status from the history
+            self.history.popleft()  # remove current status from the history
 
     def clearAllROIs(self):
         for _, imageRoiDict in self.allROIs.items():
@@ -288,15 +308,14 @@ class MuscleSegmentation(ImageShow, QObject):
         self.updateRoiList()
         self.refreshCB()
 
-
     def updateRoiList(self):
         roiDict = {}
         imageN = int(self.curImage)
-        #print(self.allROIs)
+        # print(self.allROIs)
         for roiName, imageSubroiList in self.allROIs.items():
             if imageN not in imageSubroiList or len(imageSubroiList[imageN]) == 0:
                 self.addSubRoi(roiName, imageN)
-            roiDict[roiName] = len(imageSubroiList[imageN]) # dict: roiname -> n subrois per slice
+            roiDict[roiName] = len(imageSubroiList[imageN])  # dict: roiname -> n subrois per slice
         self.toolbox_window.set_rois_list(roiDict)
 
     @pyqtSlot(str)
@@ -304,7 +323,7 @@ class MuscleSegmentation(ImageShow, QObject):
     def removeRoi(self, roi_name):
         print("RemoveRoi")
         print(self.allROIs)
-        for sliceN,subRoisForSlice in self.allROIs[roi_name].items():
+        for sliceN, subRoisForSlice in self.allROIs[roi_name].items():
             for roi in subRoisForSlice:
                 roi.remove()
         del self.allROIs[roi_name]
@@ -329,14 +348,14 @@ class MuscleSegmentation(ImageShow, QObject):
     def addRoi(self, roiName):
         if roiName not in self.allROIs:
             self.allROIs[roiName] = {}
-            self.addSubRoi(roiName) # add one default subroi
+            self.addSubRoi(roiName)  # add one default subroi
         else:
             self.toolbox_window.set_current_roi(roiName, 0)
             self.refreshCB()
 
     @pyqtSlot()
     @snapshotSaver
-    def addSubRoi(self, roi_name = None, imageN = None):
+    def addSubRoi(self, roi_name=None, imageN=None):
         if not roi_name:
             roi_name, _ = self.toolbox_window.get_current_roi_subroi()
         if imageN is None:
@@ -488,7 +507,7 @@ class MuscleSegmentation(ImageShow, QObject):
             slope = (nextKnot[1] - prevKnot[1]) / (nextKnot[0] - prevKnot[0])
             slope_perpendicular = -1 / slope
             x_dist = np.sqrt(optim_region / (
-                        slope_perpendicular ** 2 + 1))  # solving the system (y1-y0) = m(x1-x0) and (y1-y0)^2 + (x1-x0)^2 = d
+                    slope_perpendicular ** 2 + 1))  # solving the system (y1-y0) = m(x1-x0) and (y1-y0)^2 + (x1-x0)^2 = d
 
             # define inside*outside perimeter. Check line intersection. Is this happening on the right or on the left of the point? Right: go from high x to low x
             # x_intersection = (slope_perpendicular*knot[0] - knot[1] - slope*prevKnot[0] + prevKnot[1])/(slope_perpendicular-slope)
@@ -551,7 +570,7 @@ class MuscleSegmentation(ImageShow, QObject):
             slope = (nextKnot[1] - prevKnot[1]) / (nextKnot[0] - prevKnot[0])
             slope_perpendicular = -1 / slope
             x_dist = np.sqrt(optim_region / (
-                        slope_perpendicular ** 2 + 1))  # solving the system (y1-y0) = m(x1-x0) and (y1-y0)^2 + (x1-x0)^2 = d
+                    slope_perpendicular ** 2 + 1))  # solving the system (y1-y0) = m(x1-x0) and (y1-y0)^2 + (x1-x0)^2 = d
 
             # this point is just on the right of our knot.
             test_point_x = knot[0] + 1
@@ -774,7 +793,6 @@ class MuscleSegmentation(ImageShow, QObject):
         # self.refreshCB()
         self.redraw()
 
-
     def leftPressCB(self, event):
         if not self.imPlot.contains(event):
             print("Event outside")
@@ -821,7 +839,7 @@ class MuscleSegmentation(ImageShow, QObject):
     def getCurrentSubroiNumber(self):
         return self.toolbox_window.get_current_roi_subroi()[1]
 
-    def _getSetCurrentROI(self, offset=0, newROI = None):
+    def _getSetCurrentROI(self, offset=0, newROI=None):
         if not self.getCurrentROIName():
             return None
 
@@ -924,14 +942,14 @@ class MuscleSegmentation(ImageShow, QObject):
         if self.transformsChanged: self.pickleTransforms()
         self.saveROIPickle()
 
-    def saveROIPickle(self, roiPickleName = None):
+    def saveROIPickle(self, roiPickleName=None):
         if not roiPickleName:
             roiPickleName = os.path.join(self.basepath, ROI_FILENAME)
         print("Saving ROIs", roiPickleName)
         if self.allROIs:  # make sure ROIs are not empty
             pickle.dump(self.allROIs, open(roiPickleName, 'wb'))
 
-    def loadROIPickle(self, roiPickleName = None):
+    def loadROIPickle(self, roiPickleName=None):
         if not roiPickleName:
             roiPickleName = os.path.join(self.basepath, ROI_FILENAME)
         print("Loading ROIs", roiPickleName)
@@ -946,9 +964,9 @@ class MuscleSegmentation(ImageShow, QObject):
             return
 
         try:
-            #print(self.allROIs)
+            # print(self.allROIs)
             sliceSubRoiDict = list(self.allROIs.values())[0]
-            assert type( list( sliceSubRoiDict.values() ) [0] ) == list
+            assert type(list(sliceSubRoiDict.values())[0]) == list
         except:
             print("Unrecognized saved ROI type")
             self.allROIs = {}
@@ -975,7 +993,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.classifications.append(class_str)
 
     def saveResults(self):
-        #TODO: calculate dice score of auto segmentation
+        # TODO: calculate dice score of auto segmentation
         print("Saving results...")
         if not self.basepath: return
         roiBasePath = os.path.join(self.basepath, 'roi')
@@ -1048,7 +1066,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.invtransforms[k] = tuple(curTransformList)
 
     def keyPressCB(self, event):
-        #print(event.key)
+        # print(event.key)
         if 'shift' in event.key:
             self.toolbox_window.set_temp_knot_button_state(ToolboxWindow.ADD_STATE)
         elif 'control' in event.key or 'cmd' in event.key or 'super' in event.key or 'ctrl' in event.key:
@@ -1074,10 +1092,10 @@ class MuscleSegmentation(ImageShow, QObject):
     def setAvailableClasses(self, classList):
         self.toolbox_window.set_available_classes(classList)
 
-    def displayImage(self, im, cmap = None):
+    def displayImage(self, im, cmap=None):
         ImageShow.displayImage(self, im, cmap)
-        self.updateRoiList() # set the appropriate (sub)roi list for the current image
-        self.toolbox_window.set_class(self.classifications[int(self.curImage)]) # update the classification combo
+        self.updateRoiList()  # set the appropriate (sub)roi list for the current image
+        self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
 
     @pyqtSlot(str)
     def changeClassification(self, newClass):
@@ -1101,13 +1119,12 @@ class MuscleSegmentation(ImageShow, QObject):
         masks_out = segmenter(inputData)
         print("Done")
         for name, mask in masks_out.items():
-            splineInterpList = SplineInterpROIClass.FromMask(mask) # run mask tracing
+            splineInterpList = SplineInterpROIClass.FromMask(mask)  # run mask tracing
             nContours = len(splineInterpList)
             if name not in self.allROIs:
                 self.allROIs[name] = {}
             self.clearSubrois(name, imIndex)
             self.allROIs[name][imIndex] = splineInterpList
-        print("Segmentation time:", time.time() -t)
+        print("Segmentation time:", time.time() - t)
         self.updateRoiList()
         self.refreshCB()
-
