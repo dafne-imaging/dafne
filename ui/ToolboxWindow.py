@@ -33,6 +33,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     roi_clear = pyqtSignal()
     classification_changed = pyqtSignal(str)
 
+    undo = pyqtSignal()
+    redo = pyqtSignal()
+
     NO_STATE=0
     ADD_STATE=1
     REMOVE_STATE=2
@@ -65,6 +68,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.classification_combo.currentTextChanged.connect(self.on_classification_changed)
         self.autosegment_button.clicked.connect(self.on_do_segmentation)
+
+        self.undoButton.clicked.connect(self.undo.emit)
+        self.redoButton.clicked.connect(self.redo.emit)
 
     def _confirm(self, text):
         w = QMessageBox.warning(self, "Warning", text, QMessageBox.Ok | QMessageBox.Cancel)
@@ -144,6 +150,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.roi_remove_button.setEnabled(False)
             self.subroi_remove_button.setEnabled(False)
             self.subroi_add_button.setEnabled(False)
+            self.subroi_combo.setCurrentText("")
             self.valid_roi_selected = False
             return
         else:
@@ -151,6 +158,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.subroi_combo.setEnabled(True)
             self.roi_remove_button.setEnabled(True)
             self.subroi_remove_button.setEnabled(True)
+            self.subroi_add_button.setEnabled(True)
 
         self.suppress_roi_change_emit = True
 
@@ -171,10 +179,10 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def repopulate_subrois(self, current_subroi_number = 0):
         # populate subroi combo
         try:
-            n_subrois = len(self.all_rois[self.current_roi])
+            n_subrois = self.all_rois[self.current_roi]
         except:
             return
-        print("N_Subrois:", n_subrois)
+        #print("N_Subrois:", n_subrois)
         if n_subrois > current_subroi_number >= 0:
             self.current_subroi = current_subroi_number
         else:
@@ -200,7 +208,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.roi_deleted.emit(self.current_roi)
 
     @pyqtSlot(name="delete_subroi")
-    @ask_confirm("This will delete the sub-ROI in all slices!")
+    @ask_confirm("This will delete the sub-ROI in the current slice!")
     def delete_subroi(self, *args, **kwargs):
         self.subroi_deleted.emit(self.current_subroi)
 

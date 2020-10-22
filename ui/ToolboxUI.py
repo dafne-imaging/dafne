@@ -13,7 +13,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_SegmentationToolbox(object):
     def setupUi(self, SegmentationToolbox):
         SegmentationToolbox.setObjectName("SegmentationToolbox")
-        SegmentationToolbox.resize(256, 479)
+        SegmentationToolbox.resize(256, 629)
         self.centralwidget = QtWidgets.QWidget(SegmentationToolbox)
         self.centralwidget.setObjectName("centralwidget")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.centralwidget)
@@ -21,6 +21,19 @@ class Ui_SegmentationToolbox(object):
         self.classification_combo = QtWidgets.QComboBox(self.centralwidget)
         self.classification_combo.setObjectName("classification_combo")
         self.verticalLayout.addWidget(self.classification_combo)
+        self.groupBox = QtWidgets.QGroupBox(self.centralwidget)
+        self.groupBox.setObjectName("groupBox")
+        self.horizontalLayout_3 = QtWidgets.QHBoxLayout(self.groupBox)
+        self.horizontalLayout_3.setObjectName("horizontalLayout_3")
+        self.undoButton = QtWidgets.QPushButton(self.groupBox)
+        self.undoButton.setEnabled(False)
+        self.undoButton.setObjectName("undoButton")
+        self.horizontalLayout_3.addWidget(self.undoButton)
+        self.redoButton = QtWidgets.QPushButton(self.groupBox)
+        self.redoButton.setEnabled(False)
+        self.redoButton.setObjectName("redoButton")
+        self.horizontalLayout_3.addWidget(self.redoButton)
+        self.verticalLayout.addWidget(self.groupBox)
         self.ROI_group = QtWidgets.QGroupBox(self.centralwidget)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
         sizePolicy.setHorizontalStretch(0)
@@ -128,6 +141,9 @@ class Ui_SegmentationToolbox(object):
     def retranslateUi(self, SegmentationToolbox):
         _translate = QtCore.QCoreApplication.translate
         SegmentationToolbox.setWindowTitle(_translate("SegmentationToolbox", "MainWindow"))
+        self.groupBox.setTitle(_translate("SegmentationToolbox", "History"))
+        self.undoButton.setText(_translate("SegmentationToolbox", "Undo"))
+        self.redoButton.setText(_translate("SegmentationToolbox", "Redo"))
         self.ROI_group.setTitle(_translate("SegmentationToolbox", "ROI"))
         self.roi_add_button.setText(_translate("SegmentationToolbox", "+"))
         self.roi_remove_button.setText(_translate("SegmentationToolbox", "-"))

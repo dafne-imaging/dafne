@@ -348,6 +348,7 @@ class ImageShow:
                 if ext.lower() in dicom_ext:
                     self.appendImage(basepath + os.path.sep + f)
         if len(self.imList) > 0:
+            self.curImage = 0
             self.displayImage(int(0))
                 
                 
