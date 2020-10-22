@@ -143,6 +143,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.subroi_combo.setEnabled(False)
             self.roi_remove_button.setEnabled(False)
             self.subroi_remove_button.setEnabled(False)
+            self.subroi_add_button.setEnabled(False)
             self.valid_roi_selected = False
             return
         else:
