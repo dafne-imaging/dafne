@@ -6,3 +6,4 @@ nibabel
 pydicom
 pypotrace
 dill
+progress
