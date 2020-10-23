@@ -45,6 +45,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     roi_import = pyqtSignal(str)
     roi_export = pyqtSignal(str)
 
+    masks_export = pyqtSignal(str, str)
+
     data_open = pyqtSignal(str)
 
     NO_STATE=0
@@ -97,6 +99,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionExport_ROIs.triggered.connect(self.exportROI_clicked)
 
         self.actionLoad_data.triggered.connect(self.loadData_clicked)
+
+        self.actionSave_as_Dicom.triggered.connect(lambda: self.export_masks_dir('dicom'))
+        self.actionSaveNPY.triggered.connect(lambda: self.export_masks_dir('npy'))
+        self.actionSave_as_Nifti.triggered.connect(lambda: self.export_masks_dir('nifti'))
+        self.actionSaveNPZ.triggered.connect(self.export_masks_npz)
 
     @pyqtSlot(bool)
     def undoEnable(self, enable):
@@ -297,5 +304,18 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     def set_exports_enabled(self, numpy=True, dicom=True, nifti=True):
         self.actionSave_as_Dicom.setEnabled(dicom)
-        self.actionSave_as_Numpy.setEnabled(numpy)
+        self.menuSave_as_Numpy.setEnabled(numpy)
         self.actionSave_as_Nifti.setEnabled(nifti)
+
+    @pyqtSlot(str)
+    def export_masks_dir(self, output_type):
+        dir_out = QFileDialog.getExistingDirectory(self, caption=f'Select directory to export as {output_type}')
+        if dir_out:
+            self.masks_export.emit(dir_out, output_type)
+
+    @pyqtSlot()
+    def export_masks_npz(self):
+        file_out = QFileDialog.getSaveFileName(self, caption='Select npz file to export',
+                                               filter='Numpy array archive (*.npz);;All files (*.*)')
+        if file_out:
+            self.masks_export.emit(file_out, 'npz')

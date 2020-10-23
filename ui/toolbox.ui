@@ -272,7 +272,14 @@
      <property name="title">
       <string>Save masks...</string>
      </property>
-     <addaction name="actionSave_as_Numpy"/>
+     <widget class="QMenu" name="menuSave_as_Numpy">
+      <property name="title">
+       <string>Save as Numpy...</string>
+      </property>
+      <addaction name="actionSaveNPZ"/>
+      <addaction name="actionSaveNPY"/>
+     </widget>
+     <addaction name="menuSave_as_Numpy"/>
      <addaction name="actionSave_as_Dicom"/>
      <addaction name="actionSave_as_Nifti"/>
     </widget>
@@ -302,11 +309,6 @@
     <string>Import masks...</string>
    </property>
   </action>
-  <action name="actionSave_as_Numpy">
-   <property name="text">
-    <string>Save as Numpy...</string>
-   </property>
-  </action>
   <action name="actionSave_as_Dicom">
    <property name="text">
     <string>Save as Dicom...</string>
@@ -320,6 +322,16 @@
   <action name="actionLoad_data">
    <property name="text">
     <string>Load data...</string>
+   </property>
+  </action>
+  <action name="actionSaveNPZ">
+   <property name="text">
+    <string>Single file</string>
+   </property>
+  </action>
+  <action name="actionSaveNPY">
+   <property name="text">
+    <string>Multiple files</string>
    </property>
   </action>
  </widget>

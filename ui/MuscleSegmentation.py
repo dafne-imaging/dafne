@@ -18,6 +18,7 @@ sys.path.append(os.path.normpath(SCRIPT_DIR))
 from ui.pySplineInterp import SplineInterpROIClass
 from ui.ToolboxWindow import ToolboxWindow
 from .pyDicomView import ImageShow
+from utils.mask_utils import calc_dice_score, save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks
 import matplotlib.pyplot as plt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -146,6 +147,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.history = deque(maxlen=HISTORY_LENGTH)
         self.currentHistoryPoint = 0
 
+        self.originalSegmentationMasks = {}
+
     def getRoiFileName(self):
         if self.basename:
             roi_fname = self.basename + '.' + ROI_FILENAME
@@ -194,6 +197,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.roi_export.connect(self.saveROIPickle)
 
         self.toolbox_window.data_open.connect(self.loadDirectory)
+
+        self.toolbox_window.masks_export.connect(self.saveResults)
 
         # tb = self.fig.canvas.toolbar
         # tb.addSeparator()
@@ -986,6 +991,7 @@ class MuscleSegmentation(ImageShow, QObject):
     @pyqtSlot(str)
     def loadDirectory(self, path):
         self.imList = []
+        self.originalSegmentationMasks = []
         ImageShow.loadDirectory(self, path)
         roi_bak_name = self.getRoiFileName() + '.' + datetime.now().strftime('%Y%m%d%H%M%S')
         try:
@@ -1009,34 +1015,50 @@ class MuscleSegmentation(ImageShow, QObject):
         print("Classification", class_str)
         self.classifications.append(class_str)
 
-    def saveResults(self):
-        # TODO: calculate dice score of auto segmentation
+    @pyqtSlot(str, str)
+    def saveResults(self, pathOut: str, outputType: str):
+        # outputType is 'dicom', 'npy', 'npz', 'nifti'
         print("Saving results...")
-        if not self.basepath: return
-        roiBasePath = os.path.join(self.basepath, 'roi')
         imSize = self.image.shape
 
-        if self.saveDicom:
-            _, infoStack = load3dDicom(self.basepath)
+        allMasks = {}
+        diceScores = []
 
         for roiName, imageRoiDict in self.allROIs.items():
             masklist = []
             for imageIndex in range(len(self.imList)):
                 roi = np.zeros(imSize)
-                if imageIndex not in imageRoiDict: continue
-                for subRoi in imageRoiDict[imageIndex]:
-                    try:
-                        roi = np.logical_xor(roi, subRoi.toMask(imSize, False))
-                        # plt.figure()
-                        # plt.imshow(roi)
-                    except:
-                        pass
+                if imageIndex in imageRoiDict:
+                    for subRoi in imageRoiDict[imageIndex]:
+                        try:
+                            roi = np.logical_xor(roi, subRoi.toMask(imSize, False))
+                            # plt.figure()
+                            # plt.imshow(roi)
+                        except:
+                            pass
                 masklist.append(roi)
+                try:
+                    originalSegmentation = self.originalSegmentationMasks[imageIndex][roiName]
+                except:
+                    originalSegmentation = None
+
+                if originalSegmentation:
+                    diceScores.append(calc_dice_score(originalSegmentation, roi))
+
             print("Saving %s..." % (roiName))
             npMask = np.transpose(np.stack(masklist), [1, 2, 0])
-            np.save("%s_%s.npy" % (roiBasePath, roiName), npMask)
-            if self.saveDicom:
-                save3dDicom(npMask, infoStack, os.path.join(self.basepath, "roi_ " + roiName))
+            allMasks[roiName] = npMask
+
+        print("Average Dice score", np.array(diceScores).mean())
+
+        if outputType == 'dicom':
+            save_dicom_masks(pathOut, allMasks, self.dicomHeaderList)
+        elif outputType == 'nifti':
+            save_nifti_masks(pathOut, allMasks, self.affine)
+        elif outputType == 'npy':
+            save_npy_masks(pathOut, allMasks)
+        else: # assume the most generic outputType == 'npz':
+            save_npz_masks(pathOut, allMasks)
 
     def pickleTransforms(self):
         if not self.basepath: return
@@ -1118,13 +1140,25 @@ class MuscleSegmentation(ImageShow, QObject):
     def changeClassification(self, newClass):
         self.classifications[int(self.curImage)] = newClass
 
+    # convert a single slice to ROIs
+    def maskToRois2D(self, name, mask, imIndex, refresh = True):
+        splineInterpList = SplineInterpROIClass.FromMask(mask)  # run mask tracing
+        if name not in self.allROIs:
+            self.allROIs[name] = {}
+        self.clearSubrois(name, imIndex)
+        self.allROIs[name][imIndex] = splineInterpList
+        if refresh:
+            self.updateRoiList()
+            self.refreshCB()
+
+    # convert a 2D mask or a 3D dataset to rois
     def masksToRois(self, maskDict, imIndex):
         for name, mask in maskDict.items():
-            splineInterpList = SplineInterpROIClass.FromMask(mask)  # run mask tracing
-            if name not in self.allROIs:
-                self.allROIs[name] = {}
-            self.clearSubrois(name, imIndex)
-            self.allROIs[name][imIndex] = splineInterpList
+            if len(mask.shape) > 2: # multislice
+                for sl in range(mask.shape[3]):
+                    self.maskToRois2D(name, mask[:,:,sl], sl, False)
+            else:
+                self.maskToRois2D(name, mask, imIndex, False)
         self.updateRoiList()
         self.refreshCB()
 
@@ -1144,6 +1178,7 @@ class MuscleSegmentation(ImageShow, QObject):
         inputData = {'image': self.imList[imIndex], 'resolution': self.resolution[0:2]}
         print("Segmenting image...")
         masks_out = segmenter(inputData)
+        self.originalSegmentationMasks[imIndex] = masks_out # save original segmentation for statistics
         print("Done")
         self.masksToRois(masks_out, imIndex)
         print("Segmentation/import time:", time.time() - t)
