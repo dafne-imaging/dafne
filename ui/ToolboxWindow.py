@@ -9,7 +9,7 @@ import functools
 
 from ui.ToolboxUI import Ui_SegmentationToolbox
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt
-from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog
+from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog
 
 
 def ask_confirm(text):
@@ -41,6 +41,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     undo = pyqtSignal()
     redo = pyqtSignal()
+
+    roi_import = pyqtSignal(str)
+    roi_export = pyqtSignal(str)
+
+    data_open = pyqtSignal(str)
 
     NO_STATE=0
     ADD_STATE=1
@@ -87,6 +92,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         if not activate_registration:
             self.registrationGroup.setVisible(False)
+
+        self.actionImport_ROIs.triggered.connect(self.importROI_clicked)
+        self.actionExport_ROIs.triggered.connect(self.exportROI_clicked)
+
+        self.actionLoad_data.triggered.connect(self.loadData_clicked)
 
     @pyqtSlot(bool)
     def undoEnable(self, enable):
@@ -265,3 +275,27 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @ask_confirm("This will calculate nonrigid transformations for all slices. It will take a few minutes")
     def do_registration(self):
         self.do_registration.emit()
+
+    @pyqtSlot()
+    def loadData_clicked(self):
+        dataFile = QFileDialog.getOpenFileName(self, caption='Select dataset to import', filter='Image files (*.dcm *.ima *.nii *.nii.gz *.npy);;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;All files (*.*)')[0]
+        if dataFile:
+            self.data_open.emit(dataFile)
+
+    @pyqtSlot()
+    def importROI_clicked(self):
+        roiFile = QFileDialog.getOpenFileName(self, caption='Select ROI file to import', filter='ROI Pickle files (*.p);;All files (*.*)')[0]
+        if roiFile:
+            self.roi_import.emit(roiFile)
+
+    @pyqtSlot()
+    def exportROI_clicked(self):
+        roiFile = QFileDialog.getSaveFileName(self, caption='Select ROI file to export',
+                                              filter='ROI Pickle files (*.p);;All files (*.*)')[0]
+        if roiFile:
+            self.roi_export.emit(roiFile)
+
+    def set_exports_enabled(self, numpy=True, dicom=True, nifti=True):
+        self.actionSave_as_Dicom.setEnabled(dicom)
+        self.actionSave_as_Numpy.setEnabled(numpy)
+        self.actionSave_as_Nifti.setEnabled(nifti)

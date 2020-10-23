@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>271</width>
-    <height>722</height>
+    <width>267</width>
+    <height>735</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -260,7 +260,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>271</width>
+     <width>267</width>
      <height>28</height>
     </rect>
    </property>
@@ -268,26 +268,31 @@
     <property name="title">
      <string>File...</string>
     </property>
+    <widget class="QMenu" name="menuSave_masks">
+     <property name="title">
+      <string>Save masks...</string>
+     </property>
+     <addaction name="actionSave_as_Numpy"/>
+     <addaction name="actionSave_as_Dicom"/>
+     <addaction name="actionSave_as_Nifti"/>
+    </widget>
+    <addaction name="actionLoad_data"/>
+    <addaction name="separator"/>
     <addaction name="actionImport_ROIs"/>
-    <addaction name="actionExport_ROI_file"/>
+    <addaction name="actionExport_ROIs"/>
     <addaction name="separator"/>
     <addaction name="actionImport_masks"/>
-    <addaction name="actionSave_masks"/>
+    <addaction name="menuSave_masks"/>
    </widget>
    <addaction name="menuFile"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
-  <action name="actionSave_masks">
-   <property name="text">
-    <string>Save masks...</string>
-   </property>
-  </action>
   <action name="actionImport_ROIs">
    <property name="text">
     <string>Import ROI file...</string>
    </property>
   </action>
-  <action name="actionExport_ROI_file">
+  <action name="actionExport_ROIs">
    <property name="text">
     <string>Export ROI file...</string>
    </property>
@@ -295,6 +300,26 @@
   <action name="actionImport_masks">
    <property name="text">
     <string>Import masks...</string>
+   </property>
+  </action>
+  <action name="actionSave_as_Numpy">
+   <property name="text">
+    <string>Save as Numpy...</string>
+   </property>
+  </action>
+  <action name="actionSave_as_Dicom">
+   <property name="text">
+    <string>Save as Dicom...</string>
+   </property>
+  </action>
+  <action name="actionSave_as_Nifti">
+   <property name="text">
+    <string>Save as Nifti...</string>
+   </property>
+  </action>
+  <action name="actionLoad_data">
+   <property name="text">
+    <string>Load data...</string>
    </property>
   </action>
  </widget>

@@ -141,16 +141,17 @@ class MuscleSegmentation(ImageShow, QObject):
         self.extraOutputParams = []
         self.transformsChanged = False
 
-        roi_bak_name = ROI_FILENAME + '.' + datetime.now().strftime('%Y%m%d%H%M%S')
-        try:
-            shutil.copyfile(ROI_FILENAME, roi_bak_name)
-        except:
-            print("Warning: cannot copy roi file")
-
         self.lastsave = datetime.now()
         self.hideRois = False
         self.history = deque(maxlen=HISTORY_LENGTH)
         self.currentHistoryPoint = 0
+
+    def getRoiFileName(self):
+        if self.basename:
+            roi_fname = self.basename + '.' + ROI_FILENAME
+        else:
+            roi_fname = ROI_FILENAME
+        return os.path.join(self.basepath, roi_fname)
 
     def setupToolbar(self):
 
@@ -188,6 +189,11 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.calculate_transforms.connect(self.calcTransforms)
         self.toolbox_window.contour_propagate_fw.connect(self.propagate)
         self.toolbox_window.contour_propagate_bw.connect(self.propagateBack)
+
+        self.toolbox_window.roi_import.connect(self.loadROIPickle)
+        self.toolbox_window.roi_export.connect(self.saveROIPickle)
+
+        self.toolbox_window.data_open.connect(self.loadDirectory)
 
         # tb = self.fig.canvas.toolbar
         # tb.addSeparator()
@@ -898,7 +904,6 @@ class MuscleSegmentation(ImageShow, QObject):
         self.redraw()
 
     def refreshCB(self):
-
         # check if ROIs should be autosaved
         now = datetime.now()
         if (now - self.lastsave).total_seconds() > AUTOSAVE_INTERVAL:
@@ -942,46 +947,58 @@ class MuscleSegmentation(ImageShow, QObject):
         if self.transformsChanged: self.pickleTransforms()
         self.saveROIPickle()
 
+    @pyqtSlot(str)
     def saveROIPickle(self, roiPickleName=None):
         if not roiPickleName:
-            roiPickleName = os.path.join(self.basepath, ROI_FILENAME)
+            roiPickleName = self.getRoiFileName()
         print("Saving ROIs", roiPickleName)
         if self.allROIs:  # make sure ROIs are not empty
             pickle.dump(self.allROIs, open(roiPickleName, 'wb'))
 
+    @pyqtSlot(str)
     def loadROIPickle(self, roiPickleName=None):
         if not roiPickleName:
-            roiPickleName = os.path.join(self.basepath, ROI_FILENAME)
+            roiPickleName = self.getRoiFileName()
         print("Loading ROIs", roiPickleName)
-        self.clearAllROIs()
         try:
-            self.allROIs = pickle.load(open(roiPickleName, 'rb'))
+            allROIs = pickle.load(open(roiPickleName, 'rb'))
         except UnicodeDecodeError:
             print('Warning: Unicode decode error')
-            self.allROIs = pickle.load(open(roiPickleName, 'rb'), encoding='latin1')
+            allROIs = pickle.load(open(roiPickleName, 'rb'), encoding='latin1')
         except:
             print("Unspecified error")
             return
 
         try:
             # print(self.allROIs)
-            sliceSubRoiDict = list(self.allROIs.values())[0]
+            sliceSubRoiDict = list(allROIs.values())[0]
             assert type(list(sliceSubRoiDict.values())[0]) == list
         except:
             print("Unrecognized saved ROI type")
-            self.allROIs = {}
+            return
 
         print('Rois loaded')
+        self.clearAllROIs()
+        self.allROIs = allROIs
         print(self.allROIs)
-
         self.updateRoiList()
 
+    @pyqtSlot(str)
     def loadDirectory(self, path):
         self.imList = []
         ImageShow.loadDirectory(self, path)
+        roi_bak_name = self.getRoiFileName() + '.' + datetime.now().strftime('%Y%m%d%H%M%S')
+        try:
+            shutil.copyfile(self.getRoiFileName(), roi_bak_name)
+        except:
+            print("Warning: cannot copy roi file")
         self.unPickleTransforms()
         self.loadROIPickle()
         self.refreshCB()
+        self.toolbox_window.set_exports_enabled(numpy= True,
+                                                dicom= (self.dicomHeaderList is not None),
+                                                nifti= (self.affine is not None)
+                                                )
 
     def appendImage(self, im):
         ImageShow.appendImage(self, im)
@@ -1101,6 +1118,16 @@ class MuscleSegmentation(ImageShow, QObject):
     def changeClassification(self, newClass):
         self.classifications[int(self.curImage)] = newClass
 
+    def masksToRois(self, maskDict, imIndex):
+        for name, mask in maskDict.items():
+            splineInterpList = SplineInterpROIClass.FromMask(mask)  # run mask tracing
+            if name not in self.allROIs:
+                self.allROIs[name] = {}
+            self.clearSubrois(name, imIndex)
+            self.allROIs[name][imIndex] = splineInterpList
+        self.updateRoiList()
+        self.refreshCB()
+
     @pyqtSlot()
     @snapshotSaver
     def doSegmentation(self):
@@ -1118,13 +1145,5 @@ class MuscleSegmentation(ImageShow, QObject):
         print("Segmenting image...")
         masks_out = segmenter(inputData)
         print("Done")
-        for name, mask in masks_out.items():
-            splineInterpList = SplineInterpROIClass.FromMask(mask)  # run mask tracing
-            nContours = len(splineInterpList)
-            if name not in self.allROIs:
-                self.allROIs[name] = {}
-            self.clearSubrois(name, imIndex)
-            self.allROIs[name][imIndex] = splineInterpList
-        print("Segmentation time:", time.time() - t)
-        self.updateRoiList()
-        self.refreshCB()
+        self.masksToRois(masks_out, imIndex)
+        print("Segmentation/import time:", time.time() - t)

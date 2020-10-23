@@ -14,6 +14,7 @@ except:
 import numpy
 import os
 import sys
+from utils.dicomUtils.misc import create_affine
 
 DEFAULT_INTERPOLATION = 'spline36'
 INVERT_SCROLL = True
@@ -46,12 +47,15 @@ class ImageShow:
             
         # stack of images
         self.imList = []
+        self.dicomHeaderList = None
         self.curImage = None
         self.cmap = cmap
         self.isImageRGB = False
         self.basepath = ''
+        self.basename = ''
 
         self.resolution = [1,1,1]
+        self.affine = None
 
         # These methods can be defined in a subclass and called when some event occurs
         #self.leftPressCB = None
@@ -177,6 +181,14 @@ class ImageShow:
         self.mouseScrollCB(event)
         
     def btnPressCB(self, event):
+        try:
+            isCursorNormal = ( self.fig.canvas.cursor().shape() == 0 ) # if backend is qt, it gets the shape of the
+                # cursor. 0 is the arrow, which means we are not zooming or panning.
+        except:
+            isCursorNormal = True
+        if not isCursorNormal:
+            #print("Zooming or panning. Not processing clicks")
+            return
         if event.button == 1:
             try:
                 self.leftPressCB(event)
@@ -284,7 +296,15 @@ class ImageShow:
             ds.decompress()
             pixelData = ds.pixel_array.astype(numpy.float32)
 
-        self.resolution = [float(ds.PixelSpacing[0]), float(ds.PixelSpacing[1]), float(ds.SliceThickness)]
+        try:
+            slThickness = ds.SpacingBetweenSlices
+        except:
+            slThickness = ds.SliceThickness
+
+        ds.PixelData = ""
+        self.dicomHeaderList.append(ds)
+
+        self.resolution = [float(ds.PixelSpacing[0]), float(ds.PixelSpacing[1]), float(slThickness)]
         return pixelData
         
     # append one image to the internal list
@@ -307,14 +327,18 @@ class ImageShow:
             
     # load a whole directory of dicom files
     def loadDirectory(self, path):
+        self.imList = []
+        self.dicomHeaderList = None
+        self.affine = None
         dicom_ext = ['.dcm', '.ima']
         nii_ext = ['.nii', '.gz']
-        npy_ext = ['.npy', '.npz']
+        npy_ext = ['.npy']
         path = os.path.abspath(path)
         _, ext = os.path.splitext(path)
 
         basename = os.path.basename(path)
-        
+
+        self.basename = basename
         self.fig.canvas.set_window_title(basename)
 
         if ext.lower() in nii_ext:
@@ -329,6 +353,10 @@ class ImageShow:
             for sl in range(dataset.shape[2]):
                 self.appendImage(numpy.flipud(numpy.fliplr(dataset[:,:,sl].T)))
             self.basepath = os.path.dirname(path)
+            self.affine = niimage.affine
+            # because we flipped up-down and left-right
+            self.affine[0,0] = -self.affine[0,0]
+            self.affine[1,1] = -self.affine[1,1]
 
         elif ext.lower() in npy_ext:
             data = numpy.load(path).astype(numpy.float32)
@@ -340,13 +368,17 @@ class ImageShow:
             else: # dicom file is passed. load the containing directory
                 basepath = os.path.dirname(path)
                 self.fig.canvas.set_window_title(os.path.basename(basepath))
-                
+
+            self.basename = ''
             self.basepath = basepath
             for f in sorted(os.listdir(basepath)):
                 if os.path.basename(f).startswith('.'): continue
                 fname, ext = os.path.splitext(f)
                 if ext.lower() in dicom_ext:
+                    if self.dicomHeaderList is None: self.dicomHeaderList = []
                     self.appendImage(basepath + os.path.sep + f)
+            self.affine = create_affine(self.dicomHeaderList)
+            print(self.affine)
         if len(self.imList) > 0:
             self.curImage = 0
             self.displayImage(int(0))

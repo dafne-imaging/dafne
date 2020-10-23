@@ -7,3 +7,6 @@ Install dependencies for pypotrace
 
 
 # dafne
+
+# Acknowledgments
+Code for converting dicom to nifti is based on https://github.com/icometrix/dicom2nifti, copyright Icometrix, MIT License.
