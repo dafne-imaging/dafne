@@ -88,7 +88,7 @@ HIDE_ROIS_RIGHTCLICK = True
 
 COLORS = ['blue', 'red', 'green', 'yellow', 'magenta', 'cyan', 'indigo', 'white', 'grey']
 
-HISTORY_LENGTH = 100
+HISTORY_LENGTH = 20
 
 
 # define a circle with a contains method that for some reason does not work with conventional circles
@@ -252,6 +252,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def saveSnapshot(self):
         # clear history until the current point, so we can't redo anymore
+        print("Saving snapshot")
         while self.currentHistoryPoint > 0:
             self.history.popleft()
             self.currentHistoryPoint -= 1
@@ -991,7 +992,7 @@ class MuscleSegmentation(ImageShow, QObject):
     @pyqtSlot(str)
     def loadDirectory(self, path):
         self.imList = []
-        self.originalSegmentationMasks = []
+        self.originalSegmentationMasks = {}
         ImageShow.loadDirectory(self, path)
         roi_bak_name = self.getRoiFileName() + '.' + datetime.now().strftime('%Y%m%d%H%M%S')
         try:
@@ -1042,8 +1043,9 @@ class MuscleSegmentation(ImageShow, QObject):
                 except:
                     originalSegmentation = None
 
-                if originalSegmentation:
+                if originalSegmentation is not None:
                     diceScores.append(calc_dice_score(originalSegmentation, roi))
+                    print(diceScores)
 
             print("Saving %s..." % (roiName))
             npMask = np.transpose(np.stack(masklist), [1, 2, 0])
@@ -1054,7 +1056,7 @@ class MuscleSegmentation(ImageShow, QObject):
         if outputType == 'dicom':
             save_dicom_masks(pathOut, allMasks, self.dicomHeaderList)
         elif outputType == 'nifti':
-            save_nifti_masks(pathOut, allMasks, self.affine)
+            save_nifti_masks(pathOut, allMasks, self.affine, self.transpose)
         elif outputType == 'npy':
             save_npy_masks(pathOut, allMasks)
         else: # assume the most generic outputType == 'npz':

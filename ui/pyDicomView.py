@@ -11,10 +11,13 @@ try:
     import pydicom as dicom
 except:
     import dicom
-import numpy
+import numpy as np
 import os
 import sys
-from utils.dicomUtils.misc import create_affine
+try:
+    from utils.dicomUtils.misc import create_affine
+except:
+    from dicomUtils.misc import create_affine
 
 DEFAULT_INTERPOLATION = 'spline36'
 INVERT_SCROLL = True
@@ -22,7 +25,7 @@ INVERT_SCROLL = True
 class ImageShow:
     
     contrastWindow = None
-    channelBalance = numpy.array([1.0, 1.0, 1.0])
+    channelBalance = np.array([1.0, 1.0, 1.0])
     
     def __init__(self, im = None, axes = None, window=None, cmap=None):
         ImageShow.contrastWindow = window
@@ -56,6 +59,7 @@ class ImageShow:
 
         self.resolution = [1,1,1]
         self.affine = None
+        self.transpose = None
 
         # These methods can be defined in a subclass and called when some event occurs
         #self.leftPressCB = None
@@ -64,7 +68,7 @@ class ImageShow:
         #self.refreshCB = None
         
         if im is not None:
-            if type(im) is numpy.ndarray:
+            if type(im) is np.ndarray:
                 print("Display array")
                 self.loadNumpyArray(im)
             elif type(im) is str:
@@ -81,7 +85,7 @@ class ImageShow:
     
     def displayImageRGB(self):
         #print "Displaying image"
-        dispImage = numpy.copy(self.image)
+        dispImage = np.copy(self.image)
         dispImage[:,:,0] *= ImageShow.channelBalance[0]
         dispImage[:,:,1] *= ImageShow.channelBalance[1]
         dispImage[:,:,2] *= ImageShow.channelBalance[2]
@@ -199,7 +203,7 @@ class ImageShow:
                 self.resetContrast()
             else:
                 self.startContrast = ImageShow.contrastWindow
-                self.startBalance = numpy.copy(ImageShow.channelBalance)
+                self.startBalance = np.copy(ImageShow.channelBalance)
                 self.startXY = (event.x, event.y)
                 self.rightPressCB(event)
     
@@ -275,8 +279,8 @@ class ImageShow:
             self.displayImageRGB()
     
     def calcContrast(self, im):
-        maxVal = numpy.percentile(im, 90)
-        if maxVal <= 1: maxVal = numpy.max(im.flat)
+        maxVal = np.percentile(im, 90)
+        if maxVal <= 1: maxVal = np.max(im.flat)
         return (0, maxVal) # stretch contrast to remove outliers
     
     def setCmap(self, cmap):
@@ -291,10 +295,10 @@ class ImageShow:
         ds = dicom.read_file(fname)
         # rescale dynamic range to 0-4095
         try:
-            pixelData = ds.pixel_array.astype(numpy.float32)
+            pixelData = ds.pixel_array.astype(np.float32)
         except:
             ds.decompress()
-            pixelData = ds.pixel_array.astype(numpy.float32)
+            pixelData = ds.pixel_array.astype(np.float32)
 
         try:
             slThickness = ds.SpacingBetweenSlices
@@ -318,7 +322,7 @@ class ImageShow:
         self.imList.append(im)
         
     def loadNumpyArray(self, data):
-        if numpy.max(data.flat) <= 1: data *= 1000
+        if np.max(data.flat) <= 1: data *= 1000
         
         #print data.shape
         for sl in range(data.shape[2]):
@@ -326,10 +330,11 @@ class ImageShow:
             
             
     # load a whole directory of dicom files
-    def loadDirectory(self, path):
+    def loadDirectory(self, path, nii_orientation = 'tra'):
         self.imList = []
         self.dicomHeaderList = None
         self.affine = None
+        self.transpose = None
         dicom_ext = ['.dcm', '.ima']
         nii_ext = ['.nii', '.gz']
         npy_ext = ['.npy']
@@ -345,24 +350,57 @@ class ImageShow:
             # load nii
             import nibabel as nib
             niimage = nib.load(path)
-            orients = numpy.array([(i,1 if niimage.affine[i,i]>0 else -1) for i in range(len(niimage.shape))])
-            dataset = niimage.as_reoriented(orients).get_fdata()
-            if numpy.max(dataset) < 1:
+            orig_affine = niimage.affine
+
+            orig_orient = np.abs(orig_affine[0:3,0:3]).argmax(axis=1)[0:3] # get the primary axis orientations
+            orig_signs = [1 if niimage.affine[i, orig_orient[i]] > 0 else -1 for i in range(len(niimage.shape))]
+            # nii orientations are RAS (Right-Anterior-Superior). Radiological orientations are LPS (Left-Posterior-Superior)
+            # orientations for correct display:
+            # Tra: A-R-S+
+            # Cor: S-R-A+
+            # Sag: S-A+R-
+            # orig_orient[0] -> axis corresponding to R, [1] == A, [2] == S
+            if nii_orientation == 'tra':
+                new_axes = [1, 0, 2]
+                new_signs = [1, -1, 1]
+            elif nii_orientation == 'cor':
+                new_axes = [2, 0, 1]
+                new_signs = [1, -1, 1]
+            elif nii_orientation == 'sag':
+                new_axes = [2, 1, 0]
+                new_signs = [1, +1, -1]
+
+            dataset = niimage.get_fdata()
+            self.transpose = [ orig_orient[new_axes[ax]] for ax in range(3)]
+            print(orig_affine)
+            dataset = dataset.transpose([ orig_orient[new_axes[ax]] for ax in range(3)] )
+            signs = [1,1,1]
+            for ax in range(3):
+                signs[ax] = orig_signs[ax]*new_signs[ax]
+                if signs[ax] < 0:
+                    dataset = np.flip(dataset, axis=ax)
+
+            print("Signs/transpose:", self.transpose)
+
+            #orients = np.array([(i,1 if niimage.affine[i,i]>0 else -1) for i in range(len(niimage.shape))])
+            #dataset = niimage.as_reoriented(orients).get_fdata()
+            if np.max(dataset) < 1:
                 dataset *= 1000
             self.resolution = niimage.header.get_zooms()[0:3]
+            self.resolution = [ self.resolution[self.transpose[ax]] for ax in range(3) ]
+            print(self.resolution)
+            self.transpose = [(1 + self.transpose[ax]) * signs[ax] for ax in range(3)]
             for sl in range(dataset.shape[2]):
-                self.appendImage(numpy.flipud(numpy.fliplr(dataset[:,:,sl].T)))
+                self.appendImage(dataset[:,:,sl])
             self.basepath = os.path.dirname(path)
-            self.affine = niimage.affine
-            # because we flipped up-down and left-right
-            self.affine[0,0] = -self.affine[0,0]
-            self.affine[1,1] = -self.affine[1,1]
+            print(self.affine)
 
         elif ext.lower() in npy_ext:
-            data = numpy.load(path).astype(numpy.float32)
+            data = np.load(path).astype(np.float32)
             self.loadNumpyArray(data)
             self.basepath = os.path.dirname(path)
-        else:
+        else: # assume it's dicom
+            self.transpose = [-2, 1, 3]  # the vertical direction is always flipped(?) between dicom and nii
             if os.path.isdir(path):
                 basepath = path
             else: # dicom file is passed. load the containing directory

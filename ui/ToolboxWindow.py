@@ -10,7 +10,7 @@ import functools
 from ui.ToolboxUI import Ui_SegmentationToolbox
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog
-
+import traceback
 
 def ask_confirm(text):
     def decorator_confirm(func):
@@ -18,12 +18,13 @@ def ask_confirm(text):
         def wrapper(obj, *args, **kwargs):
             if obj._confirm(text):
                 func(obj, *args, **kwargs)
+
         return wrapper
+
     return decorator_confirm
 
 
 class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
-
     do_autosegment = pyqtSignal()
     contour_optimize = pyqtSignal()
     contour_simplify = pyqtSignal()
@@ -49,9 +50,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     data_open = pyqtSignal(str)
 
-    NO_STATE=0
-    ADD_STATE=1
-    REMOVE_STATE=2
+    NO_STATE = 0
+    ADD_STATE = 1
+    REMOVE_STATE = 2
 
     def __init__(self, activate_registration=True):
         super(ToolboxWindow, self).__init__()
@@ -173,18 +174,19 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot(dict)
     def set_rois_list(self, roi_dict):
+        cur_roi = self.current_roi
+        cur_subroi = self.current_subroi
         self.suppress_roi_change_emit = True
         self.all_rois = roi_dict
         self.roi_combo.clear()
         for roi_name in self.all_rois:
             self.roi_combo.addItem(roi_name)
-        
-        # try to reset the previous selection
-        self.set_current_roi(self.current_roi, self.current_subroi)
 
+        # try to reset the previous selection
+        self.set_current_roi(cur_roi, cur_subroi)
 
     @pyqtSlot(str, int)
-    def set_current_roi(self, current_roi_name, current_subroi_number = 0):
+    def set_current_roi(self, current_roi_name, current_subroi_number=-1):
         if not self.all_rois:
             self.roi_combo.setEnabled(False)
             self.subroi_combo.setEnabled(False)
@@ -217,13 +219,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.valid_roi_selected = True
 
     @pyqtSlot()
-    def repopulate_subrois(self, current_subroi_number = 0):
+    def repopulate_subrois(self, current_subroi_number=-1):
         # populate subroi combo
         try:
             n_subrois = self.all_rois[self.current_roi]
-        except:
+        except KeyError:
             return
-        #print("N_Subrois:", n_subrois)
+        # print("N_Subrois:", n_subrois)
         if n_subrois > current_subroi_number >= 0:
             self.current_subroi = current_subroi_number
         else:
@@ -240,10 +242,10 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def send_roi_changed(self):
         if self.suppress_roi_change_emit:
             return
-        print("Roi change:",self.roi_combo.currentText(), self.subroi_combo.currentIndex())
-        self.roi_changed.emit(self.roi_combo.currentText(), self.subroi_combo.currentIndex())
+        print("Roi change:", self.roi_combo.currentText(), self.subroi_combo.currentIndex())
+        self.roi_changed.emit(*self.get_current_roi_subroi())
 
-    @pyqtSlot(name="delete_roi") # it needs a specific name because of the decorator, Otherwise it will be overwritten by the next slot using the same decorator
+    @pyqtSlot(name="delete_roi")  # it needs a specific name because of the decorator, Otherwise it will be overwritten by the next slot using the same decorator
     @ask_confirm("This will delete the ROI in all slices!")
     def delete_roi(self, *args, **kwargs):
         self.roi_deleted.emit(self.current_roi)
@@ -260,9 +262,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot()
     def add_roi(self):
-        newRoiName, ok = QInputDialog.getText(self, "ROI Name", "Insert the name of the new ROI")
-        if newRoiName and ok:
-            self.roi_added.emit(newRoiName)
+        new_roi_name, ok = QInputDialog.getText(self, "ROI Name", "Insert the name of the new ROI")
+        if new_roi_name and ok:
+            self.roi_added.emit(new_roi_name)
 
     @pyqtSlot(name="clear_roi")
     @ask_confirm("This will clear the ROI of the current slice")
@@ -285,20 +287,22 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot()
     def loadData_clicked(self):
-        dataFile = QFileDialog.getOpenFileName(self, caption='Select dataset to import', filter='Image files (*.dcm *.ima *.nii *.nii.gz *.npy);;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;All files (*.*)')[0]
+        dataFile, _ = QFileDialog.getOpenFileName(self, caption='Select dataset to import',
+                                                  filter='Image files (*.dcm *.ima *.nii *.nii.gz *.npy);;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;All files (*.*)')
         if dataFile:
             self.data_open.emit(dataFile)
 
     @pyqtSlot()
     def importROI_clicked(self):
-        roiFile = QFileDialog.getOpenFileName(self, caption='Select ROI file to import', filter='ROI Pickle files (*.p);;All files (*.*)')[0]
+        roiFile, _ = QFileDialog.getOpenFileName(self, caption='Select ROI file to import',
+                                                 filter='ROI Pickle files (*.p);;All files (*.*)')
         if roiFile:
             self.roi_import.emit(roiFile)
 
     @pyqtSlot()
     def exportROI_clicked(self):
-        roiFile = QFileDialog.getSaveFileName(self, caption='Select ROI file to export',
-                                              filter='ROI Pickle files (*.p);;All files (*.*)')[0]
+        roiFile, _ = QFileDialog.getSaveFileName(self, caption='Select ROI file to export',
+                                                 filter='ROI Pickle files (*.p);;All files (*.*)')
         if roiFile:
             self.roi_export.emit(roiFile)
 
@@ -315,7 +319,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot()
     def export_masks_npz(self):
-        file_out = QFileDialog.getSaveFileName(self, caption='Select npz file to export',
-                                               filter='Numpy array archive (*.npz);;All files (*.*)')
+        file_out, _ = QFileDialog.getSaveFileName(self, caption='Select npz file to export',
+                                                  filter='Numpy array archive (*.npz);;All files (*.*)')
         if file_out:
             self.masks_export.emit(file_out, 'npz')

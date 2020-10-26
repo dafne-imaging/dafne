@@ -70,6 +70,7 @@ class SplineInterpROIClass:
         self.smooth = smooth
         self.mask = None
         self.isMaskFast = False
+        self.isVisible = False
                       
     def invalidate_precalculations(self):
         self.isCurveValid = False
@@ -198,6 +199,7 @@ class SplineInterpROIClass:
         return (None, None)
         
     def remove(self):
+        if not self.isVisible: return
         for k in self.knotRepresentations:
             try:
                 k.remove()
@@ -207,10 +209,12 @@ class SplineInterpROIClass:
             self.plot.remove()
         except:
             pass
+        self.isVisible = False
     
     def draw(self, axes, radius = KNOT_RADIUS, color = 'blue'):
         
         self.remove()
+        self.isVisible = True
         
         for k in self.knotRepresentations:
             k.set_radius(radius)

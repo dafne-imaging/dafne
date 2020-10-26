@@ -29,8 +29,15 @@ def save_npz_masks(filename, mask_dict):
     np.savez(filename, **mask_dict)
 
 
-def save_nifti_masks(base_path, mask_dict, affine):
+def save_nifti_masks(base_path, mask_dict, affine, transpose=None):
     for name, mask in mask_dict.items():
         nifti_name = os.path.join(base_path, name + '.nii.gz')
+        if transpose is not None:
+            signs = np.sign(transpose)
+            transpose = np.abs(transpose) - 1
+            for ax in range(3):
+                if signs[ax] < 0:
+                    mask = np.flip(mask, axis=ax)
+            mask = np.transpose(mask, np.argsort(transpose)) #invert the original transposition
         niimg = nib.Nifti2Image(mask, affine)
         niimg.to_filename(nifti_name)
