@@ -252,6 +252,7 @@ def gamba_apply(modelObj: DynamicDLModel, data: dict):
         3: 'GL',
         4: 'TA',
         5: 'ELD',
+        6: 'PE',
         }
     
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
@@ -264,7 +265,7 @@ def gamba_apply(modelObj: DynamicDLModel, data: dict):
     img = zoom(img, zoomFactor) # resample the image to the model resolution
     img = padorcut(img, MODEL_SIZE)
     segmentation = netc.predict(np.expand_dims(np.stack([img,np.zeros(MODEL_SIZE)],axis=-1),axis=0))
-    labelsMask = np.argmax(np.squeeze(segmentation[0,:,:,:13]), axis=2)
+    labelsMask = np.argmax(np.squeeze(segmentation[0,:,:,:7]), axis=2)
     labelsMask = padorcut(labelsMask, originalShape).astype(np.int8)
     outputLabels = {}
     for labelValue, labelName in LABELS_DICT.items():
