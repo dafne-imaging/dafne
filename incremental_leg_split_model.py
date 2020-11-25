@@ -21,11 +21,11 @@ def gamba_unet():
     from keras.utils import plot_model, Sequence
 
     
-    inputs=Input(shape=(216,216,2))
+    inputs=Input(shape=(270,270,2))
     weight_matrix=Lambda(lambda z: z[:,:,:,1])(inputs)
-    weight_matrix=Reshape((216,216,1))(weight_matrix)
+    weight_matrix=Reshape((270,270,1))(weight_matrix)
     reshape=Lambda(lambda z : z[:,:,:,0])(inputs)
-    reshape=Reshape((216,216,1))(reshape)
+    reshape=Reshape((270,270,1))(reshape)
 
     reg=0.01
     
@@ -216,7 +216,7 @@ def weighted_loss(y_true,y_pred):
     return E[:,0]
 
 class DataGenerator(Sequence):
-    def __init__(self, path, list_X=list(range(1,4501)), batch_size=20, dim=(216,216), shuffle=True):
+    def __init__(self, path, list_X=list(range(1,4501)), batch_size=20, dim=(270,270), shuffle=True):
         'Initialization'
         self.dim=dim
         self.batch_size = batch_size
@@ -284,7 +284,7 @@ def leg_incremental(modelObj: DynamicDLModel, trainingdata: dict, trainingoutput
     batch_size=5
     card=len(os.listdir(path))
     steps=int(math.floor(float(card/batch_size)))
-    pretrain.input_creation(path,card,216,64,7)
+    pretrain.input_creation(path,card,270,64,7)
     netc = modelObj.model
     checkpoint_path="./Weights_incremental/weights_leg_split-{epoch:02d}-{loss:.2f}.hdf5" 
     check=ModelCheckpoint(filepath=checkpoint_path, monitor='loss', verbose=0, save_best_only=False, save_weights_only=True, mode='auto', period=10)
