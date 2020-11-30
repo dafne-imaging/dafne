@@ -297,7 +297,7 @@ def leg_incremental(modelObj: DynamicDLModel, trainingdata: dict, trainingoutput
     pretrain.input_creation(path,card,432,64,7)
     netc = modelObj.model
     checkpoint_path="./Weights_incremental/weights_leg-{epoch:02d}-{loss:.2f}.hdf5" 
-    check=ModelCheckpoint(filepath=checkpoint_path, monitor='loss', verbose=0, save_best_only=False, save_weights_only=True, mode='auto', period=10)
+    check=ModelCheckpoint(filepath=checkpoint_path, monitor='loss', verbose=0, save_best_only=False, save_weights_only=True, mode='auto', period=5)
     adamlr = optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=True)
     training_generator = DataGenerator(path=path,list_X=list(range(1,steps*batch_size+1)),batch_size=batch_size)  
     netc.compile(loss=weighted_loss,optimizer=adamlr)
