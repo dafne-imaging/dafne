@@ -11,21 +11,16 @@ import numpy as np # this is assumed to be available in every context
 
 def gamba_unet():
     
-    from keras.layers import Layer, InputSpec
-    from keras import initializers, regularizers, constraints
+    from keras import regularizers
     from keras.activations import softmax
-    from keras.layers import Dense, Input, Conv2D, Conv2DTranspose, UpSampling2D, MaxPooling2D, Dropout, Flatten, BatchNormalization, Concatenate, Lambda, ZeroPadding2D, Activation, Reshape, Add
-    from keras.models import Sequential, Model
-    from keras.preprocessing.image import ImageDataGenerator
-    from keras.callbacks import ModelCheckpoint, Callback 
-    from keras.utils import plot_model, Sequence
+    from keras.layers import Input, Conv2D, Conv2DTranspose, BatchNormalization, Concatenate, Lambda, Activation, Reshape, Add
+    from keras.models import Model
 
-    
-    inputs=Input(shape=(270,270,2))
+    inputs=Input(shape=(432,432,2))
     weight_matrix=Lambda(lambda z: z[:,:,:,1])(inputs)
-    weight_matrix=Reshape((270,270,1))(weight_matrix)
+    weight_matrix=Reshape((432,432,1))(weight_matrix)
     reshape=Lambda(lambda z : z[:,:,:,0])(inputs)
-    reshape=Reshape((270,270,1))(reshape)
+    reshape=Reshape((432,432,1))(reshape)
 
     reg=0.01
     
@@ -112,6 +107,17 @@ def gamba_unet():
 
     Level6_l=Conv2D(filters=1024,kernel_size=(3,3),strides=3,kernel_regularizer=regularizers.l2(reg))(Level5_l)
     Level6_l=BatchNormalization(axis=-1)(Level6_l)
+    Level6_l_shortcut=Level6_l
+    Level6_l=Activation('relu')(Level6_l)
+    Level6_l=Conv2D(filters=1024,kernel_size=(3,3),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level6_l)
+    Level6_l=BatchNormalization(axis=-1)(Level6_l)
+    #Level5_l=InstanceNormalization(axis=-1)(Level5_l)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
+    Level6_l=Activation('relu')(Level6_l)
+    #Level5_l=Dropout(0.5)(Level5_l)
+    Level6_l=Conv2D(filters=1024,kernel_size=(3,3),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level6_l)
+    Level6_l=BatchNormalization(axis=-1)(Level6_l)
+    #Level5_l=InstanceNormalization(axis=-1)(Level5_l)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
+    Level6_l=Add()([Level6_l,Level6_l_shortcut])
     Level6_l=Activation('relu')(Level6_l)
     
     Level5_r=Conv2DTranspose(filters=512,kernel_size=(3,3),strides=3,kernel_regularizer=regularizers.l2(reg))(Level6_l)
@@ -216,7 +222,7 @@ def weighted_loss(y_true,y_pred):
     return E[:,0]
 
 class DataGenerator(Sequence):
-    def __init__(self, path, list_X=list(range(1,4501)), batch_size=20, dim=(270,270), shuffle=True):
+    def __init__(self, path, list_X=list(range(1,4501)), batch_size=20, dim=(432,432), shuffle=True):
         'Initialization'
         self.dim=dim
         self.batch_size = batch_size
@@ -268,7 +274,7 @@ class DataGenerator(Sequence):
 
 
 def leg_incremental(modelObj: DynamicDLModel, trainingdata: dict, trainingoutputs):
-    from dl.common.create_train import create_train_leg
+    from unused.create_train import create_train_leg
     import dl.common.preprocess_train as pretrain
     import os
     import math
@@ -280,13 +286,12 @@ def leg_incremental(modelObj: DynamicDLModel, trainingdata: dict, trainingoutput
         import numpy as np
     create_train_leg(trainingdata,trainingoutputs)
     path='./train/leg'
-    pretrain.split_mirror(path,card,7)
     batch_size=5
     card=len(os.listdir(path))
     steps=int(math.floor(float(card/batch_size)))
-    pretrain.input_creation(path,card,270,64,7)
+    pretrain.input_creation(path,card,432,64,7)
     netc = modelObj.model
-    checkpoint_path="./Weights_incremental/weights_leg_split-{epoch:02d}-{loss:.2f}.hdf5" 
+    checkpoint_path="./Weights_incremental/weights_leg-{epoch:02d}-{loss:.2f}.hdf5" 
     check=ModelCheckpoint(filepath=checkpoint_path, monitor='loss', verbose=0, save_best_only=False, save_weights_only=True, mode='auto', period=10)
     adamlr = optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=True)
     training_generator = DataGenerator(path=path,list_X=list(range(1,steps*batch_size+1)),batch_size=batch_size)  
@@ -295,7 +300,7 @@ def leg_incremental(modelObj: DynamicDLModel, trainingdata: dict, trainingoutput
     
 
 model = gamba_unet()
-model.load_weights('weights/weights_gamba_split.hdf5')
+model.load_weights('weights/weights_gamba.hdf5')
 weights = model.get_weights()
 
 modelObject = DynamicDLModel('ba333b4d-90e7-4108-aca5-9216f408d91e',
@@ -304,5 +309,5 @@ modelObject = DynamicDLModel('ba333b4d-90e7-4108-aca5-9216f408d91e',
                              weights = weights
                              )
 
-with open('models/incremental_leg_split.model', 'wb') as f:
+with open('models/incremental_leg.model', 'wb') as f:
     modelObject.dump(f)

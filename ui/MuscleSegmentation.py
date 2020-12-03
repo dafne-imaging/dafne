@@ -1000,7 +1000,7 @@ class MuscleSegmentation(ImageShow, QObject):
         except:
             print("Warning: cannot copy roi file")
         self.unPickleTransforms()
-        self.loadROIPickle()
+        #self.loadROIPickle()
         self.refreshCB()
         self.toolbox_window.set_exports_enabled(numpy= True,
                                                 dicom= (self.dicomHeaderList is not None),
@@ -1025,6 +1025,9 @@ class MuscleSegmentation(ImageShow, QObject):
         allMasks = {}
         diceScores = []
 
+        dataForTraining = {}
+        segForTraining = {}
+
         for roiName, imageRoiDict in self.allROIs.items():
             masklist = []
             for imageIndex in range(len(self.imList)):
@@ -1047,11 +1050,42 @@ class MuscleSegmentation(ImageShow, QObject):
                     diceScores.append(calc_dice_score(originalSegmentation, roi))
                     print(diceScores)
 
+                # TODO: maybe add this to the training according to the dice score?
+                classification_name = self.classifications[imageIndex]
+                if classification_name not in dataForTraining:
+                    dataForTraining[classification_name] = {}
+                    segForTraining[classification_name] = {}
+                if imageIndex not in dataForTraining[classification_name]:
+                    dataForTraining[classification_name][imageIndex] = self.imList[imageIndex]
+                    segForTraining[classification_name][imageIndex] = {}
+
+                segForTraining[classification_name][imageIndex][roiName] = roi
+
             print("Saving %s..." % (roiName))
             npMask = np.transpose(np.stack(masklist), [1, 2, 0])
             allMasks[roiName] = npMask
 
+        diceScores = np.array(diceScores)
+        print(diceScores)
         print("Average Dice score", np.array(diceScores).mean())
+
+        # perform incremental learning
+        for classification_name in dataForTraining:
+            print(f'Performing incremental learning for {classification_name}')
+            try:
+                model = self.dl_segmenters[classification_name]
+            except KeyError:
+                model = self.model_provider.load_model(classification_name)
+                self.dl_segmenters[classification_name] = model
+            training_data = []
+            training_outputs = []
+            for imageIndex in dataForTraining[classification_name]:
+                training_data.append(dataForTraining[classification_name][imageIndex])
+                training_outputs.append(segForTraining[classification_name][imageIndex])
+            model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2]}, training_outputs)
+            print('Done')
+
+        #TODO: send the model back to the server
 
         if outputType == 'dicom':
             save_dicom_masks(pathOut, allMasks, self.dicomHeaderList)

@@ -1,12 +1,13 @@
 from .dicomUtils.dicom3D import save3dDicom
-from scipy.spatial.distance import dice
 import os
 import numpy as np
 import nibabel as nib
 
 
 def calc_dice_score(mask1, mask2):
-    return dice(mask1.ravel(), mask2.ravel())
+    a = 2 * np.sum(np.logical_and(mask1, mask2))
+    b = np.sum(mask1) + np.sum(mask2)
+    return a/b
 
 
 def save_dicom_masks(base_path: str, mask_dict: dict, dicom_headers: list):

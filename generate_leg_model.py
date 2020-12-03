@@ -273,6 +273,79 @@ def gamba_apply(modelObj: DynamicDLModel, data: dict):
     
     return outputLabels
 
+
+def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs):
+    import dl.common.preprocess_train as pretrain
+    from dl.common.DataGenerators import DataGeneratorMem
+    import os, time
+    from keras.callbacks import ModelCheckpoint
+    from keras import optimizers
+    try:
+        np
+    except:
+        import numpy as np
+
+    LABELS_DICT = {
+        1: 'SOL',
+        2: 'GM',
+        3: 'GL',
+        4: 'TA',
+        5: 'ELD',
+        6: 'PE',
+        }
+    MODEL_RESOLUTION = np.array([1.037037, 1.037037])
+    MODEL_SIZE = (432, 432)
+    BAND = 49
+    BATCH_SIZE = 5
+    CHECKPOINT_PATH = os.path.join(".", "Weights_incremental", "leg")
+    MIN_TRAINING_IMAGES = 5
+
+    os.makedirs(CHECKPOINT_PATH, exist_ok=True)
+
+    t = time.time()
+    print('Image preprocess')
+
+    image_list, mask_list = pretrain.common_input_process(LABELS_DICT, MODEL_RESOLUTION, MODEL_SIZE, trainingData,
+                                                          trainingOutputs)
+
+    print('Done. Elapsed', time.time() - t)
+    nImages = len(image_list)
+
+    if nImages < MIN_TRAINING_IMAGES:
+        print("Not enough images for training")
+        return
+
+    print("image shape", image_list[0].shape)
+    print("mask shape", mask_list[0].shape)
+
+    print('Weight calculation')
+    t = time.time()
+
+    output_data_structure = pretrain.input_creation_mem(image_list, mask_list, BAND)
+
+    print('Done. Elapsed', time.time() - t)
+
+    card = len(image_list)
+    steps = int(float(card) / BATCH_SIZE)
+
+    print(f'Incremental learning for leg with {nImages} images')
+    t = time.time()
+
+    netc = modelObj.model
+    checkpoint_files = os.path.join(CHECKPOINT_PATH, "weights - {epoch: 02d} - {loss: .2f}.hdf5")
+    training_generator = DataGeneratorMem(output_data_structure, list_X=list(range(steps * BATCH_SIZE)),
+                                          batch_size=BATCH_SIZE, dim=MODEL_SIZE)
+    # check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=False,save_weights_only=True, mode='auto', period=10)
+    check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=False,
+                            save_freq='epoch',
+                            save_weights_only=True, mode='auto')
+    adamlr = optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=True)
+    netc.compile(loss=pretrain.weighted_loss, optimizer=adamlr)
+    # history = netc.fit_generator(generator=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check], verbose=1)
+    history = netc.fit(x=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check], verbose=1)
+    print('Done. Elapsed', time.time() - t)
+
+
 model = gamba_unet()
 model.load_weights('weights/weights_gamba.hdf5')
 weights = model.get_weights()
@@ -280,7 +353,8 @@ weights = model.get_weights()
 modelObject = DynamicDLModel('ba333b4d-90e7-4108-aca5-9216f408d91e',
                              gamba_unet,
                              gamba_apply,
-                             weights = weights
+                             incremental_learn_function=leg_incremental_mem,
+                             weights=weights
                              )
 
 with open('models/leg.model', 'wb') as f:

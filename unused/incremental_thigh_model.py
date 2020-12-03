@@ -7,20 +7,15 @@ Created on Sun Oct 18 09:36:01 2020
 """
 
 from dl.DynamicDLModel import DynamicDLModel
-import numpy as np # this is assumed to be available in every context
 
-def gamba_unet():
+
+def coscia_unet():
     
-    from keras.layers import Layer, InputSpec
-    from keras import initializers, regularizers, constraints
+    from keras import regularizers
     from keras.activations import softmax
-    from keras.layers import Dense, Input, Conv2D, Conv2DTranspose, UpSampling2D, MaxPooling2D, Dropout, Flatten, BatchNormalization, Concatenate, Lambda, ZeroPadding2D, Activation, Reshape, Add
-    from keras.models import Sequential, Model
-    from keras.preprocessing.image import ImageDataGenerator
-    from keras.callbacks import ModelCheckpoint, Callback 
-    from keras.utils import plot_model, Sequence
+    from keras.layers import Input, Conv2D, Conv2DTranspose, BatchNormalization, Concatenate, Lambda, Activation, Reshape, Add
+    from keras.models import Model
 
-    
     inputs=Input(shape=(432,432,2))
     weight_matrix=Lambda(lambda z: z[:,:,:,1])(inputs)
     weight_matrix=Reshape((432,432,1))(weight_matrix)
@@ -213,73 +208,17 @@ def gamba_unet():
     #Level1_r=InstanceNormalization(axis=-1)(Level1_r)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
     Level1_r=Add()([Level1_r,Level1_r_shortcut])
     Level1_r=Activation('relu')(Level1_r)
-    output=Conv2D(filters=7,kernel_size=(1,1),strides=1,kernel_regularizer=regularizers.l2(reg))(Level1_r)
+    output=Conv2D(filters=13,kernel_size=(1,1),strides=1,kernel_regularizer=regularizers.l2(reg))(Level1_r)
     #output=BatchNormalization(axis=-1)(output)
     output=Lambda(lambda x : softmax(x,axis=-1))(output)
     output=Concatenate(axis=-1)([output,weight_matrix])
     model=Model(inputs=inputs,outputs=output)
     return model
 
-def weighted_loss(y_true,y_pred):
-    weight_matrix=K.flatten(y_pred[:,:,:,-1])
-    y_pre=y_pred[:,:,:,:-1]
-    E=-1/(1)*K.dot(K.transpose(K.expand_dims(weight_matrix,axis=-1)),K.expand_dims(K.log(K.flatten(tf.math.reduce_sum(tf.multiply(y_true,y_pre),-1))),axis=-1))
-    return E[:,0]
-
-class DataGenerator(Sequence):
-    def __init__(self, path, list_X=list(range(1,4501)), batch_size=20, dim=(432,432), shuffle=True):
-        'Initialization'
-        self.dim=dim
-        self.batch_size = batch_size
-        self.list_X = list_X
-        self.path = path
-        self.shuffle = shuffle
-        self.on_epoch_end()
-
-    def __len__(self):
-        'Denotes the number of batches per epoch'
-        return int(np.floor(len(self.list_X) / self.batch_size))
-
-    def __getitem__(self, index):
-        'Generate one batch of data'
-        # Generate indexes of the batch
-        indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
-
-        # Find list of IDs
-        list_X_temp = [self.list_X[k] for k in indexes]
-
-        # Generate data
-        X, y = self.__data_generation(list_X_temp, self.path)
-
-        return X, y
-
-    def on_epoch_end(self):
-        'Updates indexes after each epoch'
-        self.indexes = np.arange(len(self.list_X))
-        if self.shuffle == True:
-            np.random.shuffle(self.indexes)
-
-    def __data_generation(self, list_X_temp, path):
-        'Generates data containing batch_size samples' 
-        # Initialization
-        X = np.empty((self.batch_size, *self.dim, 2))
-        y = np.empty((self.batch_size, *self.dim, 7))
-
-        # Generate data
-        for i, j in enumerate(list_X_temp):
-            # Store sample
-            arr=np.load(os.path.join(path,'train_'+str(j)+'.npy'))
-            
-            X[i,] = np.stack([arr[:,:,0],arr[:,:,-1]],axis=-1)
-
-            # Store class
-            y[i,] = arr[:,:,1:-1]
-
-        return X, y
 
 
-def leg_incremental(modelObj: DynamicDLModel, trainingdata: dict, trainingoutputs):
-    from dl.common.create_train import create_train_leg
+def thigh_incremental(modelObj: DynamicDLModel, trainingdata: dict, trainingoutputs):
+    from unused.create_train import create_train_thigh
     import dl.common.preprocess_train as pretrain
     import os
     import math
@@ -289,30 +228,80 @@ def leg_incremental(modelObj: DynamicDLModel, trainingdata: dict, trainingoutput
         np
     except:
         import numpy as np
-    create_train_leg(trainingdata,trainingoutputs)
-    path='./train/leg'
+    create_train_thigh(trainingdata,trainingoutputs)
+    path='./train/thigh'
     batch_size=5
     card=len(os.listdir(path))
     steps=int(math.floor(float(card/batch_size)))
-    pretrain.input_creation(path,card,432,64,7)
+    pretrain.input_creation(path,card,432,49,13)
     netc = modelObj.model
-    checkpoint_path="./Weights_incremental/weights_leg-{epoch:02d}-{loss:.2f}.hdf5" 
+    checkpoint_path="./Weights_incremental/weights_thigh-{epoch:02d}-{loss:.2f}.hdf5" 
     check=ModelCheckpoint(filepath=checkpoint_path, monitor='loss', verbose=0, save_best_only=False, save_weights_only=True, mode='auto', period=10)
     adamlr = optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=True)
     training_generator = DataGenerator(path=path,list_X=list(range(1,steps*batch_size+1)),batch_size=batch_size)  
     netc.compile(loss=weighted_loss,optimizer=adamlr)
     history=netc.fit_generator(generator=training_generator,steps_per_epoch=steps,epochs=5,callbacks=[check],verbose=1)
-    
 
-model = gamba_unet()
-model.load_weights('weights/weights_gamba.hdf5')
+def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs):
+    import dl.common.preprocess_train as pretrain
+    from dl.common.DataGenerators import DataGeneratorMem
+    import os
+    from keras.callbacks import ModelCheckpoint
+    from keras import optimizers
+    
+    try:
+        np
+    except:
+        import numpy as np
+
+    LABELS_DICT = {
+        1: 'VL',
+        2: 'VM',
+        3: 'VI',
+        4: 'RF',
+        5: 'SAR',
+        6: 'GRA',
+        7: 'AM',
+        8: 'SM',
+        9: 'ST',
+        10: 'BFL',
+        11: 'BFS',
+        12: 'AL'
+        }
+
+    MODEL_RESOLUTION = np.array([1.037037, 1.037037])
+    MODEL_SIZE = (432, 432)
+    BAND=49
+    BATCH_SIZE = 5
+    CHECKPOINT_PATH = os.path.join("..", "Weights_incremental")
+
+    os.makedirs(CHECKPOINT_PATH, exist_ok=True)
+
+    image_list, mask_list = pretrain.common_input_process(LABELS_DICT, MODEL_RESOLUTION, MODEL_SIZE, trainingData, trainingOutputs)
+    output_data_structure = pretrain.input_creation_mem(image_list, mask_list, BAND)
+    
+    card = len(image_list)
+    steps = int(float(card) / BATCH_SIZE)
+
+    netc = modelObj.model
+    checkpoint_files = os.path.join(CHECKPOINT_PATH, "weights_thigh - {epoch: 02d} - {loss: .2f}.hdf5")
+    training_generator = DataGeneratorMem(output_data_structure, list_X=list(range(1, steps * BATCH_SIZE + 1)), batch_size=BATCH_SIZE)
+    check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=False,
+                            save_weights_only=True, mode='auto', period=10)
+    adamlr = optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=True)
+    netc.compile(loss=pretrain.weighted_loss, optimizer=adamlr)
+    history = netc.fit_generator(generator=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check],
+                                 verbose=1)
+
+model = coscia_unet()
+model.load_weights('weights/weights_coscia.hdf5')
 weights = model.get_weights()
 
-modelObject = DynamicDLModel('ba333b4d-90e7-4108-aca5-9216f408d91e',
-                             gamba_unet,
-                             incremental_learn_function=leg_incremental,
+modelObject = DynamicDLModel('210e2a21-1984-4e6f-8675-bf57bbabef2f',
+                             coscia_unet,
+                             incremental_learn_function=thigh_incremental,
                              weights = weights
                              )
 
-with open('models/incremental_leg.model', 'wb') as f:
+with open('models/incremental_thigh.model', 'wb') as f:
     modelObject.dump(f)
