@@ -272,6 +272,7 @@ def coscia_apply(modelObj: DynamicDLModel, data: dict):
     img = padorcut(img, MODEL_SIZE)
     segmentation = netc.predict(np.expand_dims(np.stack([img,np.zeros(MODEL_SIZE)],axis=-1),axis=0))
     labelsMask = np.argmax(np.squeeze(segmentation[0,:,:,:13]), axis=2)
+    labelsMask = zoom(labelsMask, 1/zoomFactor, order=0)
     labelsMask = padorcut(labelsMask, originalShape).astype(np.int8)
     outputLabels = {}
     for labelValue, labelName in LABELS_DICT.items():

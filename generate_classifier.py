@@ -10,14 +10,13 @@ from dl.DynamicDLModel import DynamicDLModel
 import numpy as np # this is assumed to be available in every context
 
 def class_unet():
-    
     from keras.layers import Layer, InputSpec
     from keras import initializers, regularizers, constraints
     from keras.activations import softmax
     from keras.layers import Dense, Input, Conv2D, Conv2DTranspose, UpSampling2D, MaxPooling2D, Dropout, Flatten, BatchNormalization, Concatenate, Lambda, ZeroPadding2D, Activation, Reshape, Add
     from keras.models import Sequential, Model
     from keras.preprocessing.image import ImageDataGenerator
-    from keras.callbacks import ModelCheckpoint, Callback 
+    from keras.callbacks import ModelCheckpoint, Callback
     from keras.utils import plot_model, Sequence
 
     

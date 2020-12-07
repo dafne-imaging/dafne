@@ -158,10 +158,9 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def setupToolbar(self):
 
-        try:
-            sitk,Elastix
+        if 'Elastix' in dir(sitk):
             showRegistrationGui = True
-        except:
+        else:
             print("Elastix is not available")
             showRegistrationGui = False
 
@@ -869,7 +868,11 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.allROIs[curName][imageN][curSubroi] = newROI
             return self.allROIs[curName][imageN][curSubroi]
         # if it doesn't exist, check if last subroi of the desired slice is empty
-        r = self.allROIs[curName][imageN][-1]
+        try:
+            r = self.allROIs[curName][imageN][-1]
+        except IndexError: # ROI does not exist for the requested slice
+            r = SplineInterpROIClass()
+            self.allROIs[curName][imageN].append(r)
         if len(r.knots) == 0:
             if newROI:
                 self.allROIs[curName][imageN][-1] = newROI
