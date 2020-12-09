@@ -9,7 +9,7 @@ import matplotlib
 
 matplotlib.use("Qt5Agg")
 
-import sys, os, time
+import sys, os, time, math
 
 # print(sys.path)
 SCRIPT_DIR = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__))))
@@ -33,6 +33,8 @@ import pickle
 import os.path
 from collections import deque
 import functools
+
+from .BrushPatches import SquareBrush, PixelatedCircleBrush
 
 try:
     import SimpleITK as sitk # this requires simpleelastix! It is NOT available through PIP
@@ -80,6 +82,8 @@ ROI_OTHER_COLOR_WACOM = (0, 0, 1, 0.8)
 ROI_COLOR = ROI_COLOR_ORIG
 ROI_SAME_COLOR = ROI_SAME_COLOR_ORIG
 ROT_OTHER_COLOR = ROI_OTHER_COLOR_ORIG
+
+BRUSH_COLOR = (1,0,0,0.6)
 
 ROI_FILENAME = 'rois.p'
 AUTOSAVE_INTERVAL = 30
@@ -148,6 +152,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.currentHistoryPoint = 0
 
         self.originalSegmentationMasks = {}
+        self.brush_patch = None
 
     def getRoiFileName(self):
         if self.basename:
@@ -808,11 +813,20 @@ class MuscleSegmentation(ImageShow, QObject):
         if not self.imPlot.contains(event):
             print("Event outside")
             return
+
+        if self.toolbox_window.getEditMode() == ToolboxWindow.EDITMODE_MASK:
+            print(self.brush_patch)
+            if self.brush_patch:
+                fig2 = plt.figure()
+                plt.imshow(self.brush_patch.to_mask(self.image.shape))
+                plt.show()
+            return
+
         if self.getState() == 'MUSCLE':
             roi = self.getCurrentROI()
 
             knotIndex, knot = roi.findKnotEvent(event)
-            if self.toolbox_window.get_knot_button_state() == ToolboxWindow.REMOVE_STATE:
+            if self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
                 if knotIndex is not None:
                     self.saveSnapshot()
                     roi.removeKnot(knotIndex)
@@ -824,7 +838,7 @@ class MuscleSegmentation(ImageShow, QObject):
             #         self.redraw()
             #         return
             # elif event.key == 'shift' or checkCapsLock():
-            elif self.toolbox_window.get_knot_button_state() == ToolboxWindow.ADD_STATE:
+            elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:
                 self.saveSnapshot()
                 if knotIndex is None:
                     self.addPoint(roi, event)
@@ -895,10 +909,89 @@ class MuscleSegmentation(ImageShow, QObject):
     def setCurrentROI(self, r, offset=0):
         self._getSetCurrentROI(offset, r)
 
+    def moveBrushPatch(self, event):
+        """
+            moves the brush. Returns True if the brush was moved to a new position
+        """
+        brush_type, brush_size = self.toolbox_window.getBrush()
+        mouseX = event.xdata
+        mouseY = event.ydata
+        if mouseX is None or mouseY is None:
+            try:
+                self.brush_patch.remove()
+                self.fig.canvas.draw()
+            except:
+                pass
+            self.brush_patch = None
+            return False
+
+        try:
+            oldX = self.moveBrushPatch_oldX # static variables
+            oldY = self.moveBrushPatch_oldY
+        except:
+            oldX = -1
+            oldY = -1
+
+        mouseX = np.round(mouseX)
+        mouseY = np.round(mouseY)
+
+        if oldX == mouseX and oldY == mouseY:
+            return False
+
+        self.moveBrushPatch_oldX = mouseX
+        self.moveBrushPatch_oldY = mouseY
+
+        if brush_type == ToolboxWindow.BRUSH_SQUARE:
+            xy = (math.floor(mouseX - brush_size / 2) + 0.5, math.floor(mouseY - brush_size / 2) + 0.5)
+            if type(self.brush_patch) != SquareBrush:
+                try:
+                    self.brush_patch.remove()
+                except:
+                    pass
+                self.brush_patch = SquareBrush(xy, brush_size, brush_size, color=BRUSH_COLOR)
+                self.axes.add_patch(self.brush_patch)
+
+            self.brush_patch.set_xy(xy)
+            self.brush_patch.set_height(brush_size)
+            self.brush_patch.set_width(brush_size)
+        elif brush_type == ToolboxWindow.BRUSH_CIRCLE:
+            center = (math.floor(mouseX) + 0.5, math.floor(mouseY) + 0.5)
+            if type(self.brush_patch) != PixelatedCircleBrush:
+                try:
+                    self.brush_patch.remove()
+                except:
+                    pass
+                self.brush_patch = PixelatedCircleBrush(center, brush_size, color=BRUSH_COLOR)
+                self.axes.add_patch(self.brush_patch)
+
+            self.brush_patch.set_center(center)
+            self.brush_patch.set_radius(brush_size)
+
+        self.fig.canvas.draw()
+        return True
+
+    # override from ImageShow
+    def mouseMoveCB(self, event):
+        if (0 or # self.getState != 'MUSCLE' or ## DEBUG
+                self.toolbox_window.getEditMode() != ToolboxWindow.EDITMODE_MASK or
+                type(event.button) == matplotlib.backend_bases.MouseButton or
+                not self.isCursorNormal()):
+            if self.brush_patch:
+                try:
+                    self.brush_patch.remove()
+                except:
+                    pass
+                self.brush_patch = None
+            ImageShow.mouseMoveCB(self, event)
+            return
+        # Mask edit mode and no button pressed - draw the brush
+        self.moveBrushPatch(event)
+
+
     def leftMoveCB(self, event):
         if self.getState() == 'MUSCLE':
             roi = self.getCurrentROI()
-            if self.toolbox_window.get_knot_button_state() == ToolboxWindow.ADD_STATE:  # event.key == 'shift' or checkCapsLock():
+            if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:  # event.key == 'shift' or checkCapsLock():
                 self.movePoint(roi, event)
 
     def leftReleaseCB(self, event):
@@ -1015,7 +1108,8 @@ class MuscleSegmentation(ImageShow, QObject):
         print("new Append Image")
         if not self.dl_classifier: return
         class_input = {'image': self.imList[-1], 'resolution': self.resolution[0:2]}
-        class_str = self.dl_classifier(class_input)
+        #class_str = self.dl_classifier(class_input)
+        class_str = 'Thigh' # DEBUG
         print("Classification", class_str)
         self.classifications.append(class_str)
 
@@ -1146,9 +1240,9 @@ class MuscleSegmentation(ImageShow, QObject):
     def keyPressCB(self, event):
         # print(event.key)
         if 'shift' in event.key:
-            self.toolbox_window.set_temp_knot_button_state(ToolboxWindow.ADD_STATE)
+            self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.ADD_STATE)
         elif 'control' in event.key or 'cmd' in event.key or 'super' in event.key or 'ctrl' in event.key:
-            self.toolbox_window.set_temp_knot_button_state(ToolboxWindow.REMOVE_STATE)
+            self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.REMOVE_STATE)
         if event.key == 'n':
             self.propagate()
         elif event.key == 'b':
@@ -1158,7 +1252,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def keyReleaseCB(self, event):
         if 'shift' in event.key or 'control' in event.key or 'cmd' in event.key or 'super' in event.key or 'ctrl' in event.key:
-            self.toolbox_window.restore_knot_button_state()
+            self.toolbox_window.restore_edit_button_state()
 
         # plt.show()
 

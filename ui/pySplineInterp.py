@@ -411,8 +411,9 @@ class SplineInterpROIClass:
 
         t = time.time()
         newSpline = SplineInterpROIClass()
-        curve = self.getCurve()
-        newSpline.addKnots(curve)
+        #curve = self.getCurve()
+        #newSpline.addKnots(curve)
+        newSpline.addKnots(self.knots)
         optimizeFurther = True
         while optimizeFurther:
             optimizeFurther = False

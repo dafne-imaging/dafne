@@ -54,6 +54,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     ADD_STATE = 1
     REMOVE_STATE = 2
 
+    BRUSH_CIRCLE = 'Circle'
+    BRUSH_SQUARE = 'Square'
+
+    EDITMODE_MASK = 'Mask'
+    EDITMODE_CONTOUR = 'Contour'
+
+
     def __init__(self, activate_registration=True):
         super(ToolboxWindow, self).__init__()
         self.setupUi(self)
@@ -72,11 +79,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.roi_remove_button.clicked.connect(self.delete_roi)
         self.subroi_remove_button.clicked.connect(self.delete_subroi)
 
-        self.addknot_button.clicked.connect(self.manage_knot_toggle)
-        self.removeknot_button.clicked.connect(self.manage_knot_toggle)
+        self.addpaint_button.clicked.connect(self.manage_edit_toggle)
+        self.removeerase_button.clicked.connect(self.manage_edit_toggle)
 
-        self.knotState = self.NO_STATE
-        self.tempKnotState = None
+        self.editState = self.NO_STATE
+        self.tempEditState = None
 
         self.removeall_button.clicked.connect(self.clear_roi)
 
@@ -106,6 +113,42 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionSave_as_Nifti.triggered.connect(lambda: self.export_masks_dir('nifti'))
         self.actionSaveNPZ.triggered.connect(self.export_masks_npz)
 
+        self.editmode_combo.currentTextChanged.connect(lambda : self.setEditMode(self.editmode_combo.currentText()))
+        self.editmode_combo.setCurrentText('Mask')
+        self.setEditMode('Mask')
+
+        self.brushsize_slider.valueChanged.connect(lambda : self.brushsize_label.setText(str(self.brushsize_slider.value())))
+
+    def getBrush(self):
+        brush_size = self.brushsize_slider.value()
+        brush_type = self.BRUSH_SQUARE
+        if self.circlebrush_button.isChecked():
+            brush_type = self.BRUSH_CIRCLE
+        return brush_type, brush_size
+
+    def getEditMode(self):
+        if self.editmode_combo.currentText() == self.EDITMODE_MASK:
+            return self.EDITMODE_MASK
+        else:
+            return self.EDITMODE_CONTOUR
+
+    @pyqtSlot(str)
+    def setEditMode(self, mode):
+        if mode == self.EDITMODE_MASK:
+            self.subroi_widget.setVisible(False)
+            self.brush_group.setVisible(True)
+            self.contouredit_widget.setVisible(False)
+            self.addpaint_button.setText("Paint")
+            self.removeerase_button.setText("Erase")
+            #self.removeall_button.setVisible(False)
+        else:
+            self.subroi_widget.setVisible(True)
+            self.brush_group.setVisible(False)
+            self.contouredit_widget.setVisible(True)
+            self.addpaint_button.setText("Add/Move")
+            self.removeerase_button.setText("Remove")
+            #self.removeall_button.setVisible(True)
+
     @pyqtSlot(bool)
     def undoEnable(self, enable):
         self.undoButton.setEnabled(enable)
@@ -131,37 +174,37 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         return self.classification_combo.currentText()
 
     @pyqtSlot()
-    def manage_knot_toggle(self):
+    def manage_edit_toggle(self):
         # make sure that only one add/remove knot button is pressed
-        if self.addknot_button.isChecked() and self.removeknot_button.isChecked():
-            if self.sender() == self.addknot_button:
-                self.removeknot_button.setChecked(False)
+        if self.addpaint_button.isChecked() and self.removeerase_button.isChecked():
+            if self.sender() == self.addpaint_button:
+                self.removeerase_button.setChecked(False)
             else:
-                self.addknot_button.setChecked(False)
+                self.addpaint_button.setChecked(False)
 
         # set the permanent state
-        if self.addknot_button.isChecked():
-            self.knotState = self.ADD_STATE
-        elif self.removeknot_button.isChecked():
-            self.knotState = self.REMOVE_STATE
+        if self.addpaint_button.isChecked():
+            self.editState = self.ADD_STATE
+        elif self.removeerase_button.isChecked():
+            self.editState = self.REMOVE_STATE
         else:
-            self.knotState = self.NO_STATE
+            self.editState = self.NO_STATE
 
     @pyqtSlot()
-    def restore_knot_button_state(self):
-        self.addknot_button.setChecked(self.knotState == self.ADD_STATE)
-        self.removeknot_button.setChecked(self.knotState == self.REMOVE_STATE)
-        self.tempKnotState = None
+    def restore_edit_button_state(self):
+        self.addpaint_button.setChecked(self.editState == self.ADD_STATE)
+        self.removeerase_button.setChecked(self.editState == self.REMOVE_STATE)
+        self.tempEditState = None
 
     @pyqtSlot(int)
-    def set_temp_knot_button_state(self, tempState):
-        self.tempKnotState = tempState
-        self.addknot_button.setChecked(tempState == self.ADD_STATE)
-        self.removeknot_button.setChecked(tempState == self.REMOVE_STATE)
+    def set_temp_edit_button_state(self, tempState):
+        self.tempEditState = tempState
+        self.addpaint_button.setChecked(tempState == self.ADD_STATE)
+        self.removeerase_button.setChecked(tempState == self.REMOVE_STATE)
 
-    def get_knot_button_state(self):
-        if self.tempKnotState is not None: return self.tempKnotState
-        return self.knotState
+    def get_edit_button_state(self):
+        if self.tempEditState is not None: return self.tempEditState
+        return self.editState
 
     @pyqtSlot(list)
     def set_classes_list(self, classes: list):

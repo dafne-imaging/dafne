@@ -19,7 +19,8 @@ try:
 except:
     from dicomUtils.misc import create_affine
 
-DEFAULT_INTERPOLATION = 'spline36'
+#DEFAULT_INTERPOLATION = 'spline36'
+DEFAULT_INTERPOLATION = None
 INVERT_SCROLL = True
 
 class ImageShow:
@@ -171,6 +172,10 @@ class ImageShow:
             self.curImage = len(self.imList) - 1
         self.displayImage(self.imList[int(self.curImage)], self.cmap)
         self.redraw()
+        try:
+            self.fig.canvas.setFocus()
+        except:
+            pass
 
     def keyReleaseCB(self, event):
         print("key release")
@@ -183,14 +188,17 @@ class ImageShow:
         elif event.key == 'left' or event.key == 'up':
             event.step = -1 if INVERT_SCROLL else 1
         self.mouseScrollCB(event)
-        
-    def btnPressCB(self, event):
+
+    def isCursorNormal(self):
         try:
             isCursorNormal = ( self.fig.canvas.cursor().shape() == 0 ) # if backend is qt, it gets the shape of the
                 # cursor. 0 is the arrow, which means we are not zooming or panning.
         except:
             isCursorNormal = True
-        if not isCursorNormal:
+        return isCursorNormal
+
+    def btnPressCB(self, event):
+        if not self.isCursorNormal():
             #print("Zooming or panning. Not processing clicks")
             return
         if event.button == 1:
