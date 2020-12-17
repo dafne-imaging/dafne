@@ -20,7 +20,7 @@ except:
     from dicomUtils.misc import create_affine
 
 #DEFAULT_INTERPOLATION = 'spline36'
-DEFAULT_INTERPOLATION = None
+DEFAULT_INTERPOLATION = None # DEBUG
 INVERT_SCROLL = True
 
 class ImageShow:
@@ -106,7 +106,12 @@ class ImageShow:
             cmap = 'gray'
           else:
             cmap = self.cmap
-            
+
+        try:
+            oldSize = self.image.shape
+        except:
+            oldSize = (-1,-1)
+
         # im can be an integer index in the imList
         if isinstance(im, int):
             if im >= 0 and im < len(self.imList):
@@ -142,10 +147,18 @@ class ImageShow:
             self.isImageRGB = False
         
         self.setCmap(cmap)
-        
+
+        if self.imPlot:
+            if oldSize != self.image.shape: # if the image shape is different, force a new imPlot to be created
+                try:
+                    self.imPlot.remove()
+                except:
+                    pass
+                self.imPlot = None
+
         # Create the image plot if there is none; otherwise update the data in the existing frame (faster)
         if self.imPlot is None:
-            self.imPlot = self.axes.imshow(self.image, interpolation = DEFAULT_INTERPOLATION, vmin=ImageShow.contrastWindow[0], vmax=ImageShow.contrastWindow[1], cmap=self.cmap)
+            self.imPlot = self.axes.imshow(self.image, interpolation = DEFAULT_INTERPOLATION, vmin=ImageShow.contrastWindow[0], vmax=ImageShow.contrastWindow[1], cmap=self.cmap, zorder = -1)
         else:
             self.imPlot.set_data(self.image)
             

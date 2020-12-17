@@ -40,6 +40,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     roi_clear = pyqtSignal()
     classification_changed = pyqtSignal(str)
 
+    editmode_changed = pyqtSignal(str)
+
     undo = pyqtSignal()
     redo = pyqtSignal()
 
@@ -113,27 +115,32 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionSave_as_Nifti.triggered.connect(lambda: self.export_masks_dir('nifti'))
         self.actionSaveNPZ.triggered.connect(self.export_masks_npz)
 
-        self.editmode_combo.currentTextChanged.connect(lambda : self.setEditMode(self.editmode_combo.currentText()))
+        self.editmode_combo.currentTextChanged.connect(lambda : self.set_edit_mode(self.editmode_combo.currentText()))
         self.editmode_combo.setCurrentText('Mask')
-        self.setEditMode('Mask')
+        self.set_edit_mode('Mask')
 
-        self.brushsize_slider.valueChanged.connect(lambda : self.brushsize_label.setText(str(self.brushsize_slider.value())))
+        self.brushsize_slider.valueChanged.connect(self.brushsliderCB)
+        self.brushsize_slider.setValue(5)
 
-    def getBrush(self):
-        brush_size = self.brushsize_slider.value()
+    @pyqtSlot(int)
+    def brushsliderCB(self, value):
+        self.brushsize_label.setText(str(value*2+1))
+
+    def get_brush(self):
+        brush_size = int(self.brushsize_label.text())
         brush_type = self.BRUSH_SQUARE
         if self.circlebrush_button.isChecked():
             brush_type = self.BRUSH_CIRCLE
         return brush_type, brush_size
 
-    def getEditMode(self):
+    def get_edit_mode(self):
         if self.editmode_combo.currentText() == self.EDITMODE_MASK:
             return self.EDITMODE_MASK
         else:
             return self.EDITMODE_CONTOUR
 
     @pyqtSlot(str)
-    def setEditMode(self, mode):
+    def set_edit_mode(self, mode):
         if mode == self.EDITMODE_MASK:
             self.subroi_widget.setVisible(False)
             self.brush_group.setVisible(True)
@@ -141,6 +148,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.addpaint_button.setText("Paint")
             self.removeerase_button.setText("Erase")
             #self.removeall_button.setVisible(False)
+            self.editmode_changed.emit(self.EDITMODE_MASK)
         else:
             self.subroi_widget.setVisible(True)
             self.brush_group.setVisible(False)
@@ -148,13 +156,14 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.addpaint_button.setText("Add/Move")
             self.removeerase_button.setText("Remove")
             #self.removeall_button.setVisible(True)
+            self.editmode_changed.emit(self.EDITMODE_CONTOUR)
 
     @pyqtSlot(bool)
-    def undoEnable(self, enable):
+    def undo_enable(self, enable):
         self.undoButton.setEnabled(enable)
 
     @pyqtSlot(bool)
-    def redoEnable(self, enable):
+    def redo_enable(self, enable):
         self.redoButton.setEnabled(enable)
 
     def _confirm(self, text):

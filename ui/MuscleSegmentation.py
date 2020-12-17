@@ -4,6 +4,7 @@
 Created on Fri Oct 16 15:14:33 2020
 
 @author: francesco
+
 """
 import matplotlib
 
@@ -15,7 +16,6 @@ import sys, os, time, math
 SCRIPT_DIR = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__))))
 sys.path.append(os.path.normpath(SCRIPT_DIR))
 
-from ui.pySplineInterp import SplineInterpROIClass
 from ui.ToolboxWindow import ToolboxWindow
 from .pyDicomView import ImageShow
 from utils.mask_utils import calc_dice_score, save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks
@@ -25,6 +25,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 import shutil
 from datetime import datetime
+from .ROIManager import ROIManager
 
 from matplotlib.patches import Circle
 import numpy as np
@@ -42,7 +43,6 @@ except:
     pass
 
 import re
-
 import subprocess
 
 from utils.dicomUtils import load3dDicom, save3dDicom
@@ -81,9 +81,11 @@ ROI_OTHER_COLOR_WACOM = (0, 0, 1, 0.8)
 
 ROI_COLOR = ROI_COLOR_ORIG
 ROI_SAME_COLOR = ROI_SAME_COLOR_ORIG
-ROT_OTHER_COLOR = ROI_OTHER_COLOR_ORIG
+ROI_OTHER_COLOR = ROI_OTHER_COLOR_ORIG
 
-BRUSH_COLOR = (1,0,0,0.6)
+BRUSH_PAINT_COLOR = (1, 0, 0, 0.6)
+BRUSH_ERASE_COLOR = (0, 0, 1, 0.6)
+
 
 ROI_FILENAME = 'rois.p'
 AUTOSAVE_INTERVAL = 30
@@ -94,6 +96,18 @@ COLORS = ['blue', 'red', 'green', 'yellow', 'magenta', 'cyan', 'indigo', 'white'
 
 HISTORY_LENGTH = 20
 
+MASK_LAYER_COLORMAP = matplotlib.colors.ListedColormap(np.array([
+    [0,0,0,0],
+    [*ROI_COLOR[:3],1]
+]))
+
+MASK_LAYER_OTHER_COLORMAP = matplotlib.colors.ListedColormap(np.array([
+    [0,0,0,0],
+    [*ROI_OTHER_COLOR[:3],1]
+]))
+
+
+MASK_LAYER_ALPHA = 0.4
 
 # define a circle with a contains method that for some reason does not work with conventional circles
 class MyCircle(Circle):
@@ -115,6 +129,7 @@ def snapshotSaver(func):
 
 
 class MuscleSegmentation(ImageShow, QObject):
+
     undo_possible = pyqtSignal(bool)
     redo_possible = pyqtSignal(bool)
 
@@ -127,10 +142,11 @@ class MuscleSegmentation(ImageShow, QObject):
         self.roiStack = None
         self.transforms = {}
         self.invtransforms = {}
-        self.allROIs = {}  # allROIs is dict[roiName: dict[imageNumber: (subroi)list[Splines]]]
+        #self.allROIs = {}  # allROIs is dict[roiName: dict[imageNumber: (subroi)list[Splines]]]
+        self.roiManager = None
         self.wacom = False
         self.roiColor = ROI_COLOR
-        self.roiOther = ROT_OTHER_COLOR
+        self.roiOther = ROI_OTHER_COLOR
         self.roiSame = ROI_SAME_COLOR
         self.saveDicom = False
 
@@ -153,13 +169,34 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.originalSegmentationMasks = {}
         self.brush_patch = None
+        self.maskImPlot = None
+        self.maskOtherImPlot = None
+        self.activeMask = None
+        self.otherMask = None
+        self.roiChanged = {}
 
-    def getRoiFileName(self):
-        if self.basename:
-            roi_fname = self.basename + '.' + ROI_FILENAME
-        else:
-            roi_fname = ROI_FILENAME
-        return os.path.join(self.basepath, roi_fname)
+        self.editMode = ToolboxWindow.EDITMODE_MASK
+
+
+    # def toggleWacom(self, wacomState = None):
+    #     if wacomState is not None: self.wacom = not wacomState # force a toggle
+    #     if self.wacom:
+    #         self.wacom = False
+    #         self.roiColor = ROI_COLOR_ORIG
+    #         self.roiOther = ROI_OTHER_COLOR_ORIG
+    #     else:
+    #         self.wacom = True
+    #         self.roiColor = ROI_COLOR_WACOM
+    #         self.roiOther = ROI_OTHER_COLOR_WACOM
+    #     self.wacomAction.setChecked(self.wacom)
+    #     #self.redraw()
+    #     self.redraw()
+
+    #############################################################################################
+    ###
+    ### Toolbar interaction
+    ###
+    ##############################################################################################
 
     def setupToolbar(self):
 
@@ -172,6 +209,8 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.toolbox_window = ToolboxWindow(activate_registration=showRegistrationGui)
         self.toolbox_window.show()
+
+        self.toolbox_window.editmode_changed.connect(self.changeEditMode)
 
         self.toolbox_window.roi_added.connect(self.addRoi)
         self.toolbox_window.subroi_added.connect(self.addSubRoi)
@@ -187,8 +226,8 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.toolbox_window.undo.connect(self.undo)
         self.toolbox_window.redo.connect(self.redo)
-        self.undo_possible.connect(self.toolbox_window.undoEnable)
-        self.redo_possible.connect(self.toolbox_window.redoEnable)
+        self.undo_possible.connect(self.toolbox_window.undo_enable)
+        self.redo_possible.connect(self.toolbox_window.redo_enable)
 
         self.toolbox_window.contour_simplify.connect(self.simplify)
         self.toolbox_window.contour_optimize.connect(self.optimize)
@@ -204,55 +243,50 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.toolbox_window.masks_export.connect(self.saveResults)
 
-        # tb = self.fig.canvas.toolbar
-        # tb.addSeparator()
-        #
-        # segmentAction = tb.addAction("Muscle:")
-        # segmentAction.setEnabled(False)
-        #
-        # self.setState('INACTIVE')
-        #
-        # self.combo = QComboBox()
-        # self.combo.setEditable(True)
-        # self.combo.resize(150,10)
-        # tb.addWidget(self.combo)
-        # self.combo.currentIndexChanged.connect(self.comboChange)
-        #
-        # tb.addAction("Delete", self.deleteComboItem)
-        #
-        # tb.addAction("Optimize", self.optimize)
-        # tb.addAction("Simplify", self.simplify)
-        #
-        # self.calcTransformsAction = tb.addAction("Calculate transforms", self.calcTransforms)
-        #
-        # self.propagateAction = tb.addAction("Propagate forward", self.propagate)
-        # #self.propagateAllAction =tb.addAction("Propagate fw all", self.propagateAll)
-        #
-        # tb.addSeparator()
-        #
-        # self.propagateAction = tb.addAction("Propagate back", self.propagateBack)
-        # #self.propagateAction = tb.addAction("Propagate back all", self.propagateBackAll)
-        # tb.addSeparator()
-        #
-        # tb.addAction("Save masks", self.saveResults)
-        #
-        # tb.addSeparator()
-        # self.wacomAction = tb.addAction("Wacom mode", self.toggleWacom)
-        # self.wacomAction.setCheckable(True)
 
-    # def toggleWacom(self, wacomState = None):
-    #     if wacomState is not None: self.wacom = not wacomState # force a toggle
-    #     if self.wacom:
-    #         self.wacom = False
-    #         self.roiColor = ROI_COLOR_ORIG
-    #         self.roiOther = ROI_OTHER_COLOR_ORIG
-    #     else:
-    #         self.wacom = True
-    #         self.roiColor = ROI_COLOR_WACOM
-    #         self.roiOther = ROI_OTHER_COLOR_WACOM
-    #     self.wacomAction.setChecked(self.wacom)
-    #     #self.refreshCB()
-    #     self.redraw()
+    @pyqtSlot(str)
+    def changeEditMode(self, mode):
+        print("Changing edit mode")
+        self.editMode = mode
+        roi_name = self.getCurrentROIName()
+        if mode == ToolboxWindow.EDITMODE_MASK:
+            self.removeContours()
+            self.updateMasksFromROIs()
+        else:
+            self.removeMasks()
+        self.updateRoiList()
+        self.toolbox_window.set_current_roi(roi_name)
+        self.redraw()
+
+    def setState(self, state):
+        self.state = state
+
+    def getState(self):
+        if self.toolbox_window.valid_roi(): return 'MUSCLE'
+        return 'INACTIVE'
+
+    def updateRoiList(self):
+        if not self.roiManager: return
+        roiDict = {}
+        imageN = int(self.curImage)
+        for roiName in self.roiManager.get_roi_names():
+            if self.editMode == ToolboxWindow.EDITMODE_MASK:
+                if not self.roiManager.contains(roiName, imageN):
+                    self.roiManager.add_mask(roiName, imageN)
+                n_subrois = 1
+            else:
+                if not self.roiManager.contains(roiName, imageN) or self.roiManager.get_roi_mask_pair(roiName,
+                                                                                                      imageN).get_subroi_len() == 0:
+                    self.addSubRoi(roiName, imageN)
+                n_subrois = self.roiManager.get_roi_mask_pair(roiName, imageN).get_subroi_len()
+            roiDict[roiName] = n_subrois  # dict: roiname -> n subrois per slice
+        self.toolbox_window.set_rois_list(roiDict)
+
+    #############################################################################################
+    ###
+    ### History
+    ###
+    #############################################################################################
 
     def saveSnapshot(self):
         # clear history until the current point, so we can't redo anymore
@@ -260,7 +294,7 @@ class MuscleSegmentation(ImageShow, QObject):
         while self.currentHistoryPoint > 0:
             self.history.popleft()
             self.currentHistoryPoint -= 1
-        self.history.appendleft(pickle.dumps(self.allROIs))
+        self.history.appendleft(pickle.dumps(self.roiManager))
         self.undo_possible.emit(self.canUndo())
         self.redo_possible.emit(self.canRedo())
 
@@ -275,14 +309,15 @@ class MuscleSegmentation(ImageShow, QObject):
         roiName = self.getCurrentROIName()
         subRoiNumber = self.getCurrentSubroiNumber()
         self.clearAllROIs()
-        self.allROIs = pickle.loads(self.history[self.currentHistoryPoint])
+        self.roiManager = pickle.loads(self.history[self.currentHistoryPoint])
         self.updateRoiList()
-        if roiName in self.allROIs:
-            if subRoiNumber < len(self.allROIs[roiName][int(self.curImage)]):
+        if self.roiManager.contains(roiName):
+            #TODO: mask-aware
+            if subRoiNumber < self.roiManager.get_roi_mask_pair(roiName, self.curImage).get_subroi_len():
                 self.toolbox_window.set_current_roi(roiName, subRoiNumber)
             else:
                 self.toolbox_window.set_current_roi(roiName, 0)
-        self.refreshCB()
+        self.redraw()
         self.undo_possible.emit(self.canUndo())
         self.redo_possible.emit(self.canRedo())
 
@@ -302,72 +337,56 @@ class MuscleSegmentation(ImageShow, QObject):
         if self.currentHistoryPoint == 0:
             self.history.popleft()  # remove current status from the history
 
+    ############################################################################################################
+    ###
+    ### ROI management
+    ###
+    #############################################################################################################
+
+    def getRoiFileName(self):
+        if self.basename:
+            roi_fname = self.basename + '.' + ROI_FILENAME
+        else:
+            roi_fname = ROI_FILENAME
+        return os.path.join(self.basepath, roi_fname)
+
     def clearAllROIs(self):
-        for _, imageRoiDict in self.allROIs.items():
-            for _, subRoiList in imageRoiDict.items():
-                for roi in subRoiList:
-                    try:
-                        roi.remove()
-                    except:
-                        pass
-        self.allROIs = {}
+        self.roiManager.clear()
         self.updateRoiList()
-        self.refreshCB()
+        self.redraw()
 
     def clearSubrois(self, name, sliceN):
-        try:
-            for roi in self.allROIs[name][sliceN]:
-                roi.remove()
-        except:
-            pass
-        self.allROIs[name][sliceN] = [SplineInterpROIClass()]
+        self.roiManager.clear(name, sliceN)
         self.updateRoiList()
-        self.refreshCB()
-
-    def updateRoiList(self):
-        roiDict = {}
-        imageN = int(self.curImage)
-        # print(self.allROIs)
-        for roiName, imageSubroiList in self.allROIs.items():
-            if imageN not in imageSubroiList or len(imageSubroiList[imageN]) == 0:
-                self.addSubRoi(roiName, imageN)
-            roiDict[roiName] = len(imageSubroiList[imageN])  # dict: roiname -> n subrois per slice
-        self.toolbox_window.set_rois_list(roiDict)
+        self.redraw()
 
     @pyqtSlot(str)
     @snapshotSaver
     def removeRoi(self, roi_name):
         print("RemoveRoi")
-        print(self.allROIs)
-        for sliceN, subRoisForSlice in self.allROIs[roi_name].items():
-            for roi in subRoisForSlice:
-                roi.remove()
-        del self.allROIs[roi_name]
+        print(self.roiManager.get_roi_names())
+        self.roiManager.clear(roi_name)
         self.updateRoiList()
-        self.refreshCB()
+        self.redraw()
 
     @pyqtSlot(int)
     @snapshotSaver
     def removeSubRoi(self, subroi_number):
         current_name, _ = self.toolbox_window.get_current_roi_subroi()
-        self.allROIs[current_name][int(self.curImage)][subroi_number].remove()
-
-        self.allROIs[current_name][int(self.curImage)].pop(subroi_number)
-        # add an empty spline object so that length is not 0
-        if not self.allROIs[current_name][int(self.curImage)]:
-            self.allROIs[current_name][int(self.curImage)].append(SplineInterpROIClass())
+        self.roiManager.clear_subroi(current_name, int(self.curImage), subroi_number)
         self.updateRoiList()
-        self.refreshCB()
+        self.redraw()
 
     @pyqtSlot(str)
     @snapshotSaver
     def addRoi(self, roiName):
-        if roiName not in self.allROIs:
-            self.allROIs[roiName] = {}
-            self.addSubRoi(roiName)  # add one default subroi
+        if self.editMode == ToolboxWindow.EDITMODE_MASK:
+            self.roiManager.add_mask(roiName, int(self.curImage))
         else:
-            self.toolbox_window.set_current_roi(roiName, 0)
-            self.refreshCB()
+            self.roiManager.add_roi(roiName, int(self.curImage))
+        self.updateRoiList()
+        self.toolbox_window.set_current_roi(roiName, 0)
+        self.redraw()
 
     @pyqtSlot()
     @snapshotSaver
@@ -376,17 +395,22 @@ class MuscleSegmentation(ImageShow, QObject):
             roi_name, _ = self.toolbox_window.get_current_roi_subroi()
         if imageN is None:
             imageN = int(self.curImage)
-        if imageN not in self.allROIs[roi_name]:
-            self.allROIs[roi_name][imageN] = []
-        self.allROIs[roi_name][imageN].append(SplineInterpROIClass())
+        self.roiManager.add_subroi(roi_name, imageN)
         self.updateRoiList()
-        self.toolbox_window.set_current_roi(roi_name, len(self.allROIs[roi_name][imageN]) - 1)
-        self.refreshCB()
+        self.toolbox_window.set_current_roi(roi_name, self.roiManager.get_roi_mask_pair(roi_name,
+                                                                                        imageN).get_subroi_len() - 1)
+        self.redraw()
 
     @pyqtSlot(str, int)
     def changeRoi(self, roi_name, subroi_index):
         print(roi_name, subroi_index)
-        self.refreshCB()
+        self.redraw()
+
+    #########################################################################################
+    ###
+    ### ROI modifications
+    ###
+    #########################################################################################
 
     def getInverseTransform(self, imIndex):
         try:
@@ -467,7 +491,7 @@ class MuscleSegmentation(ImageShow, QObject):
         # self.setCurrentROI(r.getSimplifiedSpline(SIMPLIFIED_ROI_POINTS))
         # self.setCurrentROI(r.getSimplifiedSpline(spacing=SIMPLIFIED_ROI_SPACING))
         self.setCurrentROI(r.getSimplifiedSpline3())
-        # self.refreshCB()
+        # self.redraw()
         self.redraw()
 
     @snapshotSaver
@@ -489,7 +513,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         for index, knot in enumerate(r.knots):
             r.replaceKnot(index, newKnots[index])
-        # self.refreshCB()
+        # self.redraw()
         self.redraw()
 
     # optimizes a knot along an (approximatE) normal to the curve
@@ -787,17 +811,10 @@ class MuscleSegmentation(ImageShow, QObject):
 
         qbar.close()
 
-    def setState(self, state):
-        self.state = state
-
-    def getState(self):
-        if self.toolbox_window.valid_roi(): return 'MUSCLE'
-        return 'INACTIVE'
-
     # No @snapshotSaver: snapshot is saved in the calling function
     def addPoint(self, spline, event):
         self.currentPoint = spline.addKnot((event.xdata, event.ydata))
-        # self.refreshCB()
+        # self.redraw()
         self.redraw()
 
     # No @snapshotSaver: snapshot is saved in the calling function
@@ -806,57 +823,21 @@ class MuscleSegmentation(ImageShow, QObject):
             return
 
         spline.replaceKnot(self.currentPoint, (event.xdata, event.ydata))
-        # self.refreshCB()
+        # self.redraw()
         self.redraw()
 
-    def leftPressCB(self, event):
-        if not self.imPlot.contains(event):
-            print("Event outside")
-            return
-
-        if self.toolbox_window.getEditMode() == ToolboxWindow.EDITMODE_MASK:
-            print(self.brush_patch)
-            if self.brush_patch:
-                fig2 = plt.figure()
-                plt.imshow(self.brush_patch.to_mask(self.image.shape))
-                plt.show()
-            return
-
-        if self.getState() == 'MUSCLE':
-            roi = self.getCurrentROI()
-
-            knotIndex, knot = roi.findKnotEvent(event)
-            if self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
-                if knotIndex is not None:
-                    self.saveSnapshot()
-                    roi.removeKnot(knotIndex)
-                    # self.refreshCB()
-                    self.redraw()
-            # if event.key == 'control' or event.key == 'super' or event.key == 'cmd':
-            #     if event.dblclick:
-            #         roi.removeAllKnots()
-            #         self.redraw()
-            #         return
-            # elif event.key == 'shift' or checkCapsLock():
-            elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:
-                self.saveSnapshot()
-                if knotIndex is None:
-                    self.addPoint(roi, event)
-                else:
-                    self.currentPoint = knotIndex
-
-                #
-                # if event.dblclick:
-                #     self.optimize()
-                #     self.simplify()
-                #     self.redraw()
 
     @pyqtSlot()
     @snapshotSaver
     def clearCurrentROI(self):
-        roi = self.getCurrentROI()
-        roi.removeAllKnots()
+        if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
+            roi = self.getCurrentROI()
+            roi.removeAllKnots()
+        elif self.editMode == ToolboxWindow.EDITMODE_MASK:
+            self.roiManager.clear_mask(self.getCurrentROIName(), self.curImage)
+            self.activeMask = None
         self.redraw()
+
 
     def getCurrentROIName(self):
         return self.toolbox_window.get_current_roi_subroi()[0]
@@ -865,6 +846,7 @@ class MuscleSegmentation(ImageShow, QObject):
         return self.toolbox_window.get_current_roi_subroi()[1]
 
     def _getSetCurrentROI(self, offset=0, newROI=None):
+        # TODO: Move to ROIManager
         if not self.getCurrentROIName():
             return None
 
@@ -872,36 +854,9 @@ class MuscleSegmentation(ImageShow, QObject):
         curName = self.getCurrentROIName()
         curSubroi = self.getCurrentSubroiNumber()
 
-        if imageN not in self.allROIs[curName]:
-            self.allROIs[curName][imageN] = []
+        #print("Get set ROI", curName, imageN, curSubroi)
 
-        # check if the subroi number exists for this slice
-        if curSubroi < len(self.allROIs[curName][imageN]):
-            if newROI:
-                self.allROIs[curName][imageN][curSubroi].remove()
-                self.allROIs[curName][imageN][curSubroi] = newROI
-            return self.allROIs[curName][imageN][curSubroi]
-        # if it doesn't exist, check if last subroi of the desired slice is empty
-        try:
-            r = self.allROIs[curName][imageN][-1]
-        except IndexError: # ROI does not exist for the requested slice
-            r = SplineInterpROIClass()
-            self.allROIs[curName][imageN].append(r)
-        if len(r.knots) == 0:
-            if newROI:
-                self.allROIs[curName][imageN][-1] = newROI
-                return newROI
-            else:
-                return r
-
-        # otherwise, make a new roi
-        if newROI:
-            self.allROIs[curName][imageN].append(newROI)
-            return newROI
-        else:
-            r = SplineInterpROIClass()
-            self.allROIs[curName][imageN].append(r)
-            return r
+        return self.roiManager._get_set_roi(curName, imageN, curSubroi, newROI)
 
     def getCurrentROI(self, offset=0):
         return self._getSetCurrentROI(offset)
@@ -909,14 +864,185 @@ class MuscleSegmentation(ImageShow, QObject):
     def setCurrentROI(self, r, offset=0):
         self._getSetCurrentROI(offset, r)
 
+
+    ##############################################################################################################
+    ###
+    ### Displaying
+    ###
+    ###############################################################################################################
+
+
+    def removeMasks(self):
+        """ Remove the masks from the plot """
+        print('Removing masks')
+        try:
+            self.maskImPlot.remove()
+        except:
+            pass
+        self.maskImPlot = None
+
+        try:
+            self.maskOtherImPlot.remove()
+        except:
+            pass
+        self.maskOtherImPlot = None
+
+        try:
+            self.brush_patch.remove()
+        except:
+            pass
+        self.brush_patch = None
+
+    def removeContours(self):
+        """ Remove all the contours from the plot """
+        self.roiManager.clear(only_clear_interface=True)
+
+    def updateMasksFromROIs(self):
+        roi_name = self.getCurrentROIName()
+        mask_size = self.image.shape
+        self.otherMask = np.zeros(mask_size, dtype=np.uint8)
+        self.activeMask = np.zeros(mask_size, dtype=np.uint8)
+        for key_tuple, mask in self.roiManager.all_masks(image_number=self.curImage):
+            mask_name = key_tuple[0]
+            if mask_name == roi_name:
+                self.activeMask = mask.copy()
+            else:
+                self.otherMask = np.logical_or(self.otherMask, mask)
+
+    def drawMasks(self):
+        """ Plot the masks for the current figure """
+        if self.activeMask is None:
+            self.updateMasksFromROIs()
+
+        if not self.hideRois:  # if we hide the ROIs, clear all the masks
+            active_mask = self.activeMask
+            other_mask = self.otherMask
+        else:
+            active_mask = np.zeros_like(self.activeMask)
+            other_mask = np.zeros_like(self.otherMask)
+
+        if self.maskImPlot is None:
+            self.maskImPlot = self.axes.imshow(active_mask, cmap=MASK_LAYER_COLORMAP, alpha=MASK_LAYER_ALPHA, vmin=0, vmax=1, zorder=100)
+
+        self.maskImPlot.set_data(active_mask)
+
+        if self.maskOtherImPlot is None:
+            self.maskOtherImPlot = self.axes.imshow(other_mask, cmap=MASK_LAYER_OTHER_COLORMAP, alpha=MASK_LAYER_ALPHA, vmin=0, vmax=1, zorder=101)
+
+        self.maskOtherImPlot.set_data(other_mask)
+
+
+    def drawContours(self):
+        """ Plot the contours for the current figure """
+        for key_tuple, roi in self.roiManager.all_rois():
+            name, sliceN, subroiNumber = key_tuple
+            if sliceN != int(self.curImage) or self.hideRois:
+                roi.remove()
+            else:
+                rSize = 0.1
+                rColor = self.roiOther
+                if name == self.getCurrentROIName():
+                    if subroiNumber == self.getCurrentSubroiNumber():
+                        rSize = ROI_CIRCLE_SIZE
+                        rColor = self.roiColor
+                    else:
+                        rColor = self.roiSame
+                try:
+                    roi.draw(self.axes, rSize, rColor)
+                except:
+                    pass
+
+    # convert a single slice to ROIs
+    def maskToRois2D(self, name, mask, imIndex, refresh = True):
+        if not self.roiManager: return
+        self.roiManager.set_mask(name, imIndex, mask)
+        if refresh:
+            self.updateRoiList()
+            self.redraw()
+
+    # convert a 2D mask or a 3D dataset to rois
+    def masksToRois(self, maskDict, imIndex):
+        for name, mask in maskDict.items():
+            if len(mask.shape) > 2: # multislice
+                for sl in range(mask.shape[3]):
+                    self.maskToRois2D(name, mask[:,:,sl], sl, False)
+            else:
+                self.maskToRois2D(name, mask, imIndex, False)
+        self.updateRoiList()
+        self.redraw()
+
+    def displayImage(self, im, cmap=None):
+        try:
+            self.maskImPlot.remove()
+        except:
+            pass
+        try:
+            self.maskOtherImPlot.remove()
+        except:
+            pass
+        self.maskImPlot = None
+        self.maskOtherImPlot = None
+        ImageShow.displayImage(self, im, cmap)
+        self.updateRoiList()  # set the appropriate (sub)roi list for the current image
+        self.activeMask = None
+        self.otherMask = None
+        self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
+
+    ##############################################################################################################
+    ###
+    ### UI Callbacks
+    ###
+    ##############################################################################################################
+
+    @pyqtSlot()
+    def refreshCB(self):
+        # check if ROIs should be autosaved
+        now = datetime.now()
+        if (now - self.lastsave).total_seconds() > AUTOSAVE_INTERVAL:
+            self.lastsave = now
+            self.saveROIPickle()
+
+        if not self.app:
+            app = QApplication.instance()
+
+        if self.wacom:
+            app.setOverrideCursor(Qt.BlankCursor)
+        else:
+            app.setOverrideCursor(Qt.ArrowCursor)
+
+        #print("Refresh")
+        #print(self.editMode)
+
+        if self.roiManager:
+            if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
+                self.drawContours()
+            elif self.editMode == ToolboxWindow.EDITMODE_MASK:
+                self.drawMasks()
+
+        #print("Redrawing")
+        #print(self.axes.get_children())
+        #plt.draw() - already in redraw
+
+    def closeCB(self, event):
+        if not self.basepath: return
+        self.toolbox_window.close()
+        if self.transformsChanged: self.pickleTransforms()
+        self.saveROIPickle()
+
     def moveBrushPatch(self, event):
         """
             moves the brush. Returns True if the brush was moved to a new position
         """
-        brush_type, brush_size = self.toolbox_window.getBrush()
+        brush_type, brush_size = self.toolbox_window.get_brush()
         mouseX = event.xdata
         mouseY = event.ydata
-        if mouseX is None or mouseY is None:
+        if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:
+            brush_color = BRUSH_PAINT_COLOR
+        elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
+            brush_color = BRUSH_ERASE_COLOR
+        else:
+            brush_color = None
+        if mouseX is None or mouseY is None or brush_color is None:
             try:
                 self.brush_patch.remove()
                 self.fig.canvas.draw()
@@ -926,7 +1052,7 @@ class MuscleSegmentation(ImageShow, QObject):
             return False
 
         try:
-            oldX = self.moveBrushPatch_oldX # static variables
+            oldX = self.moveBrushPatch_oldX  # static variables
             oldY = self.moveBrushPatch_oldY
         except:
             oldX = -1
@@ -948,12 +1074,13 @@ class MuscleSegmentation(ImageShow, QObject):
                     self.brush_patch.remove()
                 except:
                     pass
-                self.brush_patch = SquareBrush(xy, brush_size, brush_size, color=BRUSH_COLOR)
+                self.brush_patch = SquareBrush(xy, brush_size, brush_size, color=brush_color)
                 self.axes.add_patch(self.brush_patch)
 
             self.brush_patch.set_xy(xy)
             self.brush_patch.set_height(brush_size)
             self.brush_patch.set_width(brush_size)
+
         elif brush_type == ToolboxWindow.BRUSH_CIRCLE:
             center = (math.floor(mouseX) + 0.5, math.floor(mouseY) + 0.5)
             if type(self.brush_patch) != PixelatedCircleBrush:
@@ -961,21 +1088,39 @@ class MuscleSegmentation(ImageShow, QObject):
                     self.brush_patch.remove()
                 except:
                     pass
-                self.brush_patch = PixelatedCircleBrush(center, brush_size, color=BRUSH_COLOR)
+                self.brush_patch = PixelatedCircleBrush(center, brush_size, color=brush_color)
                 self.axes.add_patch(self.brush_patch)
 
             self.brush_patch.set_center(center)
             self.brush_patch.set_radius(brush_size)
 
+        self.brush_patch.set_color(brush_color)
         self.fig.canvas.draw()
         return True
 
+    def modifyMaskFromBrush(self, saveSnapshot=False):
+        if not self.brush_patch: return
+        if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:
+            if saveSnapshot: self.saveSnapshot()
+            np.logical_or(self.activeMask, self.brush_patch.to_mask(self.activeMask.shape), out=self.activeMask)
+        elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
+            if saveSnapshot: self.saveSnapshot()
+            np.logical_and(self.activeMask, np.logical_not(self.brush_patch.to_mask(self.activeMask.shape)),
+                           out=self.activeMask)
+        self.redraw()
+
     # override from ImageShow
     def mouseMoveCB(self, event):
-        if (0 or # self.getState != 'MUSCLE' or ## DEBUG
-                self.toolbox_window.getEditMode() != ToolboxWindow.EDITMODE_MASK or
-                type(event.button) == matplotlib.backend_bases.MouseButton or
-                not self.isCursorNormal()):
+        if (self.getState() == 'MUSCLE' and
+                self.toolbox_window.get_edit_mode() == ToolboxWindow.EDITMODE_MASK and
+                self.isCursorNormal() and
+                event.button != 2 and
+                event.button != 3):
+            moved_to_new_point = self.moveBrushPatch(event)
+            if event.button == 1: # because we are overriding MoveCB, we won't call leftPressCB
+                if moved_to_new_point:
+                    self.modifyMaskFromBrush()
+        else:
             if self.brush_patch:
                 try:
                     self.brush_patch.remove()
@@ -983,10 +1128,6 @@ class MuscleSegmentation(ImageShow, QObject):
                     pass
                 self.brush_patch = None
             ImageShow.mouseMoveCB(self, event)
-            return
-        # Mask edit mode and no button pressed - draw the brush
-        self.moveBrushPatch(event)
-
 
     def leftMoveCB(self, event):
         if self.getState() == 'MUSCLE':
@@ -994,8 +1135,37 @@ class MuscleSegmentation(ImageShow, QObject):
             if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:  # event.key == 'shift' or checkCapsLock():
                 self.movePoint(roi, event)
 
+    def leftPressCB(self, event):
+        print("left press", self.getState())
+        if not self.imPlot.contains(event):
+            print("Event outside")
+            return
+
+        if self.getState() != 'MUSCLE': return
+
+        if self.toolbox_window.get_edit_mode() == ToolboxWindow.EDITMODE_MASK:
+            self.modifyMaskFromBrush(saveSnapshot=True)
+        else:
+            roi = self.getCurrentROI()
+            knotIndex, knot = roi.findKnotEvent(event)
+            print("Left press", roi, knot)
+            if self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
+                if knotIndex is not None:
+                    self.saveSnapshot()
+                    roi.removeKnot(knotIndex)
+                    # self.redraw()
+                    self.redraw()
+            elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:
+                self.saveSnapshot()
+                if knotIndex is None:
+                    self.addPoint(roi, event)
+                else:
+                    self.currentPoint = knotIndex
+
     def leftReleaseCB(self, event):
         self.currentPoint = None  # reset the state
+        if self.editMode == ToolboxWindow.EDITMODE_MASK:
+            self.roiManager.set_mask(self.getCurrentROIName(), self.curImage, self.activeMask)
 
     def rightPressCB(self, event):
         self.hideRois = HIDE_ROIS_RIGHTCLICK
@@ -1005,57 +1175,38 @@ class MuscleSegmentation(ImageShow, QObject):
         self.hideRois = False
         self.redraw()
 
-    def refreshCB(self):
-        # check if ROIs should be autosaved
-        now = datetime.now()
-        if (now - self.lastsave).total_seconds() > AUTOSAVE_INTERVAL:
-            self.lastsave = now
-            self.saveROIPickle()
-
-        if not self.app:
-            app = QApplication.instance()
-
-        if self.wacom:
-            app.setOverrideCursor(Qt.BlankCursor)
+    def keyPressCB(self, event):
+        # print(event.key)
+        if 'shift' in event.key:
+            self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.ADD_STATE)
+        elif 'control' in event.key or 'cmd' in event.key or 'super' in event.key or 'ctrl' in event.key:
+            self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.REMOVE_STATE)
+        if event.key == 'n':
+            self.propagate()
+        elif event.key == 'b':
+            self.propagateBack()
         else:
-            app.setOverrideCursor(Qt.ArrowCursor)
-        # if not self.roiStack: return
+            ImageShow.keyPressCB(self, event)
 
-        r = self.getCurrentROI()
+    def keyReleaseCB(self, event):
+        if 'shift' in event.key or 'control' in event.key or 'cmd' in event.key or 'super' in event.key or 'ctrl' in event.key:
+            self.toolbox_window.restore_edit_button_state()
 
-        for name, imageRoiDict in self.allROIs.items():
-            for sliceN, subroiList in imageRoiDict.items():
-                for subroiNumber, roi in enumerate(subroiList):
-                    if sliceN != int(self.curImage) or self.hideRois:
-                        roi.remove()
-                    else:
-                        rSize = 0.1
-                        rColor = self.roiOther
-                        if name == self.getCurrentROIName():
-                            if subroiNumber == self.getCurrentSubroiNumber():
-                                rSize = ROI_CIRCLE_SIZE
-                                rColor = self.roiColor
-                            else:
-                                rColor = self.roiSame
-                        try:
-                            roi.draw(self.axes, rSize, rColor)
-                        except:
-                            pass
-        plt.draw()
+        # plt.show()
 
-    def closeCB(self, event):
-        if not self.basepath: return
-        self.toolbox_window.close()
-        if self.transformsChanged: self.pickleTransforms()
-        self.saveROIPickle()
+    ################################################################################################################
+    ###
+    ### I/O
+    ###
+    ################################################################################################################
 
     @pyqtSlot(str)
     def saveROIPickle(self, roiPickleName=None):
         if not roiPickleName:
             roiPickleName = self.getRoiFileName()
         print("Saving ROIs", roiPickleName)
-        if self.allROIs:  # make sure ROIs are not empty
-            pickle.dump(self.allROIs, open(roiPickleName, 'wb'))
+        if self.roiManager and not self.roiManager.is_empty():  # make sure ROIs are not empty
+            pickle.dump(self.roiManager, open(roiPickleName, 'wb'))
 
     @pyqtSlot(str)
     def loadROIPickle(self, roiPickleName=None):
@@ -1063,26 +1214,25 @@ class MuscleSegmentation(ImageShow, QObject):
             roiPickleName = self.getRoiFileName()
         print("Loading ROIs", roiPickleName)
         try:
-            allROIs = pickle.load(open(roiPickleName, 'rb'))
+            roiManager = pickle.load(open(roiPickleName, 'rb'))
         except UnicodeDecodeError:
             print('Warning: Unicode decode error')
-            allROIs = pickle.load(open(roiPickleName, 'rb'), encoding='latin1')
+            roiManager = pickle.load(open(roiPickleName, 'rb'), encoding='latin1')
         except:
             print("Unspecified error")
             return
 
         try:
+
             # print(self.allROIs)
-            sliceSubRoiDict = list(allROIs.values())[0]
-            assert type(list(sliceSubRoiDict.values())[0]) == list
+            assert type(roiManager) == ROIManager
         except:
             print("Unrecognized saved ROI type")
             return
 
         print('Rois loaded')
         self.clearAllROIs()
-        self.allROIs = allROIs
-        print(self.allROIs)
+        self.roiManager = roiManager
         self.updateRoiList()
 
     @pyqtSlot(str)
@@ -1095,9 +1245,10 @@ class MuscleSegmentation(ImageShow, QObject):
             shutil.copyfile(self.getRoiFileName(), roi_bak_name)
         except:
             print("Warning: cannot copy roi file")
+        self.roiManager = ROIManager(self.imList[0].shape)
         self.unPickleTransforms()
         #self.loadROIPickle()
-        self.refreshCB()
+        self.redraw()
         self.toolbox_window.set_exports_enabled(numpy= True,
                                                 dicom= (self.dicomHeaderList is not None),
                                                 nifti= (self.affine is not None)
@@ -1125,18 +1276,12 @@ class MuscleSegmentation(ImageShow, QObject):
         dataForTraining = {}
         segForTraining = {}
 
-        for roiName, imageRoiDict in self.allROIs.items():
+        for roiName in self.roiManager.get_roi_names():
             masklist = []
             for imageIndex in range(len(self.imList)):
                 roi = np.zeros(imSize)
-                if imageIndex in imageRoiDict:
-                    for subRoi in imageRoiDict[imageIndex]:
-                        try:
-                            roi = np.logical_xor(roi, subRoi.toMask(imSize, False))
-                            # plt.figure()
-                            # plt.imshow(roi)
-                        except:
-                            pass
+                if self.roiManager.contains(roiName, imageIndex):
+                    roi = self.roiManager.get_mask(roiName, imageIndex)
                 masklist.append(roi)
                 try:
                     originalSegmentation = self.originalSegmentationMasks[imageIndex][roiName]
@@ -1237,26 +1382,12 @@ class MuscleSegmentation(ImageShow, QObject):
                 curTransformList.append(sitk.ParameterMap(transform))
             self.invtransforms[k] = tuple(curTransformList)
 
-    def keyPressCB(self, event):
-        # print(event.key)
-        if 'shift' in event.key:
-            self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.ADD_STATE)
-        elif 'control' in event.key or 'cmd' in event.key or 'super' in event.key or 'ctrl' in event.key:
-            self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.REMOVE_STATE)
-        if event.key == 'n':
-            self.propagate()
-        elif event.key == 'b':
-            self.propagateBack()
-        else:
-            ImageShow.keyPressCB(self, event)
-
-    def keyReleaseCB(self, event):
-        if 'shift' in event.key or 'control' in event.key or 'cmd' in event.key or 'super' in event.key or 'ctrl' in event.key:
-            self.toolbox_window.restore_edit_button_state()
-
-        # plt.show()
-
+    ########################################################################################
+    ###
     ### Deep learning functions
+    ###
+    ########################################################################################
+
     def setModelProvider(self, modelProvider):
         self.model_provider = modelProvider
         self.dl_classifier = modelProvider.load_model('Classifier')
@@ -1264,36 +1395,9 @@ class MuscleSegmentation(ImageShow, QObject):
     def setAvailableClasses(self, classList):
         self.toolbox_window.set_available_classes(classList)
 
-    def displayImage(self, im, cmap=None):
-        ImageShow.displayImage(self, im, cmap)
-        self.updateRoiList()  # set the appropriate (sub)roi list for the current image
-        self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
-
     @pyqtSlot(str)
     def changeClassification(self, newClass):
         self.classifications[int(self.curImage)] = newClass
-
-    # convert a single slice to ROIs
-    def maskToRois2D(self, name, mask, imIndex, refresh = True):
-        splineInterpList = SplineInterpROIClass.FromMask(mask)  # run mask tracing
-        if name not in self.allROIs:
-            self.allROIs[name] = {}
-        self.clearSubrois(name, imIndex)
-        self.allROIs[name][imIndex] = splineInterpList
-        if refresh:
-            self.updateRoiList()
-            self.refreshCB()
-
-    # convert a 2D mask or a 3D dataset to rois
-    def masksToRois(self, maskDict, imIndex):
-        for name, mask in maskDict.items():
-            if len(mask.shape) > 2: # multislice
-                for sl in range(mask.shape[3]):
-                    self.maskToRois2D(name, mask[:,:,sl], sl, False)
-            else:
-                self.maskToRois2D(name, mask, imIndex, False)
-        self.updateRoiList()
-        self.refreshCB()
 
     @pyqtSlot()
     @snapshotSaver
@@ -1314,4 +1418,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.originalSegmentationMasks[imIndex] = masks_out # save original segmentation for statistics
         print("Done")
         self.masksToRois(masks_out, imIndex)
+        self.activeMask = None
+        self.otherMask = None
         print("Segmentation/import time:", time.time() - t)
+        self.redraw()

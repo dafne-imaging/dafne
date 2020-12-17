@@ -75,11 +75,13 @@ class SplineInterpROIClass:
     def invalidate_precalculations(self):
         self.isCurveValid = False
         self.isMaskValid = False
-        
+
+    # TODO: Remove this and only keep removeAllKnots?
     def clear(self):
-        self.invalidate_precalculations()
-        for i in range(0, self.knots):
-            self.removeKnot(i)
+        self.removeAllKnots()
+        #self.invalidate_precalculations()
+        #for i in range(0, self.knots):
+        #    self.removeKnot(i)
 
     # returns the center of the ROI
     def getCenterOfMass(self):
@@ -212,22 +214,21 @@ class SplineInterpROIClass:
         self.isVisible = False
     
     def draw(self, axes, radius = KNOT_RADIUS, color = 'blue'):
-        
         self.remove()
         self.isVisible = True
-        
+
         for k in self.knotRepresentations:
             k.set_radius(radius)
             k.set_edgecolor(color)
             axes.add_patch(k)
         try:            
             points = self.getCurve()
-            self.plot = Polygon(points, facecolor = 'none', edgecolor = color)
+            self.plot = Polygon(points, facecolor = 'none', edgecolor = color, zorder=1)
             axes.add_patch(self.plot)
         except:
             pass
-            
-        plt.draw()
+
+        #plt.draw()
         
     #converts this spline to mask of a defined size. Note! At the moment this will not work properly if the contour touches the edges!
     def toMask(self, size = None, fast = True):
@@ -464,7 +465,7 @@ class SplineInterpROIClass:
     @staticmethod
     def FromMask(maskImage):
         outputSplines = []
-        bmp = potrace.Bitmap(maskImage)
+        bmp = potrace.Bitmap(maskImage.astype(np.float))
         
         # Trace the bitmap to a path
         path = bmp.trace(alphamax = 1.33, opticurve = 1, opttolerance = 1)
