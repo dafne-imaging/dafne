@@ -99,11 +99,11 @@ class RoiAndMaskPair:
         self.invalidate_roi()
 
     def invalidate_roi(self):
-        print("Roi invalidated")
+        #print("Roi invalidated")
         self.subroi_stack = None
 
     def invalidate_mask(self):
-        print("Mask invalidated")
+        #print("Mask invalidated")
         self.mask = None
 
     def subroi_to_mask(self):
