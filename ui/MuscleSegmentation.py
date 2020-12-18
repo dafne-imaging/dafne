@@ -317,6 +317,8 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.toolbox_window.set_current_roi(roiName, subRoiNumber)
             else:
                 self.toolbox_window.set_current_roi(roiName, 0)
+        self.activeMask = None
+        self.otherMask = None
         self.redraw()
         self.undo_possible.emit(self.canUndo())
         self.redo_possible.emit(self.canRedo())
@@ -411,79 +413,6 @@ class MuscleSegmentation(ImageShow, QObject):
     ### ROI modifications
     ###
     #########################################################################################
-
-    def getInverseTransform(self, imIndex):
-        try:
-            return self.invtransforms[imIndex]
-        except KeyError:
-            self.calcInverseTransform(imIndex)
-            return self.invtransforms[imIndex]
-
-    def getTransform(self, imIndex):
-        try:
-            return self.transforms[imIndex]
-        except KeyError:
-            self.calcTransform(imIndex)
-            return self.transforms[imIndex]
-
-    def calcTransform(self, imIndex):
-        if imIndex >= len(self.imList) - 1: return
-        fixedImage = self.imList[imIndex]
-        movingImage = self.imList[imIndex + 1]
-        self.transforms[imIndex] = self.runElastix(fixedImage, movingImage)
-        self.transformsChanged = True
-
-    def calcInverseTransform(self, imIndex):
-        if imIndex < 1: return
-        fixedImage = self.imList[imIndex]
-        movingImage = self.imList[imIndex - 1]
-        self.invtransforms[imIndex] = self.runElastix(fixedImage, movingImage)
-        self.transformsChanged = True
-
-    def runElastix(self, fixedImage, movingImage):
-        elastixImageFilter = sitk.ElastixImageFilter()
-        elastixImageFilter.SetLogToConsole(False)
-        elastixImageFilter.SetLogToFile(False)
-
-        elastixImageFilter.SetFixedImage(sitk.GetImageFromArray(fixedImage))
-        elastixImageFilter.SetMovingImage(sitk.GetImageFromArray(movingImage))
-        print("Registering...")
-
-        elastixImageFilter.Execute()
-        print("Done")
-        return elastixImageFilter.GetTransformParameterMap()
-
-    def calcTransforms(self):
-        qbar = QProgressBar()
-        qbar.setRange(0, len(self.imList) - 1)
-        qbar.setWindowTitle(QString("Registering images"))
-        qbar.setWindowModality(Qt.ApplicationModal)
-        qbar.move(800, 500)
-        qbar.show()
-
-        for imIndex in range(len(self.imList)):
-            qbar.setValue(imIndex)
-            plt.pause(.000001)
-            print("Calculating image:", imIndex)
-            # the transform was already calculated
-            if imIndex not in self.transforms:
-                self.calcTransform(imIndex)
-            if imIndex not in self.invtransforms:
-                self.calcInverseTransform(imIndex)
-
-        qbar.close()
-        print("Saving transforms")
-        self.pickleTransforms()
-
-    def propagateAll(self):
-        while self.curImage < len(self.imList) - 1:
-            self.propagate()
-            plt.pause(.000001)
-
-    def propagateBackAll(self):
-        while self.curImage > 0:
-            self.propagateBack()
-            plt.pause(.000001)
 
     @snapshotSaver
     def simplify(self):
@@ -684,7 +613,122 @@ class MuscleSegmentation(ImageShow, QObject):
         minDeriv = np.argmin(diffz) + 1
         return (xpoints[minDeriv], ypoints[minDeriv])
 
-    def runTransformix(self, knots, transform):
+    #####################################################################################################
+    ###
+    ### Elastix
+    ###
+    #####################################################################################################
+
+    def getInverseTransform(self, imIndex):
+        try:
+            return self.invtransforms[imIndex]
+        except KeyError:
+            self.calcInverseTransform(imIndex)
+            return self.invtransforms[imIndex]
+
+    def getTransform(self, imIndex):
+        try:
+            return self.transforms[imIndex]
+        except KeyError:
+            self.calcTransform(imIndex)
+            return self.transforms[imIndex]
+
+    def calcTransform(self, imIndex):
+        if imIndex >= len(self.imList) - 1: return
+        fixedImage = self.imList[imIndex]
+        movingImage = self.imList[imIndex + 1]
+        self.transforms[imIndex] = self.runElastix(fixedImage, movingImage)
+        self.transformsChanged = True
+
+    def calcInverseTransform(self, imIndex):
+        if imIndex < 1: return
+        fixedImage = self.imList[imIndex]
+        movingImage = self.imList[imIndex - 1]
+        self.invtransforms[imIndex] = self.runElastix(fixedImage, movingImage)
+        self.transformsChanged = True
+
+    def runElastix(self, fixedImage, movingImage):
+        elastixImageFilter = sitk.ElastixImageFilter()
+        elastixImageFilter.SetLogToConsole(False)
+        elastixImageFilter.SetLogToFile(False)
+
+        elastixImageFilter.SetFixedImage(sitk.GetImageFromArray(fixedImage))
+        elastixImageFilter.SetMovingImage(sitk.GetImageFromArray(movingImage))
+        print("Registering...")
+
+        elastixImageFilter.Execute()
+        print("Done")
+        pMap = elastixImageFilter.GetTransformParameterMap()
+        self.cleanElastixFiles()
+        return pMap
+
+    def calcTransforms(self):
+        qbar = QProgressBar()
+        qbar.setRange(0, len(self.imList) - 1)
+        qbar.setWindowTitle(QString("Registering images"))
+        qbar.setWindowModality(Qt.ApplicationModal)
+        qbar.move(800, 500)
+        qbar.show()
+
+        for imIndex in range(len(self.imList)):
+            qbar.setValue(imIndex)
+            plt.pause(.000001)
+            print("Calculating image:", imIndex)
+            # the transform was already calculated
+            if imIndex not in self.transforms:
+                self.calcTransform(imIndex)
+            if imIndex not in self.invtransforms:
+                self.calcInverseTransform(imIndex)
+
+        qbar.close()
+        print("Saving transforms")
+        self.pickleTransforms()
+
+    def propagateAll(self):
+        while self.curImage < len(self.imList) - 1:
+            self.propagate()
+            plt.pause(.000001)
+
+    def propagateBackAll(self):
+        while self.curImage > 0:
+            self.propagateBack()
+            plt.pause(.000001)
+
+    def cleanElastixFiles(self):
+        files_to_delete = ['TransformixPoints.txt',
+                           'outputpoints.txt',
+                           'TransformParameters.0.txt',
+                           'TransformParameters.1.txt',
+                           'TransformParameters.2.txt']
+
+        for file in files_to_delete:
+            try:
+                os.remove(file)
+            except:
+                pass
+
+
+    def runTransformixMask(self, mask, transform):
+        transformixImageFilter = sitk.TransformixImageFilter()
+
+        transformixImageFilter.SetLogToConsole(False)
+        transformixImageFilter.SetLogToFile(False)
+
+        for t in transform:
+            t['ResampleInterpolator'] = ["FinalNearestNeighborInterpolator"]
+
+        transformixImageFilter.SetTransformParameterMap(transform)
+
+        transformixImageFilter.SetMovingImage(sitk.GetImageFromArray(mask))
+        transformixImageFilter.Execute()
+
+        mask_out = sitk.GetArrayFromImage(transformixImageFilter.GetResultImage())
+
+        self.cleanElastixFiles()
+
+        return mask_out.astype(np.uint8)
+
+    def runTransformixKnots(self, knots, transform):
         transformixImageFilter = sitk.TransformixImageFilter()
 
         transformixImageFilter.SetLogToConsole(False)
@@ -714,6 +758,8 @@ class MuscleSegmentation(ImageShow, QObject):
                 knot = (float(m.group(1)), float(m.group(2)))
                 knotsOut.append(knot)
 
+        self.cleanElastixFiles()
+
         return knotsOut
 
     @snapshotSaver
@@ -721,8 +767,6 @@ class MuscleSegmentation(ImageShow, QObject):
         if self.curImage >= len(self.imList) - 1: return
         # fixedImage = self.image
         # movingImage = self.imList[int(self.curImage+1)]
-        curROI = self.getCurrentROI()
-        nextROI = self.getCurrentROI(+1)
 
         qbar = QProgressBar()
         qbar.setRange(0, 3)
@@ -734,32 +778,42 @@ class MuscleSegmentation(ImageShow, QObject):
         qbar.setValue(0)
         plt.pause(.000001)
 
-        knotsOut = self.runTransformix(curROI.knots, self.getTransform(int(self.curImage)))
+        if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
+            curROI = self.getCurrentROI()
+            nextROI = self.getCurrentROI(+1)
+            knotsOut = self.runTransformixKnots(curROI.knots, self.getTransform(int(self.curImage)))
 
-        if len(nextROI.knots) < 3:
-            nextROI.removeAllKnots()
-            nextROI.addKnots(knotsOut)
-        else:
-            print("Optimizing existing knots")
-            for k in knotsOut:
-                i = nextROI.findNearestKnot(k)
-                oldK = nextROI.getKnot(i)
-                newK = ((oldK[0] + k[0]) / 2, (oldK[1] + k[1]) / 2)
-                # print "oldK", oldK, "new", k, "mid", newK
-                nextROI.replaceKnot(i, newK)
+            if len(nextROI.knots) < 3:
+                nextROI.removeAllKnots()
+                nextROI.addKnots(knotsOut)
+            else:
+                print("Optimizing existing knots")
+                for k in knotsOut:
+                    i = nextROI.findNearestKnot(k)
+                    oldK = nextROI.getKnot(i)
+                    newK = ((oldK[0] + k[0]) / 2, (oldK[1] + k[1]) / 2)
+                    # print "oldK", oldK, "new", k, "mid", newK
+                    nextROI.replaceKnot(i, newK)
+        elif self.editMode == ToolboxWindow.EDITMODE_MASK:
+            mask_in = self.getCurrentMask()
+            # Note: we are using the inverse transform, because the transforms are originally calculated to
+            # transform points, which is the inverse as transforming images
+            mask_out = self.runTransformixMask(mask_in, self.getInverseTransform(int(self.curImage+1)))
+            self.setCurrentMask(mask_out, +1)
+
 
         self.curImage += 1
         self.displayImage(self.imList[int(self.curImage)], self.cmap)
         self.redraw()
-
         qbar.setValue(1)
         plt.pause(.000001)
 
-        self.simplify()
+        if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
+            self.simplify()
+            qbar.setValue(2)
+            plt.pause(.000001)
+            self.optimize()
 
-        qbar.setValue(2)
-        plt.pause(.000001)
-        self.optimize()
         qbar.close()
 
     @snapshotSaver
@@ -767,8 +821,6 @@ class MuscleSegmentation(ImageShow, QObject):
         if self.curImage < 1: return
         # fixedImage = self.image
         # movingImage = self.imList[int(self.curImage+1)]
-        curROI = self.getCurrentROI()
-        nextROI = self.getCurrentROI(-1)
 
         qbar = QProgressBar()
         qbar.setRange(0, 3)
@@ -780,18 +832,27 @@ class MuscleSegmentation(ImageShow, QObject):
         qbar.setValue(0)
         plt.pause(.000001)
 
-        knotsOut = self.runTransformix(curROI.knots, self.getInverseTransform(int(self.curImage)))
+        if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
+            curROI = self.getCurrentROI()
+            nextROI = self.getCurrentROI(-1)
+            knotsOut = self.runTransformixKnots(curROI.knots, self.getInverseTransform(int(self.curImage)))
 
-        if len(nextROI.knots) < 3:
-            nextROI.removeAllKnots()
-            nextROI.addKnots(knotsOut)
-        else:
-            print("Optimizing existing knots")
-            for k in knotsOut:
-                i = nextROI.findNearestKnot(k)
-                oldK = nextROI.getKnot(i)
-                newK = ((oldK[0] + k[0]) / 2, (oldK[1] + k[1]) / 2)
-                nextROI.replaceKnot(i, newK)
+            if len(nextROI.knots) < 3:
+                nextROI.removeAllKnots()
+                nextROI.addKnots(knotsOut)
+            else:
+                print("Optimizing existing knots")
+                for k in knotsOut:
+                    i = nextROI.findNearestKnot(k)
+                    oldK = nextROI.getKnot(i)
+                    newK = ((oldK[0] + k[0]) / 2, (oldK[1] + k[1]) / 2)
+                    nextROI.replaceKnot(i, newK)
+        elif self.editMode == ToolboxWindow.EDITMODE_MASK:
+            mask_in = self.getCurrentMask()
+            # Note: we are using the inverse transform, because the transforms are originally calculated to
+            # transform points, which is the inverse as transforming images
+            mask_out = self.runTransformixMask(mask_in, self.getTransform(int(self.curImage-1)))
+            self.setCurrentMask(mask_out, -1)
 
         qbar.setValue(1)
         plt.pause(.000001)
@@ -803,11 +864,11 @@ class MuscleSegmentation(ImageShow, QObject):
         qbar.setValue(2)
         plt.pause(.000001)
 
-        self.simplify()
-
-        qbar.setValue(3)
-        plt.pause(.000001)
-        self.optimize()
+        if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
+            self.simplify()
+            qbar.setValue(3)
+            plt.pause(.000001)
+            self.optimize()
 
         qbar.close()
 
@@ -864,6 +925,17 @@ class MuscleSegmentation(ImageShow, QObject):
     def setCurrentROI(self, r, offset=0):
         self._getSetCurrentROI(offset, r)
 
+    def getCurrentMask(self, offset=0):
+        roi_name = self.getCurrentROIName()
+        if not self.roiManager or not roi_name:
+            return None
+        return self.roiManager.get_mask(roi_name, int(self.curImage + offset))
+
+    def setCurrentMask(self, mask, offset=0):
+        roi_name = self.getCurrentROIName()
+        if not self.roiManager or not roi_name:
+            return None
+        self.roiManager.set_mask(roi_name, int(self.curImage + offset), mask)
 
     ##############################################################################################################
     ###
@@ -1259,8 +1331,8 @@ class MuscleSegmentation(ImageShow, QObject):
         print("new Append Image")
         if not self.dl_classifier: return
         class_input = {'image': self.imList[-1], 'resolution': self.resolution[0:2]}
-        #class_str = self.dl_classifier(class_input)
-        class_str = 'Thigh' # DEBUG
+        class_str = self.dl_classifier(class_input)
+        #class_str = 'Thigh' # DEBUG
         print("Classification", class_str)
         self.classifications.append(class_str)
 

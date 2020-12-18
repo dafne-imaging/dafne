@@ -19,8 +19,8 @@ try:
 except:
     from dicomUtils.misc import create_affine
 
-#DEFAULT_INTERPOLATION = 'spline36'
-DEFAULT_INTERPOLATION = None # DEBUG
+DEFAULT_INTERPOLATION = 'spline36'
+#DEFAULT_INTERPOLATION = None # DEBUG
 INVERT_SCROLL = True
 
 class ImageShow:
