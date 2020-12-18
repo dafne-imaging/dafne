@@ -20,6 +20,7 @@ except:
     from dicomUtils.misc import create_affine
 
 DEFAULT_INTERPOLATION = 'spline36'
+#DEFAULT_INTERPOLATION = None # DEBUG
 INVERT_SCROLL = True
 
 class ImageShow:
@@ -105,7 +106,12 @@ class ImageShow:
             cmap = 'gray'
           else:
             cmap = self.cmap
-            
+
+        try:
+            oldSize = self.image.shape
+        except:
+            oldSize = (-1,-1)
+
         # im can be an integer index in the imList
         if isinstance(im, int):
             if im >= 0 and im < len(self.imList):
@@ -141,10 +147,18 @@ class ImageShow:
             self.isImageRGB = False
         
         self.setCmap(cmap)
-        
+
+        if self.imPlot:
+            if oldSize != self.image.shape: # if the image shape is different, force a new imPlot to be created
+                try:
+                    self.imPlot.remove()
+                except:
+                    pass
+                self.imPlot = None
+
         # Create the image plot if there is none; otherwise update the data in the existing frame (faster)
         if self.imPlot is None:
-            self.imPlot = self.axes.imshow(self.image, interpolation = DEFAULT_INTERPOLATION, vmin=ImageShow.contrastWindow[0], vmax=ImageShow.contrastWindow[1], cmap=self.cmap)
+            self.imPlot = self.axes.imshow(self.image, interpolation = DEFAULT_INTERPOLATION, vmin=ImageShow.contrastWindow[0], vmax=ImageShow.contrastWindow[1], cmap=self.cmap, zorder = -1)
         else:
             self.imPlot.set_data(self.image)
             
@@ -171,6 +185,10 @@ class ImageShow:
             self.curImage = len(self.imList) - 1
         self.displayImage(self.imList[int(self.curImage)], self.cmap)
         self.redraw()
+        try:
+            self.fig.canvas.setFocus()
+        except:
+            pass
 
     def keyReleaseCB(self, event):
         print("key release")
@@ -183,14 +201,17 @@ class ImageShow:
         elif event.key == 'left' or event.key == 'up':
             event.step = -1 if INVERT_SCROLL else 1
         self.mouseScrollCB(event)
-        
-    def btnPressCB(self, event):
+
+    def isCursorNormal(self):
         try:
             isCursorNormal = ( self.fig.canvas.cursor().shape() == 0 ) # if backend is qt, it gets the shape of the
                 # cursor. 0 is the arrow, which means we are not zooming or panning.
         except:
             isCursorNormal = True
-        if not isCursorNormal:
+        return isCursorNormal
+
+    def btnPressCB(self, event):
+        if not self.isCursorNormal():
             #print("Zooming or panning. Not processing clicks")
             return
         if event.button == 1:
