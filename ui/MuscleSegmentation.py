@@ -405,7 +405,9 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @pyqtSlot(str, int)
     def changeRoi(self, roi_name, subroi_index):
-        print(roi_name, subroi_index)
+        #print(roi_name, subroi_index)
+        self.activeMask = None
+        self.otherMask = None
         self.redraw()
 
     #########################################################################################
@@ -1208,7 +1210,6 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.movePoint(roi, event)
 
     def leftPressCB(self, event):
-        print("left press", self.getState())
         if not self.imPlot.contains(event):
             print("Event outside")
             return
@@ -1220,7 +1221,6 @@ class MuscleSegmentation(ImageShow, QObject):
         else:
             roi = self.getCurrentROI()
             knotIndex, knot = roi.findKnotEvent(event)
-            print("Left press", roi, knot)
             if self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
                 if knotIndex is not None:
                     self.saveSnapshot()

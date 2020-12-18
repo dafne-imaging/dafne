@@ -294,7 +294,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def send_roi_changed(self):
         if self.suppress_roi_change_emit:
             return
-        print("Roi change:", self.roi_combo.currentText(), self.subroi_combo.currentIndex())
+        #print("Roi change:", self.roi_combo.currentText(), self.subroi_combo.currentIndex())
         self.roi_changed.emit(*self.get_current_roi_subroi())
 
     @pyqtSlot(name="delete_roi")  # it needs a specific name because of the decorator, Otherwise it will be overwritten by the next slot using the same decorator
