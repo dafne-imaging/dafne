@@ -110,7 +110,7 @@ class SplineInterpROIClass:
             return None
         
         for i in range(0, len(self.pointSegments)):
-            if (self.isPointNearSegment(point, self.pointSegments[i], tolerance)):
+            if self.isPointNearSegment(point, self.pointSegments[i], tolerance):
                 return (i+1) % len(self.knots) # this is because segment 0 corresponds to points 1 to 2
             
             

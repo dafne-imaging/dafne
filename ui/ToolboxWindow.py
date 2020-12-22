@@ -7,10 +7,11 @@ Created on Mon Oct 19 16:07:32 2020
 """
 import functools
 
+import os
 from ui.ToolboxUI import Ui_SegmentationToolbox
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt
-from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog
-import traceback
+from PyQt5.QtGui import QMovie
+from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog, QApplication
 
 def ask_confirm(text):
     def decorator_confirm(func):
@@ -68,6 +69,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.setupUi(self)
         self.setWindowFlag(Qt.WindowCloseButtonHint, False)
         self.setWindowTitle("Segmentation Toolbox")
+        self.splashWidget.setVisible(False)
         self.all_rois = {}
         self.current_roi = ""
         self.current_subroi = 0
@@ -121,6 +123,26 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.brushsize_slider.valueChanged.connect(self.brushsliderCB)
         self.brushsize_slider.setValue(5)
+
+        self.splash_movie = QMovie(os.path.join("ui", "images", "dafne_anim.gif"))
+        self.splash_label.setMovie(self.splash_movie)
+
+    @pyqtSlot(bool, int, int)
+    @pyqtSlot(bool, int, int, str)
+    def set_splash(self, is_splash, current_value, maximum_value, text= ""):
+        if is_splash:
+            self.mainUIWidget.setVisible(False)
+            self.splash_progressbar.setMaximum(maximum_value)
+            self.splash_progressbar.setValue(current_value)
+            self.splash_movie.start()
+            self.splash_text_label.setText(text)
+            self.splashWidget.setVisible(True)
+            QApplication.processEvents()
+        else:
+            self.splash_movie.stop()
+            self.splashWidget.setVisible(False)
+            self.mainUIWidget.setVisible(True)
+            QApplication.processEvents()
 
     @pyqtSlot(int)
     def brushsliderCB(self, value):

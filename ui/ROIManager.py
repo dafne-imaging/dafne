@@ -46,6 +46,7 @@ class RoiAndMaskPair:
         self.invalidate_roi()
 
     def clear_subroi_representations(self):
+        if not self.subroi_stack: return
         for r in self.subroi_stack:
             try:
                 r.remove()
@@ -100,6 +101,7 @@ class RoiAndMaskPair:
 
     def invalidate_roi(self):
         #print("Roi invalidated")
+        self.clear_subroi_representations()
         self.subroi_stack = None
 
     def invalidate_mask(self):

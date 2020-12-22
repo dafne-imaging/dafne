@@ -42,13 +42,9 @@ class ImageShow:
             self.fig = self.axes.get_figure()
             
         self.axes.axis('off')
-        self.fig.canvas.mpl_connect('button_press_event', self.btnPressCB)
-        self.fig.canvas.mpl_connect('button_release_event', self.btnReleaseCB)
-        self.fig.canvas.mpl_connect('motion_notify_event', self.mouseMoveCB)
-        self.fig.canvas.mpl_connect('scroll_event', self.mouseScrollCB)
-        self.fig.canvas.mpl_connect('key_press_event', self.keyPressCB)
-        self.fig.canvas.mpl_connect('key_release_event', self.keyReleaseCB)
-            
+        self.connect_ids = []
+        self.connectSignals()
+
         # stack of images
         self.imList = []
         self.dicomHeaderList = None
@@ -83,7 +79,23 @@ class ImageShow:
                     self.imList.append(im)
             self.curImage = 0
             self.displayImage(0)
-    
+
+    def connectSignals(self):
+        if self.connect_ids: return
+        self.connect_ids = []
+        self.connect_ids.append(self.fig.canvas.mpl_connect('button_press_event', self.btnPressCB))
+        self.connect_ids.append(self.fig.canvas.mpl_connect('button_release_event', self.btnReleaseCB))
+        self.connect_ids.append(self.fig.canvas.mpl_connect('motion_notify_event', self.mouseMoveCB))
+        self.connect_ids.append(self.fig.canvas.mpl_connect('scroll_event', self.mouseScrollCB))
+        self.connect_ids.append(self.fig.canvas.mpl_connect('key_press_event', self.keyPressCB))
+        self.connect_ids.append(self.fig.canvas.mpl_connect('key_release_event', self.keyReleaseCB))
+
+    def disconnectSignals(self):
+        for cid in self.connect_ids:
+            self.fig.canvas.mpl_disconnect(cid)
+        self.connect_ids = []
+
+
     def displayImageRGB(self):
         #print "Displaying image"
         dispImage = np.copy(self.image)

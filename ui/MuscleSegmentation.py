@@ -34,6 +34,7 @@ import pickle
 import os.path
 from collections import deque
 import functools
+from .ThreadHelpers import separate_thread_decorator
 
 from .BrushPatches import SquareBrush, PixelatedCircleBrush
 
@@ -132,6 +133,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
     undo_possible = pyqtSignal(bool)
     redo_possible = pyqtSignal(bool)
+    splash_signal = pyqtSignal(bool, int, int, str)
 
     def __init__(self, *args, **kwargs):
         ImageShow.__init__(self, *args, **kwargs)
@@ -242,11 +244,26 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.data_open.connect(self.loadDirectory)
 
         self.toolbox_window.masks_export.connect(self.saveResults)
+        self.splash_signal.connect(self.toolbox_window.set_splash)
+        self.splash_signal.connect(self.disableInterface)
 
+
+    def setSplash(self, is_splash, current_value, maximum_value, text= ""):
+        self.splash_signal.emit(is_splash, current_value, maximum_value, text)
+
+    #dis/enable interface callbacks
+    @pyqtSlot(bool, int, int, str)
+    def disableInterface(self, disable, unused1, unused2, txt):
+        if disable:
+            self.disconnectSignals()
+        else:
+            self.connectSignals()
 
     @pyqtSlot(str)
+    @separate_thread_decorator
     def changeEditMode(self, mode):
         print("Changing edit mode")
+        self.setSplash(True, 0, 1)
         self.editMode = mode
         roi_name = self.getCurrentROIName()
         if mode == ToolboxWindow.EDITMODE_MASK:
@@ -257,6 +274,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.updateRoiList()
         self.toolbox_window.set_current_roi(roi_name)
         self.redraw()
+        self.setSplash(False, 1, 1)
 
     def setState(self, state):
         self.state = state
@@ -765,20 +783,14 @@ class MuscleSegmentation(ImageShow, QObject):
         return knotsOut
 
     @snapshotSaver
+    @separate_thread_decorator
     def propagate(self):
         if self.curImage >= len(self.imList) - 1: return
         # fixedImage = self.image
         # movingImage = self.imList[int(self.curImage+1)]
 
-        qbar = QProgressBar()
-        qbar.setRange(0, 3)
-        qbar.setWindowTitle(QString("Propagating"))
-        qbar.setWindowModality(Qt.ApplicationModal)
-        qbar.move(800, 500)
-        qbar.show()
+        self.setSplash(True, 0, 3)
 
-        qbar.setValue(0)
-        plt.pause(.000001)
 
         if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
             curROI = self.getCurrentROI()
@@ -807,32 +819,23 @@ class MuscleSegmentation(ImageShow, QObject):
         self.curImage += 1
         self.displayImage(self.imList[int(self.curImage)], self.cmap)
         self.redraw()
-        qbar.setValue(1)
-        plt.pause(.000001)
+        self.setSplash(True, 1, 3)
 
         if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
             self.simplify()
-            qbar.setValue(2)
-            plt.pause(.000001)
+            self.setSplash(True, 2, 3)
             self.optimize()
 
-        qbar.close()
+        self.setSplash(False, 3, 3)
 
     @snapshotSaver
+    @separate_thread_decorator
     def propagateBack(self):
         if self.curImage < 1: return
         # fixedImage = self.image
         # movingImage = self.imList[int(self.curImage+1)]
 
-        qbar = QProgressBar()
-        qbar.setRange(0, 3)
-        qbar.setWindowTitle(QString("Propagating"))
-        qbar.setWindowModality(Qt.ApplicationModal)
-        qbar.move(800, 500)
-        qbar.show()
-
-        qbar.setValue(0)
-        plt.pause(.000001)
+        self.setSplash(True, 0, 3)
 
         if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
             curROI = self.getCurrentROI()
@@ -856,23 +859,20 @@ class MuscleSegmentation(ImageShow, QObject):
             mask_out = self.runTransformixMask(mask_in, self.getTransform(int(self.curImage-1)))
             self.setCurrentMask(mask_out, -1)
 
-        qbar.setValue(1)
-        plt.pause(.000001)
+        self.setSplash(True, 1, 3)
 
         self.curImage -= 1
         self.displayImage(self.imList[int(self.curImage)], self.cmap)
         self.redraw()
 
-        qbar.setValue(2)
-        plt.pause(.000001)
+        self.setSplash(True, 2, 3)
 
         if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
             self.simplify()
-            qbar.setValue(3)
-            plt.pause(.000001)
+            self.setSplash(True, 3, 3)
             self.optimize()
 
-        qbar.close()
+        self.setSplash(False, 3, 3)
 
     # No @snapshotSaver: snapshot is saved in the calling function
     def addPoint(self, spline, event):
@@ -985,7 +985,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def drawMasks(self):
         """ Plot the masks for the current figure """
-        if self.activeMask is None:
+        if self.activeMask is None or self.otherMask is None:
             self.updateMasksFromROIs()
 
         if not self.hideRois:  # if we hide the ROIs, clear all the masks
@@ -1473,24 +1473,29 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @pyqtSlot()
     @snapshotSaver
+    @separate_thread_decorator
     def doSegmentation(self):
         # run the segmentation
         imIndex = int(self.curImage)
         class_str = self.classifications[imIndex]
+        self.setSplash(True, 0, 3, "Loading model...")
         try:
             segmenter = self.dl_segmenters[class_str]
         except KeyError:
             segmenter = self.model_provider.load_model(class_str)
             self.dl_segmenters[class_str] = segmenter
 
+        self.setSplash(True, 1, 3, "Running segmentation...")
         t = time.time()
         inputData = {'image': self.imList[imIndex], 'resolution': self.resolution[0:2]}
         print("Segmenting image...")
         masks_out = segmenter(inputData)
         self.originalSegmentationMasks[imIndex] = masks_out # save original segmentation for statistics
+        self.setSplash(True, 2, 3, "Converting masks...")
         print("Done")
         self.masksToRois(masks_out, imIndex)
         self.activeMask = None
         self.otherMask = None
         print("Segmentation/import time:", time.time() - t)
+        self.setSplash(False, 3, 3)
         self.redraw()
