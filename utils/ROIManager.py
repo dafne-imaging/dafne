@@ -1,7 +1,6 @@
 import numpy as np
 from .pySplineInterp import SplineInterpROIClass
 import functools
-import matplotlib.pyplot as plt
 
 def notify_parent_decorator(func):
     @functools.wraps(func)
@@ -45,18 +44,9 @@ class RoiAndMaskPair:
         self.mask = np.zeros(self.mask_size)
         self.invalidate_roi()
 
-    def clear_subroi_representations(self):
-        if not self.subroi_stack: return
-        for r in self.subroi_stack:
-            try:
-                r.remove()
-            except:
-                pass
-
     def clear_subrois(self):
         if self.subroi_stack is None:
             self.subroi_stack = []
-        self.clear_subroi_representations()
         self.subroi_stack = []
         self.invalidate_mask()
 
@@ -74,19 +64,11 @@ class RoiAndMaskPair:
     def set_subroi(self, index, roi):
         self.mask_to_subroi()  # make sure we have subrois
         r = self.__wrap_roi(roi)
-        try:
-            self.subroi_stack[index].remove()
-        except:
-            pass
         self.subroi_stack[index] = r
         self.invalidate_mask()
         return r
 
     def delete_subroi(self, index):
-        try:
-            self.subroi_stack[index].remove()
-        except:
-            pass
         del self.subroi_stack[index]
 
     def set_subroi_stack(self, roi_stack):
@@ -101,7 +83,6 @@ class RoiAndMaskPair:
 
     def invalidate_roi(self):
         #print("Roi invalidated")
-        self.clear_subroi_representations()
         self.subroi_stack = None
 
     def invalidate_mask(self):
@@ -125,15 +106,7 @@ class RoiAndMaskPair:
         if self.subroi_stack is not None: return # do not recalculate subrois if they are valid
         splineInterpList = SplineInterpWithNotification.FromMask(self.mask)  # run mask tracing
         #print(splineInterpList)
-        if self.subroi_stack is None:
-            self.subroi_stack = []
-        else:
-            for r in self.subroi_stack:
-                try:
-                    r.remove()
-                except:
-                    pass
-            self.subroi_stack = []
+        self.subroi_stack = []
         for roi in splineInterpList:
             self.subroi_stack.append(self.__wrap_roi(roi))
         #print("Mask to subroi", self.subroi_stack)
@@ -165,6 +138,30 @@ class RoiAndMaskPair:
         if stack is None: # note that this is different than having zero length
             self.add_subroi()
         return len(stack)
+
+    def __getstate__(self):
+        state_dict = {}
+        if self.subroi_stack:
+            state_dict['roi'] = []
+            for roi in self.subroi_stack:
+                state_dict['roi'].append(roi.knots)
+        else:
+            state_dict['roi'] = None
+        state_dict['mask'] = self.mask
+        state_dict['mask_size'] = self.mask_size
+        return state_dict
+
+    def __setstate__(self, state_dict):
+        self.__init__(state_dict['mask_size'])
+        self.mask = state_dict['mask']
+        if state_dict['roi'] is not None:
+            self.subroi_stack = []
+            for knotList in state_dict['roi']:
+                r = SplineInterpWithNotification(self)
+                r.knots = knotList
+                self.subroi_stack.append(r)
+        else:
+            self.subroi_stack = None
 
 class ROIManager:
     """
@@ -209,7 +206,7 @@ class ROIManager:
             yield key_tuple, roi_and_mask.get_mask()
 
     # removes all the visual representations of the ROIs
-    def clear(self, roi_name = None, image_number = None, only_clear_interface = False):
+    def clear(self, roi_name = None, image_number = None):
         if roi_name is None:
             roi_iter = list(self.allROIs.keys())
         else:
@@ -221,12 +218,8 @@ class ROIManager:
             else:
                 image_iter = [int(image_number)]
             for image_key in image_iter:
-                if only_clear_interface:
-                    self.allROIs[roi_key][image_key].clear_subroi_representations()
-                else:
-                    self.allROIs[roi_key][image_key].clear_subrois()
-                    del self.allROIs[roi_key][image_key]
-            if not only_clear_interface and not self.allROIs[roi_key]: del self.allROIs[roi_key] # if we removed all slices from a roi, delete the roi itself
+                self.allROIs[roi_key][image_key].clear_subrois()
+                del self.allROIs[roi_key][image_key]
 
     def clear_subroi(self, roi_name, image_number, subroi_number):
         self.allROIs[roi_name][image_number].delete_subroi(subroi_number)

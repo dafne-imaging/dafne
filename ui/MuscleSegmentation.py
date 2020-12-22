@@ -16,7 +16,7 @@ import sys, os, time, math
 SCRIPT_DIR = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__))))
 sys.path.append(os.path.normpath(SCRIPT_DIR))
 
-from ui.ToolboxWindow import ToolboxWindow
+from .ToolboxWindow import ToolboxWindow
 from .pyDicomView import ImageShow
 from utils.mask_utils import calc_dice_score, save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks
 import matplotlib.pyplot as plt
@@ -25,18 +25,18 @@ from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 import shutil
 from datetime import datetime
-from .ROIManager import ROIManager
+from utils.ROIManager import ROIManager
 
-from matplotlib.patches import Circle
 import numpy as np
 import scipy.ndimage as ndimage
 import pickle
 import os.path
 from collections import deque
 import functools
-from .ThreadHelpers import separate_thread_decorator
+from utils.ThreadHelpers import separate_thread_decorator
 
 from .BrushPatches import SquareBrush, PixelatedCircleBrush
+from .ContourPainter import ContourPainter
 
 try:
     import SimpleITK as sitk # this requires simpleelastix! It is NOT available through PIP
@@ -45,8 +45,6 @@ except:
 
 import re
 import subprocess
-
-from utils.dicomUtils import load3dDicom, save3dDicom
 
 if os.name == 'posix':
     def checkCapsLock():
@@ -110,16 +108,6 @@ MASK_LAYER_OTHER_COLORMAP = matplotlib.colors.ListedColormap(np.array([
 
 MASK_LAYER_ALPHA = 0.4
 
-# define a circle with a contains method that for some reason does not work with conventional circles
-class MyCircle(Circle):
-    def __init__(self, xy, *args, **kwargs):
-        Circle.__init__(self, xy, *args, **kwargs)
-        self.xy = xy
-
-    def contains(self, event):
-        return ((event.xdata - self.xy[0]) ** 2 + (event.ydata - self.xy[1]) ** 2) < self.get_radius() ** 2
-
-
 def snapshotSaver(func):
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
@@ -150,6 +138,11 @@ class MuscleSegmentation(ImageShow, QObject):
         self.roiColor = ROI_COLOR
         self.roiOther = ROI_OTHER_COLOR
         self.roiSame = ROI_SAME_COLOR
+
+        self.activeRoiPainter = ContourPainter(self.roiColor, ROI_CIRCLE_SIZE)
+        self.sameRoiPainter = ContourPainter(self.roiSame, 0.1)
+        self.otherRoiPainter = ContourPainter(self.roiOther, 0.1)
+
         self.saveDicom = False
 
         self.model_provider = None
@@ -266,13 +259,14 @@ class MuscleSegmentation(ImageShow, QObject):
         self.setSplash(True, 0, 1)
         self.editMode = mode
         roi_name = self.getCurrentROIName()
+        self.updateRoiList()
+        self.toolbox_window.set_current_roi(roi_name)
         if mode == ToolboxWindow.EDITMODE_MASK:
             self.removeContours()
             self.updateMasksFromROIs()
         else:
             self.removeMasks()
-        self.updateRoiList()
-        self.toolbox_window.set_current_roi(roi_name)
+            self.updateContourPainters()
         self.redraw()
         self.setSplash(False, 1, 1)
 
@@ -299,6 +293,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 n_subrois = self.roiManager.get_roi_mask_pair(roiName, imageN).get_subroi_len()
             roiDict[roiName] = n_subrois  # dict: roiname -> n subrois per slice
         self.toolbox_window.set_rois_list(roiDict)
+        self.updateContourPainters()
 
     #############################################################################################
     ###
@@ -323,14 +318,13 @@ class MuscleSegmentation(ImageShow, QObject):
         return self.currentHistoryPoint > 0
 
     def _changeHistory(self):
-        print(self.currentHistoryPoint, len(self.history))
+        #print(self.currentHistoryPoint, len(self.history))
         roiName = self.getCurrentROIName()
         subRoiNumber = self.getCurrentSubroiNumber()
         self.clearAllROIs()
         self.roiManager = pickle.loads(self.history[self.currentHistoryPoint])
         self.updateRoiList()
         if self.roiManager.contains(roiName):
-            #TODO: mask-aware
             if subRoiNumber < self.roiManager.get_roi_mask_pair(roiName, self.curImage).get_subroi_len():
                 self.toolbox_window.set_current_roi(roiName, subRoiNumber)
             else:
@@ -383,8 +377,6 @@ class MuscleSegmentation(ImageShow, QObject):
     @pyqtSlot(str)
     @snapshotSaver
     def removeRoi(self, roi_name):
-        print("RemoveRoi")
-        print(self.roiManager.get_roi_names())
         self.roiManager.clear(roi_name)
         self.updateRoiList()
         self.redraw()
@@ -409,7 +401,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.redraw()
 
     @pyqtSlot()
-    @snapshotSaver
+    #@snapshotSaver this generates too many calls; anyway we want to add the subroi when something happens to it
     def addSubRoi(self, roi_name=None, imageN=None):
         if not roi_name:
             roi_name, _ = self.toolbox_window.get_current_roi_subroi()
@@ -426,6 +418,7 @@ class MuscleSegmentation(ImageShow, QObject):
         #print(roi_name, subroi_index)
         self.activeMask = None
         self.otherMask = None
+        self.updateContourPainters()
         self.redraw()
 
     #########################################################################################
@@ -969,7 +962,9 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def removeContours(self):
         """ Remove all the contours from the plot """
-        self.roiManager.clear(only_clear_interface=True)
+        self.activeRoiPainter.clear_patches(self.axes)
+        self.sameRoiPainter.clear_patches(self.axes)
+        self.otherRoiPainter.clear_patches(self.axes)
 
     def updateMasksFromROIs(self):
         roi_name = self.getCurrentROIName()
@@ -1005,26 +1000,33 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.maskOtherImPlot.set_data(other_mask)
 
+    def updateContourPainters(self):
+        self.activeRoiPainter.clear_rois(self.axes)
+        self.otherRoiPainter.clear_rois(self.axes)
+        self.sameRoiPainter.clear_rois(self.axes)
+
+        if not self.roiManager or self.editMode != ToolboxWindow.EDITMODE_CONTOUR: return
+        current_name = self.getCurrentROIName()
+        current_subroi = self.getCurrentSubroiNumber()
+        slice_number = int(self.curImage)
+
+        for key_tuple, roi in self.roiManager.all_rois(image_number=slice_number):
+            name = key_tuple[0]
+            subroi = key_tuple[2]
+            if name == current_name:
+                if subroi == current_subroi:
+                    self.activeRoiPainter.add_roi(roi)
+                else:
+                    self.sameRoiPainter.add_roi(roi)
+            else:
+                self.otherRoiPainter.add_roi(roi)
 
     def drawContours(self):
         """ Plot the contours for the current figure """
-        for key_tuple, roi in self.roiManager.all_rois():
-            name, sliceN, subroiNumber = key_tuple
-            if sliceN != int(self.curImage) or self.hideRois:
-                roi.remove()
-            else:
-                rSize = 0.1
-                rColor = self.roiOther
-                if name == self.getCurrentROIName():
-                    if subroiNumber == self.getCurrentSubroiNumber():
-                        rSize = ROI_CIRCLE_SIZE
-                        rColor = self.roiColor
-                    else:
-                        rColor = self.roiSame
-                try:
-                    roi.draw(self.axes, rSize, rColor)
-                except:
-                    pass
+        self.activeRoiPainter.recalculate_patches() # recalculate the position of the active ROI
+        self.activeRoiPainter.draw(self.axes, False)
+        self.otherRoiPainter.draw(self.axes, False)
+        self.sameRoiPainter.draw(self.axes, False)
 
     # convert a single slice to ROIs
     def maskToRois2D(self, name, mask, imIndex, refresh = True):
@@ -1060,6 +1062,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.updateRoiList()  # set the appropriate (sub)roi list for the current image
         self.activeMask = None
         self.otherMask = None
+        self.updateContourPainters()
         self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
 
     ##############################################################################################################

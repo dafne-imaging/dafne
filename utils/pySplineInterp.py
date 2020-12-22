@@ -32,37 +32,31 @@ def polyToMaskFast(poly_verts, imageSize):
     return grid
     
 
-KNOT_RADIUS = 0.1
+KNOT_RADIUS = 2
+
 
 #makes a list unique. From somewhere on the Internet
 def uniquify(seq, idfun=None): 
-   # order preserving
-   if idfun is None:
-       def idfun(x): return x
-   seen = {}
-   result = []
-   for item in seq:
-       marker = idfun(item)
-       # in old Python versions:
-       # if seen.has_key(marker)
-       # but in new ones:
-       if marker in seen: continue
-       seen[marker] = 1
-       result.append(item)
-   return result
+    # order preserving
+    if idfun is None:
+        def idfun(x): return x
+    seen = {}
+    result = []
+    for item in seq:
+        marker = idfun(item)
+        if marker in seen: continue
+        seen[marker] = 1
+        result.append(item)
+    return result
 
-class KnotRepresentation(Circle):
-    def __init__(self, xy, radius = KNOT_RADIUS, color = 'blue'):
-        self.xy = xy
-        Circle.__init__(self, xy, radius, facecolor = 'none', edgecolor = color, linewidth = 1.0)
-        
-    def contains(self, event):
-        return ((event.xdata-self.xy[0])**2 + (event.ydata-self.xy[1])**2) < self.get_radius()**2
+
+def knot_contains(knot, event, radius = KNOT_RADIUS):
+    return ((event.xdata - knot[0]) ** 2 + (event.ydata - knot[1]) ** 2) < radius ** 2
+
 
 class SplineInterpROIClass:
     def __init__(self, smooth = False):
         self.knots = []
-        self.knotRepresentations = []
         self.isCurveValid = False
         self.isMaskValid = False
         self.points = None
@@ -133,7 +127,6 @@ class SplineInterpROIClass:
             newIndex = index+1
         self.isCurveValid = False
         self.knots.insert(newIndex,point)
-        self.knotRepresentations.insert(newIndex,KnotRepresentation(point))
         return newIndex # return the index of the new point
     
     def findNearestKnot(self, knot):
@@ -161,11 +154,6 @@ class SplineInterpROIClass:
     def replaceKnot(self, index, point):
         self.invalidate_precalculations()
         self.knots[index] = point
-        try:
-            self.knotRepresentations[index].remove()
-        except:
-            pass
-        self.knotRepresentations[index] = KnotRepresentation(point)
 
     # moves a knot by a delta
     def moveKnot(self, index, delta):
@@ -188,47 +176,12 @@ class SplineInterpROIClass:
     def removeKnot(self, index):
         self.invalidate_precalculations()
         self.knots.pop(index)
-        try:
-            self.knotRepresentations[index].remove()
-        except:
-            pass
-        self.knotRepresentations.pop(index)
 
-    def findKnotEvent(self, event):
-        for i in range(0, len(self.knotRepresentations)):
-            if self.knotRepresentations[i].contains(event):
-                return (i,self.knots[i]) # returns the index of the knot and the knot itself if it contains the event
+    def findKnotEvent(self, event, radius = KNOT_RADIUS):
+        for knot_number, knot in enumerate(self.knots):
+            if knot_contains(knot, event):
+                return (knot_number, knot)
         return (None, None)
-        
-    def remove(self):
-        if not self.isVisible: return
-        for k in self.knotRepresentations:
-            try:
-                k.remove()
-            except:
-                pass
-        try:
-            self.plot.remove()
-        except:
-            pass
-        self.isVisible = False
-    
-    def draw(self, axes, radius = KNOT_RADIUS, color = 'blue'):
-        self.remove()
-        self.isVisible = True
-
-        for k in self.knotRepresentations:
-            k.set_radius(radius)
-            k.set_edgecolor(color)
-            axes.add_patch(k)
-        try:            
-            points = self.getCurve()
-            self.plot = Polygon(points, facecolor = 'none', edgecolor = color, zorder=1)
-            axes.add_patch(self.plot)
-        except:
-            pass
-
-        #plt.draw()
         
     #converts this spline to mask of a defined size. Note! At the moment this will not work properly if the contour touches the edges!
     def toMask(self, size = None, fast = True):
@@ -460,7 +413,8 @@ class SplineInterpROIClass:
     
     def __setstate__(self, knotlist):
         self.__init__()
-        self.addKnots(knotlist)
+        #self.addKnots(knotlist)
+        self.knots = knotlist
         
     @staticmethod
     def FromMask(maskImage):
