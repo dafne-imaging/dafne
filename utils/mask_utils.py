@@ -17,7 +17,7 @@ def save_dicom_masks(base_path: str, mask_dict: dict, dicom_headers: list):
     for name, mask in mask_dict.items():
         dicom_path = os.path.join(base_path, name)
         try:
-            os.mkdirs(dicom_path)
+            os.makedirs(dicom_path)
         except OSError:
             pass
         save3dDicom(mask, dicom_headers, dicom_path)

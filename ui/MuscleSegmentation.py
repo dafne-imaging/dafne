@@ -34,6 +34,8 @@ import os.path
 from collections import deque
 import functools
 import csv
+from utils.dicomUtils.dicom3D import load3dDicom
+from utils.dicomUtils.alignDatasets import calcTransform, calcTransform2DStack
 
 from utils.ThreadHelpers import separate_thread_decorator
 
@@ -68,6 +70,8 @@ try:
 except:
     def QString(s):
         return s
+
+DO_INCREMENTAL_LEARNING = True
 
 ROI_CIRCLE_SIZE = 2
 SIMPLIFIED_ROI_POINTS = 20
@@ -243,6 +247,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.masks_export.connect(self.saveResults)
 
         self.toolbox_window.statistics_calc.connect(self.saveStats)
+
+        self.toolbox_window.mask_import.connect(self.loadMask)
 
         self.splash_signal.connect(self.toolbox_window.set_splash)
         self.splash_signal.connect(self.disableInterface)
@@ -1102,7 +1108,7 @@ class MuscleSegmentation(ImageShow, QObject):
     def masksToRois(self, maskDict, imIndex):
         for name, mask in maskDict.items():
             if len(mask.shape) > 2: # multislice
-                for sl in range(mask.shape[3]):
+                for sl in range(mask.shape[2]):
                     self.maskToRois2D(name, mask[:,:,sl], sl, False)
             else:
                 self.maskToRois2D(name, mask, imIndex, False)
@@ -1420,23 +1426,24 @@ class MuscleSegmentation(ImageShow, QObject):
         self.setSplash(True, 1, 4, "Incremental learning...")
 
         # perform incremental learning
-        for classification_name in dataForTraining:
-            print(f'Performing incremental learning for {classification_name}')
-            try:
-                model = self.dl_segmenters[classification_name]
-            except KeyError:
-                model = self.model_provider.load_model(classification_name)
-                self.dl_segmenters[classification_name] = model
-            training_data = []
-            training_outputs = []
-            for imageIndex in dataForTraining[classification_name]:
-                training_data.append(dataForTraining[classification_name][imageIndex])
-                training_outputs.append(segForTraining[classification_name][imageIndex])
-            model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2]}, training_outputs)
-            print('Done')
+        if DO_INCREMENTAL_LEARNING:
+            for classification_name in dataForTraining:
+                print(f'Performing incremental learning for {classification_name}')
+                try:
+                    model = self.dl_segmenters[classification_name]
+                except KeyError:
+                    model = self.model_provider.load_model(classification_name)
+                    self.dl_segmenters[classification_name] = model
+                training_data = []
+                training_outputs = []
+                for imageIndex in dataForTraining[classification_name]:
+                    training_data.append(dataForTraining[classification_name][imageIndex])
+                    training_outputs.append(segForTraining[classification_name][imageIndex])
+                model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2]}, training_outputs)
+                print('Done')
 
-        self.setSplash(True, 2, 4, "Sending the improved model...")
-        #TODO: send the model back to the server
+            self.setSplash(True, 2, 4, "Sending the improved model...")
+            #TODO: send the model back to the server
 
         self.setSplash(True, 3, 4, "Saving file...")
 
@@ -1550,6 +1557,89 @@ class MuscleSegmentation(ImageShow, QObject):
             for transform in transformList:
                 curTransformList.append(sitk.ParameterMap(transform))
             self.invtransforms[k] = tuple(curTransformList)
+
+    @pyqtSlot(str)
+    @separate_thread_decorator
+    def loadMask(self, filename: str):
+        dicom_ext = ['.dcm', '.ima']
+        nii_ext = ['.nii', '.gz']
+        npy_ext = ['.npy']
+        npz_ext = ['.npz']
+        path = os.path.abspath(filename)
+        _, ext = os.path.splitext(path)
+
+        basename = os.path.basename(path)
+        is3D = False
+
+        self.setSplash(True, 0, 2, "Loading mask")
+
+        def fail(text):
+            self.setSplash(False, 0, 2, "Loading mask")
+            self.alert(text)
+
+        def load_mask_validate(name, mask):
+            if mask.shape[0] != self.image.shape[0] or mask.shape[1] != self.image.shape[1]:
+                fail("Mask size mismatch")
+                return
+            if mask.ndim > 2:
+                is3D = True
+                if mask.shape[2] != len(self.imList):
+                    fail("Mask size mismatch")
+                    return
+            mask = mask > 0
+            self.masksToRois({name: mask}, int(self.curImage)) # this is OK for 2D and 3D
+
+        ext = ext.lower()
+
+        if ext in npy_ext:
+            mask = np.load(path)
+            name = basename
+            self.setSplash(True, 1, 2, "Importing masks")
+            load_mask_validate(name, mask)
+            self.setSplash(False, 0, 0, "")
+            return
+        if ext in npz_ext:
+            mask_dict = np.load(path)
+            n_masks = len(mask_dict)
+            cur_mask = 0
+            for name, mask in mask_dict.items():
+                self.setSplash(True, cur_mask, n_masks, "Importing masks")
+                load_mask_validate(name, mask)
+            self.setSplash(False, 0, 0, "")
+            return
+        elif ext in nii_ext:
+            fail("Nii masks not supported for loading")
+        elif ext in dicom_ext:
+            # load dicom masks
+            path = os.path.dirname(path)
+            dataset, dicomInfo = load3dDicom(path)
+            name = os.path.basename(path)
+            if self.dicomHeaderList:
+                # align datasets
+                #find out if the loaded dataset is 3D or 2D stack
+                self.setSplash(True, 1, 3, "Performing alignment")
+                is2DStack = True
+                try:
+                    # in a 3D dataset, the following is not defined
+                    spacing = self.dicomHeaderList[0].SpacingBetweenSlices
+                    print("Aligning 2D Stack")
+                except:
+                    is2DStack = False
+                    print("Aligning 3D Stack")
+
+                if is2DStack:
+                    transform = calcTransform2DStack(None, self.dicomHeaderList, None, dicomInfo)
+                else:
+                    transform = calcTransform(None, self.dicomHeaderList, None, dicomInfo, False)
+                mask = transform(dataset*1000) > 990
+            else:
+                # we cannot align the datasets
+                mask = dataset.squeeze()
+
+            self.setSplash(True, 2, 3, "Importing masks")
+            load_mask_validate(name, mask)
+            self.setSplash(False, 0, 0, "")
+            return
 
     ########################################################################################
     ###

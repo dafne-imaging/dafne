@@ -71,6 +71,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     roi_export = pyqtSignal(str)
 
     masks_export = pyqtSignal(str, str)
+    mask_import = pyqtSignal(str)
 
     data_open = pyqtSignal(str)
 
@@ -155,6 +156,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionAbout.triggered.connect(self.about)
 
         self.actionCalculate_statistics.triggered.connect(self.calculate_statistics)
+
+        self.actionImport_masks.triggered.connect(self.loadMask_clicked)
 
     @pyqtSlot()
     def about(self):
@@ -396,6 +399,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @ask_confirm("This will calculate nonrigid transformations for all slices. It will take a few minutes")
     def do_registration(self):
         self.do_registration.emit()
+
+    @pyqtSlot()
+    def loadMask_clicked(self):
+        maskFile, _ = QFileDialog.getOpenFileName(self, caption='Select mask to import',
+                                                  filter='Image files (*.dcm *.ima *.npy *.npz);;Dicom files (*.dcm *.ima);;Numpy files (*.npy *.npz);;All files (*.*)')
+        if maskFile:
+            self.mask_import.emit(maskFile)
 
     @pyqtSlot()
     def loadData_clicked(self):
