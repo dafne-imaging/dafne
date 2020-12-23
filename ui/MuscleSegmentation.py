@@ -13,8 +13,8 @@ matplotlib.use("Qt5Agg")
 import sys, os, time, math
 
 # print(sys.path)
-SCRIPT_DIR = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__))))
-sys.path.append(os.path.normpath(SCRIPT_DIR))
+#SCRIPT_DIR = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__))))
+#sys.path.append(os.path.normpath(SCRIPT_DIR))
 
 from .ToolboxWindow import ToolboxWindow
 from .pyDicomView import ImageShow
@@ -33,6 +33,8 @@ import pickle
 import os.path
 from collections import deque
 import functools
+import csv
+
 from utils.ThreadHelpers import separate_thread_decorator
 
 from .BrushPatches import SquareBrush, PixelatedCircleBrush
@@ -237,10 +239,11 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.toolbox_window.roi_import.connect(self.loadROIPickle)
         self.toolbox_window.roi_export.connect(self.saveROIPickle)
-
         self.toolbox_window.data_open.connect(self.loadDirectory)
-
         self.toolbox_window.masks_export.connect(self.saveResults)
+
+        self.toolbox_window.statistics_calc.connect(self.saveStats)
+
         self.splash_signal.connect(self.toolbox_window.set_splash)
         self.splash_signal.connect(self.disableInterface)
 
@@ -1447,6 +1450,62 @@ class MuscleSegmentation(ImageShow, QObject):
             save_npz_masks(pathOut, allMasks)
 
         self.setSplash(False, 4, 4, "End")
+
+    @pyqtSlot(str)
+    @separate_thread_decorator
+    def saveStats(self, file_out: str):
+        """ Saves the statistics for a datasets. Exported statistics:
+            - Number of slices where ROI is present
+            - Number of voxels
+            - Average value of the data over ROI
+            - Standard Deviation of the data
+            - 0-25-50-75-100 percentiles of the data distribution
+        """
+        self.setSplash(True, 0, 2, "Calculating maps...")
+
+        allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
+
+        self.setSplash(True, 1, 2, "Calculating stats...")
+
+        dataset = np.transpose(np.stack(self.imList), [1,2,0])
+
+        csv_file = open(file_out, 'w')
+        field_names = ['roi_name',
+                       'slices',
+                       'voxels',
+                       'mean',
+                       'standard_deviation',
+                       'perc_0',
+                       'perc_25',
+                       'perc_50',
+                       'perc_75',
+                       'perc_100']
+        csv_writer = csv.DictWriter(csv_file, fieldnames=field_names)
+        csv_writer.writeheader()
+
+        for roi_name, roi_mask in allMasks.items():
+            csvRow = {}
+            csvRow['roi_name'] = roi_name
+            mask = roi_mask > 0
+            masked = np.ma.array(dataset, mask=np.logical_not(roi_mask))
+            csvRow['voxels'] = mask.sum()
+            # count the slices where the roi is present
+            mask_pencil = np.sum(mask, axis=(0,1))
+            csvRow['slices'] = np.sum(mask_pencil > 0)
+            compressed_array = masked.compressed()
+            csvRow['mean'] = compressed_array.mean()
+            csvRow['standard_deviation'] = compressed_array.std()
+            csvRow['perc_0'] = compressed_array.min()
+            csvRow['perc_100'] = compressed_array.max()
+            csvRow['perc_25'] = np.percentile(compressed_array, 25)
+            csvRow['perc_50'] = np.percentile(compressed_array, 50)
+            csvRow['perc_75'] = np.percentile(compressed_array, 75)
+            csv_writer.writerow(csvRow)
+
+        csv_file.close()
+        self.setSplash(False, 2, 2, "Finished")
+
+
 
     def pickleTransforms(self):
         if not self.basepath: return

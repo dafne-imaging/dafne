@@ -11,7 +11,8 @@ import os
 from ui.ToolboxUI import Ui_SegmentationToolbox
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt
 from PyQt5.QtGui import QMovie
-from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog, QApplication, QDialog, QVBoxLayout, QPushButton
+from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog, QApplication, QDialog, \
+                            QVBoxLayout, QPushButton
 from PyQt5.QtSvg import QSvgWidget
 
 SPLASH_ANIMATION_PATH = os.path.join("ui", "images", "dafne_anim.gif")
@@ -73,6 +74,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     data_open = pyqtSignal(str)
 
+    statistics_calc = pyqtSignal(str)
+
     NO_STATE = 0
     ADD_STATE = 1
     REMOVE_STATE = 2
@@ -127,16 +130,6 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         if not activate_registration:
             self.registrationGroup.setVisible(False)
 
-        self.actionImport_ROIs.triggered.connect(self.importROI_clicked)
-        self.actionExport_ROIs.triggered.connect(self.exportROI_clicked)
-
-        self.actionLoad_data.triggered.connect(self.loadData_clicked)
-
-        self.actionSave_as_Dicom.triggered.connect(lambda: self.export_masks_dir('dicom'))
-        self.actionSaveNPY.triggered.connect(lambda: self.export_masks_dir('npy'))
-        self.actionSave_as_Nifti.triggered.connect(lambda: self.export_masks_dir('nifti'))
-        self.actionSaveNPZ.triggered.connect(self.export_masks_npz)
-
         self.editmode_combo.currentTextChanged.connect(lambda : self.set_edit_mode(self.editmode_combo.currentText()))
         self.editmode_combo.setCurrentText('Mask')
         self.set_edit_mode('Mask')
@@ -147,7 +140,21 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.splash_movie = QMovie(SPLASH_ANIMATION_PATH)
         self.splash_label.setMovie(self.splash_movie)
 
+        ## Menus
+
+        self.actionImport_ROIs.triggered.connect(self.importROI_clicked)
+        self.actionExport_ROIs.triggered.connect(self.exportROI_clicked)
+
+        self.actionLoad_data.triggered.connect(self.loadData_clicked)
+
+        self.actionSave_as_Dicom.triggered.connect(lambda: self.export_masks_dir('dicom'))
+        self.actionSaveNPY.triggered.connect(lambda: self.export_masks_dir('npy'))
+        self.actionSave_as_Nifti.triggered.connect(lambda: self.export_masks_dir('nifti'))
+        self.actionSaveNPZ.triggered.connect(self.export_masks_npz)
+
         self.actionAbout.triggered.connect(self.about)
+
+        self.actionCalculate_statistics.triggered.connect(self.calculate_statistics)
 
     @pyqtSlot()
     def about(self):
@@ -428,3 +435,10 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
                                                   filter='Numpy array archive (*.npz);;All files (*.*)')
         if file_out:
             self.masks_export.emit(file_out, 'npz')
+
+    @pyqtSlot()
+    def calculate_statistics(self):
+        file_out, _ = QFileDialog.getSaveFileName(self, caption='Select csv file to save the statistics',
+                                                  filter='CSV File (*.csv);;All files (*.*)')
+        if file_out:
+            self.statistics_calc.emit(file_out)
