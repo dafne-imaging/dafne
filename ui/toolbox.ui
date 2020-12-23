@@ -496,7 +496,7 @@
    </property>
    <widget class="QMenu" name="menuFile">
     <property name="title">
-     <string>File...</string>
+     <string>File</string>
     </property>
     <widget class="QMenu" name="menuSave_masks">
      <property name="title">
@@ -521,7 +521,21 @@
     <addaction name="actionImport_masks"/>
     <addaction name="menuSave_masks"/>
    </widget>
+   <widget class="QMenu" name="menuTools">
+    <property name="title">
+     <string>Tools</string>
+    </property>
+    <addaction name="actionCalculate_statistics"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionAbout"/>
+   </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuTools"/>
+   <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionImport_ROIs">
@@ -562,6 +576,16 @@
   <action name="actionSaveNPY">
    <property name="text">
     <string>Multiple files</string>
+   </property>
+  </action>
+  <action name="actionCalculate_statistics">
+   <property name="text">
+    <string>Calculate statistics...</string>
+   </property>
+  </action>
+  <action name="actionAbout">
+   <property name="text">
+    <string>About...</string>
    </property>
   </action>
  </widget>

@@ -299,6 +299,9 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.set_rois_list(roiDict)
         self.updateContourPainters()
 
+    def alert(self, text):
+        self.toolbox_window.alert(text)
+
     #############################################################################################
     ###
     ### History
@@ -1350,7 +1353,7 @@ class MuscleSegmentation(ImageShow, QObject):
             print('Warning: Unicode decode error')
             roiManager = pickle.load(open(roiPickleName, 'rb'), encoding='latin1')
         except:
-            print("Unspecified error")
+            self.alert("Unspecified error")
             return
 
         try:
@@ -1358,7 +1361,12 @@ class MuscleSegmentation(ImageShow, QObject):
             # print(self.allROIs)
             assert type(roiManager) == ROIManager
         except:
-            print("Unrecognized saved ROI type")
+            self.alert("Unrecognized saved ROI type")
+            return
+
+        if roiManager.mask_size[0] != self.image.shape[0] or \
+            roiManager.mask_size[1] != self.image.shape[1]:
+            self.alert("ROI for wrong dataset")
             return
 
         print('Rois loaded')

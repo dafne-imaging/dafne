@@ -11,13 +11,33 @@ import os
 from ui.ToolboxUI import Ui_SegmentationToolbox
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt
 from PyQt5.QtGui import QMovie
-from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog, QApplication
+from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog, QApplication, QDialog, QVBoxLayout, QPushButton
+from PyQt5.QtSvg import QSvgWidget
+
+SPLASH_ANIMATION_PATH = os.path.join("ui", "images", "dafne_anim.gif")
+ABOUT_SVG_PATH = os.path.join("ui", "images", "about_paths.svg")
+
+class AboutDialog(QDialog):
+    def __init__(self, *args, **kwargs):
+        QDialog.__init__(self, *args, **kwargs)
+        myLayout = QVBoxLayout(self)
+        self.setLayout(myLayout)
+        self.setWindowTitle("About")
+        self.setWindowModality(Qt.ApplicationModal)
+        svg = QSvgWidget(ABOUT_SVG_PATH)
+        myLayout.addWidget(svg)
+        btn = QPushButton("OK")
+        btn.clicked.connect(self.close)
+        myLayout.addWidget(btn)
+        self.resize(640,480)
+        self.show()
+
 
 def ask_confirm(text):
     def decorator_confirm(func):
         @functools.wraps(func)
         def wrapper(obj, *args, **kwargs):
-            if obj._confirm(text):
+            if obj.confirm(text):
                 func(obj, *args, **kwargs)
 
         return wrapper
@@ -124,8 +144,14 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.brushsize_slider.valueChanged.connect(self.brushsliderCB)
         self.brushsize_slider.setValue(5)
 
-        self.splash_movie = QMovie(os.path.join("ui", "images", "dafne_anim.gif"))
+        self.splash_movie = QMovie(SPLASH_ANIMATION_PATH)
         self.splash_label.setMovie(self.splash_movie)
+
+        self.actionAbout.triggered.connect(self.about)
+
+    @pyqtSlot()
+    def about(self):
+        AboutDialog(self)
 
     @pyqtSlot(bool, int, int)
     @pyqtSlot(bool, int, int, str)
@@ -137,11 +163,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.splash_movie.start()
             self.splash_text_label.setText(text)
             self.splashWidget.setVisible(True)
+            self.menubar.setEnabled(False)
             QApplication.processEvents()
         else:
             self.splash_movie.stop()
             self.splashWidget.setVisible(False)
             self.mainUIWidget.setVisible(True)
+            self.menubar.setEnabled(True)
             QApplication.processEvents()
 
     @pyqtSlot(int)
@@ -188,9 +216,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def redo_enable(self, enable):
         self.redoButton.setEnabled(enable)
 
-    def _confirm(self, text):
+    def confirm(self, text):
         w = QMessageBox.warning(self, "Warning", text, QMessageBox.Ok | QMessageBox.Cancel)
         return w == QMessageBox.Ok
+
+    def alert(self, text):
+        QMessageBox.warning(self, "Warning", text, QMessageBox.Ok)
 
     @pyqtSlot(list)
     def set_available_classes(self, classes):
