@@ -116,7 +116,6 @@ def snapshotSaver(func):
 
     return wrapper
 
-
 class MuscleSegmentation(ImageShow, QObject):
 
     undo_possible = pyqtSignal(bool)
@@ -129,26 +128,18 @@ class MuscleSegmentation(ImageShow, QObject):
         self.fig.canvas.mpl_connect('close_event', self.closeCB)
         # self.instructions = "Shift+click: add point, Shift+dblclick: optimize/simplify, Ctrl+click: remove point, Ctrl+dblclick: delete ROI, n: propagate fw, b: propagate back"
         self.setupToolbar()
-        self.roiStack = None
-        self.transforms = {}
-        self.invtransforms = {}
-        #self.allROIs = {}  # allROIs is dict[roiName: dict[imageNumber: (subroi)list[Splines]]]
-        self.roiManager = None
+
         self.wacom = False
         self.roiColor = ROI_COLOR
         self.roiOther = ROI_OTHER_COLOR
         self.roiSame = ROI_SAME_COLOR
-
-        self.activeRoiPainter = ContourPainter(self.roiColor, ROI_CIRCLE_SIZE)
-        self.sameRoiPainter = ContourPainter(self.roiSame, 0.1)
-        self.otherRoiPainter = ContourPainter(self.roiOther, 0.1)
 
         self.saveDicom = False
 
         self.model_provider = None
         self.dl_classifier = None
         self.dl_segmenters = {}
-        self.classifications = []
+
 
         # self.fig.canvas.setCursor(Qt.BlankCursor)
         self.app = None
@@ -157,35 +148,48 @@ class MuscleSegmentation(ImageShow, QObject):
         self.extraOutputParams = []
         self.transformsChanged = False
 
-        self.lastsave = datetime.now()
         self.hideRois = False
+        self.editMode = ToolboxWindow.EDITMODE_MASK
+        self.resetInternalState()
+
+    def resetInternalState(self):
+        self.imList = []
+        self.curImage = 0
+        self.classifications = []
+        self.originalSegmentationMasks = {}
+        self.lastsave = datetime.now()
+
+        self.roiChanged = {}
         self.history = deque(maxlen=HISTORY_LENGTH)
         self.currentHistoryPoint = 0
+        self.transforms = {}
+        self.invtransforms = {}
 
-        self.originalSegmentationMasks = {}
+        try:
+            self.brush_patch.remove()
+        except:
+            pass
+
+        try:
+            self.removeMasks()
+        except:
+            pass
         self.brush_patch = None
         self.maskImPlot = None
         self.maskOtherImPlot = None
         self.activeMask = None
         self.otherMask = None
-        self.roiChanged = {}
 
-        self.editMode = ToolboxWindow.EDITMODE_MASK
+        try:
+            self.removeContours()
+        except:
+            pass
+        self.activeRoiPainter = ContourPainter(self.roiColor, ROI_CIRCLE_SIZE)
+        self.sameRoiPainter = ContourPainter(self.roiSame, 0.1)
+        self.otherRoiPainter = ContourPainter(self.roiOther, 0.1)
 
+        self.roiManager = None
 
-    # def toggleWacom(self, wacomState = None):
-    #     if wacomState is not None: self.wacom = not wacomState # force a toggle
-    #     if self.wacom:
-    #         self.wacom = False
-    #         self.roiColor = ROI_COLOR_ORIG
-    #         self.roiOther = ROI_OTHER_COLOR_ORIG
-    #     else:
-    #         self.wacom = True
-    #         self.roiColor = ROI_COLOR_WACOM
-    #         self.roiOther = ROI_OTHER_COLOR_WACOM
-    #     self.wacomAction.setChecked(self.wacom)
-    #     #self.redraw()
-    #     self.redraw()
 
     #############################################################################################
     ###
@@ -401,7 +405,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.redraw()
 
     @pyqtSlot()
-    #@snapshotSaver this generates too many calls; anyway we want to add the subroi when something happens to it
+    #@snapshotSaver this generates too many calls; anyway we want to add the subroi to the history
+    # when something happens to it
     def addSubRoi(self, roi_name=None, imageN=None):
         if not roi_name:
             roi_name, _ = self.toolbox_window.get_current_roi_subroi()
@@ -415,11 +420,101 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @pyqtSlot(str, int)
     def changeRoi(self, roi_name, subroi_index):
+        """ Change the active ROI """
         #print(roi_name, subroi_index)
         self.activeMask = None
         self.otherMask = None
         self.updateContourPainters()
         self.redraw()
+
+    def getCurrentROIName(self):
+        """ Gets the name of the ROI selected in the toolbox """
+        return self.toolbox_window.get_current_roi_subroi()[0]
+
+    def getCurrentSubroiNumber(self):
+        return self.toolbox_window.get_current_roi_subroi()[1]
+
+    def _getSetCurrentROI(self, offset=0, newROI=None):
+        """ Generic get/set for ROI objects inside the roi manager """
+        if not self.getCurrentROIName():
+            return None
+
+        imageN = int(self.curImage + offset)
+        curName = self.getCurrentROIName()
+        curSubroi = self.getCurrentSubroiNumber()
+
+        #print("Get set ROI", curName, imageN, curSubroi)
+
+        return self.roiManager._get_set_roi(curName, imageN, curSubroi, newROI)
+
+    def getCurrentROI(self, offset=0):
+        """ Get current ROI object """
+        return self._getSetCurrentROI(offset)
+
+    def setCurrentROI(self, r, offset=0):
+        self._getSetCurrentROI(offset, r)
+
+    def getCurrentMask(self, offset=0):
+        roi_name = self.getCurrentROIName()
+        if not self.roiManager or not roi_name:
+            return None
+        return self.roiManager.get_mask(roi_name, int(self.curImage + offset))
+
+    def setCurrentMask(self, mask, offset=0):
+        roi_name = self.getCurrentROIName()
+        if not self.roiManager or not roi_name:
+            return None
+        self.roiManager.set_mask(roi_name, int(self.curImage + offset), mask)
+
+    def calcOutputData(self, setSplash=False):
+        imSize = self.image.shape
+
+        allMasks = {}
+        diceScores = []
+
+        dataForTraining = {}
+        segForTraining = {}
+
+        roi_names = self.roiManager.get_roi_names()
+        current_roi_index = 0
+
+        for roiName in self.roiManager.get_roi_names():
+            if setSplash:
+                self.setSplash(True, current_roi_index, len(roi_names), "Calculating maps...")
+                current_roi_index += 1
+            masklist = []
+            for imageIndex in range(len(self.imList)):
+                roi = np.zeros(imSize)
+                if self.roiManager.contains(roiName, imageIndex):
+                    roi = self.roiManager.get_mask(roiName, imageIndex)
+                masklist.append(roi)
+                try:
+                    originalSegmentation = self.originalSegmentationMasks[imageIndex][roiName]
+                except:
+                    originalSegmentation = None
+
+                if originalSegmentation is not None:
+                    diceScores.append(calc_dice_score(originalSegmentation, roi))
+                    print(diceScores)
+
+                # TODO: maybe add this to the training according to the dice score?
+                classification_name = self.classifications[imageIndex]
+                if classification_name not in dataForTraining:
+                    dataForTraining[classification_name] = {}
+                    segForTraining[classification_name] = {}
+                if imageIndex not in dataForTraining[classification_name]:
+                    dataForTraining[classification_name][imageIndex] = self.imList[imageIndex]
+                    segForTraining[classification_name][imageIndex] = {}
+
+                segForTraining[classification_name][imageIndex][roiName] = roi
+
+            npMask = np.transpose(np.stack(masklist), [1, 2, 0])
+            allMasks[roiName] = npMask
+
+        diceScores = np.array(diceScores)
+        print(diceScores)
+        print("Average Dice score", diceScores.mean())
+        return allMasks, dataForTraining, segForTraining, diceScores.mean()
 
     #########################################################################################
     ###
@@ -625,6 +720,32 @@ class MuscleSegmentation(ImageShow, QObject):
         # find sharpest bright-to-dark transition. Maybe check if there are similar transitions in the line and only take the closest one
         minDeriv = np.argmin(diffz) + 1
         return (xpoints[minDeriv], ypoints[minDeriv])
+
+    # No @snapshotSaver: snapshot is saved in the calling function
+    def addPoint(self, spline, event):
+        self.currentPoint = spline.addKnot((event.xdata, event.ydata))
+        # self.redraw()
+        self.redraw()
+
+    # No @snapshotSaver: snapshot is saved in the calling function
+    def movePoint(self, spline, event):
+        if self.currentPoint is None:
+            return
+        spline.replaceKnot(self.currentPoint, (event.xdata, event.ydata))
+        # self.redraw()
+        self.redraw()
+
+    @pyqtSlot()
+    @snapshotSaver
+    def clearCurrentROI(self):
+        if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
+            roi = self.getCurrentROI()
+            roi.removeAllKnots()
+        elif self.editMode == ToolboxWindow.EDITMODE_MASK:
+            self.roiManager.clear_mask(self.getCurrentROIName(), self.curImage)
+            self.activeMask = None
+        self.redraw()
+
 
     #####################################################################################################
     ###
@@ -866,71 +987,6 @@ class MuscleSegmentation(ImageShow, QObject):
             self.optimize()
 
         self.setSplash(False, 3, 3)
-
-    # No @snapshotSaver: snapshot is saved in the calling function
-    def addPoint(self, spline, event):
-        self.currentPoint = spline.addKnot((event.xdata, event.ydata))
-        # self.redraw()
-        self.redraw()
-
-    # No @snapshotSaver: snapshot is saved in the calling function
-    def movePoint(self, spline, event):
-        if self.currentPoint is None:
-            return
-
-        spline.replaceKnot(self.currentPoint, (event.xdata, event.ydata))
-        # self.redraw()
-        self.redraw()
-
-
-    @pyqtSlot()
-    @snapshotSaver
-    def clearCurrentROI(self):
-        if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
-            roi = self.getCurrentROI()
-            roi.removeAllKnots()
-        elif self.editMode == ToolboxWindow.EDITMODE_MASK:
-            self.roiManager.clear_mask(self.getCurrentROIName(), self.curImage)
-            self.activeMask = None
-        self.redraw()
-
-
-    def getCurrentROIName(self):
-        return self.toolbox_window.get_current_roi_subroi()[0]
-
-    def getCurrentSubroiNumber(self):
-        return self.toolbox_window.get_current_roi_subroi()[1]
-
-    def _getSetCurrentROI(self, offset=0, newROI=None):
-        # TODO: Move to ROIManager
-        if not self.getCurrentROIName():
-            return None
-
-        imageN = int(self.curImage + offset)
-        curName = self.getCurrentROIName()
-        curSubroi = self.getCurrentSubroiNumber()
-
-        #print("Get set ROI", curName, imageN, curSubroi)
-
-        return self.roiManager._get_set_roi(curName, imageN, curSubroi, newROI)
-
-    def getCurrentROI(self, offset=0):
-        return self._getSetCurrentROI(offset)
-
-    def setCurrentROI(self, r, offset=0):
-        self._getSetCurrentROI(offset, r)
-
-    def getCurrentMask(self, offset=0):
-        roi_name = self.getCurrentROIName()
-        if not self.roiManager or not roi_name:
-            return None
-        return self.roiManager.get_mask(roi_name, int(self.curImage + offset))
-
-    def setCurrentMask(self, mask, offset=0):
-        roi_name = self.getCurrentROIName()
-        if not self.roiManager or not roi_name:
-            return None
-        self.roiManager.set_mask(roi_name, int(self.curImage + offset), mask)
 
     ##############################################################################################################
     ###
@@ -1313,13 +1369,14 @@ class MuscleSegmentation(ImageShow, QObject):
     @pyqtSlot(str)
     def loadDirectory(self, path):
         self.imList = []
-        self.originalSegmentationMasks = {}
+        self.resetInternalState()
         ImageShow.loadDirectory(self, path)
         roi_bak_name = self.getRoiFileName() + '.' + datetime.now().strftime('%Y%m%d%H%M%S')
         try:
             shutil.copyfile(self.getRoiFileName(), roi_bak_name)
         except:
             print("Warning: cannot copy roi file")
+
         self.roiManager = ROIManager(self.imList[0].shape)
         self.unPickleTransforms()
         #self.loadROIPickle()
@@ -1340,51 +1397,16 @@ class MuscleSegmentation(ImageShow, QObject):
         self.classifications.append(class_str)
 
     @pyqtSlot(str, str)
+    @separate_thread_decorator
     def saveResults(self, pathOut: str, outputType: str):
         # outputType is 'dicom', 'npy', 'npz', 'nifti'
         print("Saving results...")
-        imSize = self.image.shape
 
-        allMasks = {}
-        diceScores = []
+        self.setSplash(True, 0, 4, "Calculating maps...")
 
-        dataForTraining = {}
-        segForTraining = {}
+        allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
 
-        for roiName in self.roiManager.get_roi_names():
-            masklist = []
-            for imageIndex in range(len(self.imList)):
-                roi = np.zeros(imSize)
-                if self.roiManager.contains(roiName, imageIndex):
-                    roi = self.roiManager.get_mask(roiName, imageIndex)
-                masklist.append(roi)
-                try:
-                    originalSegmentation = self.originalSegmentationMasks[imageIndex][roiName]
-                except:
-                    originalSegmentation = None
-
-                if originalSegmentation is not None:
-                    diceScores.append(calc_dice_score(originalSegmentation, roi))
-                    print(diceScores)
-
-                # TODO: maybe add this to the training according to the dice score?
-                classification_name = self.classifications[imageIndex]
-                if classification_name not in dataForTraining:
-                    dataForTraining[classification_name] = {}
-                    segForTraining[classification_name] = {}
-                if imageIndex not in dataForTraining[classification_name]:
-                    dataForTraining[classification_name][imageIndex] = self.imList[imageIndex]
-                    segForTraining[classification_name][imageIndex] = {}
-
-                segForTraining[classification_name][imageIndex][roiName] = roi
-
-            print("Saving %s..." % (roiName))
-            npMask = np.transpose(np.stack(masklist), [1, 2, 0])
-            allMasks[roiName] = npMask
-
-        diceScores = np.array(diceScores)
-        print(diceScores)
-        print("Average Dice score", np.array(diceScores).mean())
+        self.setSplash(True, 1, 4, "Incremental learning...")
 
         # perform incremental learning
         for classification_name in dataForTraining:
@@ -1402,7 +1424,10 @@ class MuscleSegmentation(ImageShow, QObject):
             model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2]}, training_outputs)
             print('Done')
 
+        self.setSplash(True, 2, 4, "Sending the improved model...")
         #TODO: send the model back to the server
+
+        self.setSplash(True, 3, 4, "Saving file...")
 
         if outputType == 'dicom':
             save_dicom_masks(pathOut, allMasks, self.dicomHeaderList)
@@ -1412,6 +1437,8 @@ class MuscleSegmentation(ImageShow, QObject):
             save_npy_masks(pathOut, allMasks)
         else: # assume the most generic outputType == 'npz':
             save_npz_masks(pathOut, allMasks)
+
+        self.setSplash(False, 4, 4, "End")
 
     def pickleTransforms(self):
         if not self.basepath: return

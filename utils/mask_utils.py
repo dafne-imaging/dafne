@@ -7,7 +7,10 @@ import nibabel as nib
 def calc_dice_score(mask1, mask2):
     a = 2 * np.sum(np.logical_and(mask1, mask2))
     b = np.sum(mask1) + np.sum(mask2)
-    return a/b
+    if b == 0:
+        return 1
+    else:
+        return a/b
 
 
 def save_dicom_masks(base_path: str, mask_dict: dict, dicom_headers: list):
@@ -27,7 +30,7 @@ def save_npy_masks(base_path, mask_dict):
 
 
 def save_npz_masks(filename, mask_dict):
-    np.savez(filename, **mask_dict)
+    np.savez_compressed(filename, **mask_dict)
 
 
 def save_nifti_masks(base_path, mask_dict, affine, transpose=None):
