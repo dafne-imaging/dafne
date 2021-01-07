@@ -29,6 +29,7 @@ from utils.ROIManager import ROIManager
 
 import numpy as np
 import scipy.ndimage as ndimage
+from scipy.ndimage.morphology import binary_dilation, binary_erosion
 import pickle
 import os.path
 from collections import deque
@@ -256,6 +257,9 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.splash_signal.connect(self.toolbox_window.set_splash)
         self.splash_signal.connect(self.disableInterface)
+
+        self.toolbox_window.mask_grow.connect(self.maskGrow)
+        self.toolbox_window.mask_shrink.connect(self.maskShrink)
 
 
     def setSplash(self, is_splash, current_value, maximum_value, text= ""):
@@ -761,6 +765,30 @@ class MuscleSegmentation(ImageShow, QObject):
             self.roiManager.clear_mask(self.getCurrentROIName(), self.curImage)
             self.activeMask = None
         self.redraw()
+
+    @snapshotSaver
+    def _currentMaskOperation(self, operation_function):
+        """
+        Applies a generic operation to the current mask. operation_function is a function that accepts the mask as parameter
+        and returns the new mask
+        """
+        if not self.editMode == ToolboxWindow.EDITMODE_MASK: return
+        currentMask = self.getCurrentMask()
+        newMask = operation_function(currentMask)
+        self.setCurrentMask(newMask)
+        if self.activeMask is None:
+            self.updateMasksFromROIs()
+        else: # only update the active mask
+            self.activeMask = newMask.copy()
+        self.redraw()
+
+    @pyqtSlot()
+    def maskGrow(self):
+        self._currentMaskOperation(binary_dilation)
+
+    @pyqtSlot()
+    def maskShrink(self):
+        self._currentMaskOperation(binary_erosion)
 
 
     #####################################################################################################

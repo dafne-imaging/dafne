@@ -65,7 +65,7 @@
         <widget class="QComboBox" name="classification_combo"/>
        </item>
        <item>
-        <widget class="QGroupBox" name="groupBox">
+        <widget class="QGroupBox" name="history_group">
          <property name="title">
           <string>History</string>
          </property>
@@ -398,6 +398,33 @@
               </property>
               <property name="alignment">
                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="maskedit_group">
+         <property name="title">
+          <string>Mask</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_7">
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_10">
+            <item>
+             <widget class="QPushButton" name="grow_button">
+              <property name="text">
+               <string>Grow</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="shrink_button">
+              <property name="text">
+               <string>Shrink</string>
               </property>
              </widget>
             </item>

@@ -77,6 +77,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     statistics_calc = pyqtSignal(str)
 
+    mask_grow = pyqtSignal()
+    mask_shrink = pyqtSignal()
+
     NO_STATE = 0
     ADD_STATE = 1
     REMOVE_STATE = 2
@@ -150,6 +153,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.brushsize_slider.valueChanged.connect(self.brushsliderCB)
         self.brushsize_slider.setValue(5)
 
+        self.grow_button.clicked.connect(self.mask_grow.emit)
+        self.shrink_button.clicked.connect(self.mask_shrink.emit)
+
         self.splash_movie = QMovie(SPLASH_ANIMATION_PATH)
         self.splash_label.setMovie(self.splash_movie)
 
@@ -216,6 +222,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         if mode == self.EDITMODE_MASK:
             self.subroi_widget.setVisible(False)
             self.brush_group.setVisible(True)
+            self.maskedit_group.setVisible(True)
             self.contouredit_widget.setVisible(False)
             self.addpaint_button.setText("Paint")
             self.removeerase_button.setText("Erase")
@@ -229,6 +236,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         else:
             self.subroi_widget.setVisible(True)
             self.brush_group.setVisible(False)
+            self.maskedit_group.setVisible(False)
             self.contouredit_widget.setVisible(True)
             self.addpaint_button.setText("Add/Move")
             self.removeerase_button.setText("Remove")
