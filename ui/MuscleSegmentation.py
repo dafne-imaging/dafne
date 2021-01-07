@@ -196,6 +196,10 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.roiManager = None
 
+        self.currentPoint = None
+        self.translateDelta = None
+        self.rotationDelta = None
+
 
     #############################################################################################
     ###
@@ -1279,20 +1283,48 @@ class MuscleSegmentation(ImageShow, QObject):
             roi = self.getCurrentROI()
             if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:  # event.key == 'shift' or checkCapsLock():
                 self.movePoint(roi, event)
+            elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.TRANSLATE_STATE:
+                if self.translateDelta is None: return
+                newCenter = (event.xdata - self.translateDelta[0], event.ydata - self.translateDelta[1])
+                roi.moveCenterTo(newCenter)
+                self.redraw()
+            elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.ROTATE_STATE:
+                if self.rotationDelta is None: return
+                newAngle = roi.getOrientation( (event.xdata, event.ydata), center = self.rotationDelta[0])
+                roi.reorientByAngle(newAngle - self.rotationDelta[1])
+                self.redraw()
 
     def leftPressCB(self, event):
         if not self.imPlot.contains(event):
             print("Event outside")
             return
 
+        print(self.getState())
+
         if self.getState() != 'MUSCLE': return
 
         if self.toolbox_window.get_edit_mode() == ToolboxWindow.EDITMODE_MASK:
             self.modifyMaskFromBrush(saveSnapshot=True)
         else:
+            #print("Edit button state", self.toolbox_window.get_edit_button_state())
             roi = self.getCurrentROI()
             knotIndex, knot = roi.findKnotEvent(event)
-            if self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
+            if self.toolbox_window.get_edit_button_state() == ToolboxWindow.TRANSLATE_STATE:
+                center = roi.getCenterOfMass()
+                if center is None:
+                    self.translateDelta = None
+                    return
+                self.saveSnapshot()
+                self.translateDelta = (event.xdata - center[0], event.ydata - center[1])
+            elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.ROTATE_STATE:
+                center = roi.getCenterOfMass()
+                if center is None:
+                    self.rotationDelta = None
+                    return
+                self.saveSnapshot()
+                startAngle = roi.getOrientation(center=center)
+                self.rotationDelta = (center, roi.getOrientation( (event.xdata, event.ydata), center=center ) - startAngle)
+            elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
                 if knotIndex is not None:
                     self.saveSnapshot()
                     roi.removeKnot(knotIndex)
@@ -1307,6 +1339,8 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def leftReleaseCB(self, event):
         self.currentPoint = None  # reset the state
+        self.translateDelta = None
+        self.rotationDelta = None
         if self.editMode == ToolboxWindow.EDITMODE_MASK:
             self.roiManager.set_mask(self.getCurrentROIName(), self.curImage, self.activeMask)
 

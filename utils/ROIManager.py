@@ -137,6 +137,7 @@ class RoiAndMaskPair:
         stack = self.get_subroi_stack()
         if stack is None: # note that this is different than having zero length
             self.add_subroi()
+            stack = self.get_subroi_stack()
         return len(stack)
 
     def __getstate__(self):

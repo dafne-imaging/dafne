@@ -4,7 +4,7 @@ Created on Mon Mar  2 15:10:45 2015
 
 @author: francesco
 """
-
+from numpy import linalg
 from scipy.interpolate import splprep, splev
 import numpy as np
 import matplotlib as mpl
@@ -406,7 +406,81 @@ class SplineInterpROIClass:
 
         xnew,ynew = splev(np.linspace(u[1],u[2],npoints), tckp) # produce 100 points between the first and second knot
         return (xnew, ynew)
-    
+
+    def moveCenterTo(self, new_center):
+        """
+        Translates the whole ROI by moving all the knots. The new location is where the new center of mass will be
+        """
+        old_center_of_mass = self.getCenterOfMass()
+        if old_center_of_mass is None: return
+        deltaX = new_center[0] - old_center_of_mass[0]
+        deltaY = new_center[1] - old_center_of_mass[1]
+        for i, k in enumerate(self.knots[:]):
+            self.replaceKnot(i, (k[0] + deltaX, k[1] + deltaY))
+
+    def rotateBySinCos(self, angle_sin, angle_cos):
+        """
+        Rotates the contour around the center, given sine and cosine
+        """
+        center = self.getCenterOfMass()
+        if center is None: return
+        def rotateKnot(point):
+            relX = point[0] - center[0]
+            relY = point[1] - center[1]
+            newX = angle_cos*relX - angle_sin*relY
+            newY = angle_sin*relX + angle_cos*relY
+            return (newX + center[0], newY + center[1])
+
+        for i,k in enumerate(self.knots[:]):
+            self.replaceKnot(i, rotateKnot(k))
+
+    def rotateByAngle(self, angle):
+        """
+        Rotates the contour around the center by angle (in radians)
+        """
+        self.rotateBySinCos(np.sin(angle), np.cos(angle))
+
+    def rotateByTwoPoints(self, startPoint, endPoint):
+        """
+        Rotates the contour by the angle given by the two given points and the center
+        """
+        center = self.getCenterOfMass()
+        if center is None: return
+        startVec = np.array([startPoint[0] - center[0], startPoint[1] - center[1]])
+        endVec = np.array([endPoint[0] - center[0], endPoint[1] - center[1]])
+
+        startVec /= linalg.norm(startVec)
+        endVec /= linalg.norm(endVec)
+
+        cosine = np.dot(startVec, endVec)
+        sine = np.cross(startVec, endVec)
+        self.rotateBySinCos(sine, cosine)
+
+    def getOrientation(self, testPoint = None, center = None):
+        """
+        Returns the orientation vector between the center and a given point (or the first knot)
+        with respect to the horizontal
+        """
+
+        if testPoint is None:
+            testPoint = self.knots[0]
+
+        if center is None:
+            center = self.getCenterOfMass()
+        if center is None: return None
+        referenceVector = np.array([1, 0])
+        testVector = np.array([testPoint[0] - center[0], testPoint[1] - center[1]])
+        testVector /= linalg.norm(testVector)
+        cosine = np.dot(referenceVector, testVector)
+        sine = np.cross(referenceVector, testVector)
+        return np.arctan2(sine, cosine)
+
+    def reorientByAngle(self, angle):
+        current_orientation = self.getOrientation()
+        rotate_angle = angle - current_orientation
+        self.rotateByAngle(rotate_angle)
+
+
     # for pickling/unpickling, to avoid dumping all the internal representations
     def __getstate__(self):
         return self.knots
@@ -442,32 +516,4 @@ if __name__ == "__main__":
     sp.addKnot((20,10))
     sp.addKnot((20,15))
     sp.addKnot((12,15))
-    im = sp.toMask((35,40), False)
-    plt.imshow(im)
-    sp.draw(plt.gca(), color = 'red')    
-    print(sp.isPointInside((10,6)))
-    
-    
-    
-    # # Create a bitmap from the array
-    # bmp = potrace.Bitmap(im)
-    
-    # # Trace the bitmap to a path
-    # path = bmp.trace(turnpolicy = potrace.TURNPOLICY_LEFT, alphamax = 1.33, opticurve = 1, opttolerance = 1)
-    
-    # # Iterate over path curves
-    # for curve in path:
-    #     print("start_point =", curve.start_point)
-    #     for segment in curve:
-    #         print(segment)
-    #         end_point_x, end_point_y = segment.end_point
-    #         if segment.is_corner:
-    #             c_x, c_y = segment.c
-    #         else:
-    #             c1_x, c1_y = segment.c1
-    #             c2_x, c2_y = segment.c2
-                
-    splines = SplineInterpROIClass.FromMask(im)
-    splines[0].draw(plt.gca(), color = 'blue')
-                
-    plt.show()
+    print(sp.getOrientation())

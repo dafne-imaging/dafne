@@ -80,6 +80,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     NO_STATE = 0
     ADD_STATE = 1
     REMOVE_STATE = 2
+    ROTATE_STATE = 3
+    TRANSLATE_STATE = 4
 
     BRUSH_CIRCLE = 'Circle'
     BRUSH_SQUARE = 'Square'
@@ -91,6 +93,14 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def __init__(self, activate_registration=True):
         super(ToolboxWindow, self).__init__()
         self.setupUi(self)
+
+        self.state_buttons_dict = {
+            self.addpaint_button: self.ADD_STATE,
+            self.removeerase_button: self.REMOVE_STATE,
+            self.translateContour_button: self.TRANSLATE_STATE,
+            self.rotateContour_button: self.ROTATE_STATE
+        }
+
         self.setWindowFlag(Qt.WindowCloseButtonHint, False)
         self.setWindowTitle("Segmentation Toolbox")
         self.splashWidget.setVisible(False)
@@ -109,9 +119,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.addpaint_button.clicked.connect(self.manage_edit_toggle)
         self.removeerase_button.clicked.connect(self.manage_edit_toggle)
+        self.translateContour_button.clicked.connect(self.manage_edit_toggle)
+        self.rotateContour_button.clicked.connect(self.manage_edit_toggle)
 
-        self.editState = self.NO_STATE
-        self.tempEditState = None
+        self.edit_state = self.NO_STATE
+        self.temp_edit_state = None
 
         self.removeall_button.clicked.connect(self.clear_roi)
 
@@ -207,6 +219,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.contouredit_widget.setVisible(False)
             self.addpaint_button.setText("Paint")
             self.removeerase_button.setText("Erase")
+            if self.edit_state == self.TRANSLATE_STATE or self.edit_state == self.ROTATE_STATE:
+                self.edit_state = self.NO_STATE
+                self.temp_edit_state = None
+            self.translateContour_button.setChecked(False)
+            self.rotateContour_button.setChecked(False)
             #self.removeall_button.setVisible(False)
             self.editmode_changed.emit(self.EDITMODE_MASK)
         else:
@@ -247,36 +264,34 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot()
     def manage_edit_toggle(self):
-        # make sure that only one add/remove knot button is pressed
-        if self.addpaint_button.isChecked() and self.removeerase_button.isChecked():
-            if self.sender() == self.addpaint_button:
-                self.removeerase_button.setChecked(False)
-            else:
-                self.addpaint_button.setChecked(False)
+        # make sure that only one add/remove knot button is pressed or translate/rotate
+        senderObj = self.sender()
+        if not senderObj.isChecked(): # this is a signal to uncheck the button: reset to no state
+            self.edit_state = self.NO_STATE
+            return
+        self.edit_state = self.state_buttons_dict[senderObj]
+        self.manage_state_buttons(self.edit_state)
 
-        # set the permanent state
-        if self.addpaint_button.isChecked():
-            self.editState = self.ADD_STATE
-        elif self.removeerase_button.isChecked():
-            self.editState = self.REMOVE_STATE
-        else:
-            self.editState = self.NO_STATE
+    def manage_state_buttons(self, state):
+        for obj, obj_state in self.state_buttons_dict.items():
+            if state == obj_state:
+                obj.setChecked(True)
+            else:
+                obj.setChecked(False)
 
     @pyqtSlot()
     def restore_edit_button_state(self):
-        self.addpaint_button.setChecked(self.editState == self.ADD_STATE)
-        self.removeerase_button.setChecked(self.editState == self.REMOVE_STATE)
-        self.tempEditState = None
+        self.manage_state_buttons(self.edit_state)
+        self.temp_edit_state = None
 
     @pyqtSlot(int)
-    def set_temp_edit_button_state(self, tempState):
-        self.tempEditState = tempState
-        self.addpaint_button.setChecked(tempState == self.ADD_STATE)
-        self.removeerase_button.setChecked(tempState == self.REMOVE_STATE)
+    def set_temp_edit_button_state(self, temp_state):
+        self.temp_edit_state = temp_state
+        self.manage_state_buttons(temp_state)
 
     def get_edit_button_state(self):
-        if self.tempEditState is not None: return self.tempEditState
-        return self.editState
+        if self.temp_edit_state is not None: return self.temp_edit_state
+        return self.edit_state
 
     @pyqtSlot(list)
     def set_classes_list(self, classes: list):

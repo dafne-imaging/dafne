@@ -18,10 +18,12 @@ try:
     from utils.dicomUtils.misc import create_affine
 except:
     from dicomUtils.misc import create_affine
+import traceback
 
 DEFAULT_INTERPOLATION = 'spline36'
 #DEFAULT_INTERPOLATION = None # DEBUG
 INVERT_SCROLL = True
+DO_DEBUG = True
 
 class ImageShow:
     
@@ -178,8 +180,8 @@ class ImageShow:
     def redraw(self):
         try:
             self.refreshCB()
-        except:
-            pass
+        except Exception as err:
+            if DO_DEBUG: traceback.print_exc()
         self.fig.canvas.draw()
         
     def mouseScrollCB(self, event):
@@ -229,8 +231,8 @@ class ImageShow:
         if event.button == 1:
             try:
                 self.leftPressCB(event)
-            except:
-                pass
+            except Exception as err:
+                if DO_DEBUG: traceback.print_exc()
         if event.button == 3:
             if event.dblclick:
                 self.resetContrast()
@@ -247,8 +249,8 @@ class ImageShow:
         if event.button == 1:
             try:
                 self.leftReleaseCB(event)
-            except:
-                pass
+            except Exception as err:
+                if DO_DEBUG: traceback.print_exc()
         if event.button == 3:
             self.imPlot.set_interpolation(DEFAULT_INTERPOLATION)
             self.startXY = None # 
@@ -272,8 +274,8 @@ class ImageShow:
         if event.button == 1:
             try:
                 self.leftMoveCB(event)
-            except:
-                pass
+            except Exception as err:
+                if DO_DEBUG: traceback.print_exc()
         if event.button != 3 or self.startXY is None:
             return
         
