@@ -5,8 +5,13 @@ Created on Tue Mar  3 12:10:41 2015
 
 @author: francesco
 """
+import os
+# Hide tensorflow warnings; set to 1 to see warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # or any {'0', '1', '2', '3'}
+
 from ui.MuscleSegmentation import MuscleSegmentation
 from dl.LocalModelProvider import LocalModelProvider
+from dl.RemoteModelProvider import RemoteModelProvider
 
 import matplotlib
 import argparse
@@ -14,6 +19,7 @@ import matplotlib.pyplot as plt
 matplotlib.use("Qt5Agg")
 
 MODELS_DIR = 'models'
+
 
 if __name__ == "__main__":
     
@@ -24,6 +30,7 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--save-dicoms', action='store_true', help='Save ROIs as dicoms in addition to numpy')
     parser.add_argument('-w', '--wacom', action='store_true', help='Enable Wacom mode')
     parser.add_argument('-q', '--quit', action='store_true', help='Quit after loading the dataset (useful with -r or -q options).')
+    parser.add_argument('-rm', '--remote-model', action='store_true', help='Receive model from server')
     
     args = parser.parse_args()
     
@@ -31,8 +38,10 @@ if __name__ == "__main__":
     imFig = MuscleSegmentation()
     #imFig.loadDirectory("image0001.dcm")
 
-
-    dl_model_provider = LocalModelProvider(MODELS_DIR)
+    if args.remote_model:
+        dl_model_provider = RemoteModelProvider(MODELS_DIR)
+    else:
+        dl_model_provider = LocalModelProvider(MODELS_DIR)
     available_models = dl_model_provider.available_models()
 
     available_models.remove('Classifier')
