@@ -14,6 +14,7 @@ from PyQt5.QtGui import QMovie
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog, QApplication, QDialog, \
                             QVBoxLayout, QPushButton
 from PyQt5.QtSvg import QSvgWidget
+from . import GenericInputDialog
 
 SPLASH_ANIMATION_PATH = os.path.join("ui", "images", "dafne_anim.gif")
 ABOUT_SVG_PATH = os.path.join("ui", "images", "about_paths.svg")
@@ -76,6 +77,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     data_open = pyqtSignal(str)
 
     statistics_calc = pyqtSignal(str)
+    radiomics_calc = pyqtSignal(str, bool, int, int)
 
     mask_grow = pyqtSignal()
     mask_shrink = pyqtSignal()
@@ -93,7 +95,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     EDITMODE_CONTOUR = 'Contour'
 
 
-    def __init__(self, activate_registration=True):
+    def __init__(self, activate_registration=True, activate_radiomics=True):
         super(ToolboxWindow, self).__init__()
         self.setupUi(self)
 
@@ -174,6 +176,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionAbout.triggered.connect(self.about)
 
         self.actionCalculate_statistics.triggered.connect(self.calculate_statistics)
+        if not activate_radiomics:
+            self.actionPyRadiomics.setVisible(False)
+
+        self.actionPyRadiomics.triggered.connect(self.calculate_radiomics)
+
 
         self.actionImport_masks.triggered.connect(self.loadMask_clicked)
 
@@ -475,3 +482,16 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
                                                   filter='CSV File (*.csv);;All files (*.*)')
         if file_out:
             self.statistics_calc.emit(file_out)
+
+    @pyqtSlot()
+    def calculate_radiomics(self):
+        accept, radiomics_props = GenericInputDialog.show_dialog('PyRadiomics Options',
+                    [GenericInputDialog.BooleanInput('Quantize gray levels', True),
+                     GenericInputDialog.IntSpinInput('Quantization levels', 32, 0, 1024),
+                     GenericInputDialog.IntSliderInput('Mask erosion (px)', 0)], self)
+
+        if not accept: return
+        file_out, _ = QFileDialog.getSaveFileName(self, caption='Select csv file to save the statistics',
+                                                  filter='CSV File (*.csv);;All files (*.*)')
+        if file_out:
+            self.radiomics_calc.emit(file_out, radiomics_props[0], radiomics_props[1], radiomics_props[2])

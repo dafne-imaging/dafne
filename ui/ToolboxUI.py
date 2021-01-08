@@ -13,7 +13,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_SegmentationToolbox(object):
     def setupUi(self, SegmentationToolbox):
         SegmentationToolbox.setObjectName("SegmentationToolbox")
-        SegmentationToolbox.resize(311, 900)
+        SegmentationToolbox.resize(311, 999)
         self.centralwidget = QtWidgets.QWidget(SegmentationToolbox)
         self.centralwidget.setObjectName("centralwidget")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.centralwidget)
@@ -315,6 +315,8 @@ class Ui_SegmentationToolbox(object):
         self.actionCalculate_statistics.setObjectName("actionCalculate_statistics")
         self.actionAbout = QtWidgets.QAction(SegmentationToolbox)
         self.actionAbout.setObjectName("actionAbout")
+        self.actionPyRadiomics = QtWidgets.QAction(SegmentationToolbox)
+        self.actionPyRadiomics.setObjectName("actionPyRadiomics")
         self.menuSave_as_Numpy.addAction(self.actionSaveNPZ)
         self.menuSave_as_Numpy.addAction(self.actionSaveNPY)
         self.menuSave_masks.addAction(self.menuSave_as_Numpy.menuAction())
@@ -328,6 +330,7 @@ class Ui_SegmentationToolbox(object):
         self.menuFile.addAction(self.actionImport_masks)
         self.menuFile.addAction(self.menuSave_masks.menuAction())
         self.menuTools.addAction(self.actionCalculate_statistics)
+        self.menuTools.addAction(self.actionPyRadiomics)
         self.menuHelp.addAction(self.actionAbout)
         self.menubar.addAction(self.menuFile.menuAction())
         self.menubar.addAction(self.menuTools.menuAction())
@@ -385,3 +388,4 @@ class Ui_SegmentationToolbox(object):
         self.actionSaveNPY.setText(_translate("SegmentationToolbox", "Multiple files"))
         self.actionCalculate_statistics.setText(_translate("SegmentationToolbox", "Calculate statistics..."))
         self.actionAbout.setText(_translate("SegmentationToolbox", "About..."))
+        self.actionPyRadiomics.setText(_translate("SegmentationToolbox", "PyRadiomics..."))

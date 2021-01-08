@@ -46,7 +46,12 @@ from .ContourPainter import ContourPainter
 try:
     import SimpleITK as sitk # this requires simpleelastix! It is NOT available through PIP
 except:
-    pass
+    sitk = None
+
+try:
+    import radiomics
+except:
+    radiomics = None
 
 import re
 import subprocess
@@ -216,8 +221,7 @@ class MuscleSegmentation(ImageShow, QObject):
             print("Elastix is not available")
             showRegistrationGui = False
 
-
-        self.toolbox_window = ToolboxWindow(activate_registration=showRegistrationGui)
+        self.toolbox_window = ToolboxWindow(activate_registration=showRegistrationGui, activate_radiomics= (radiomics is not None))
         self.toolbox_window.show()
 
         self.toolbox_window.editmode_changed.connect(self.changeEditMode)
@@ -252,6 +256,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.masks_export.connect(self.saveResults)
 
         self.toolbox_window.statistics_calc.connect(self.saveStats)
+        self.toolbox_window.radiomics_calc.connect(self.saveRadiomics)
 
         self.toolbox_window.mask_import.connect(self.loadMask)
 
@@ -1574,7 +1579,52 @@ class MuscleSegmentation(ImageShow, QObject):
         csv_file.close()
         self.setSplash(False, 2, 2, "Finished")
 
+    @pyqtSlot(str, bool, int, int)
+    @separate_thread_decorator
+    def saveRadiomics(self, file_out: str, do_quantization=True, quant_levels=32, erode_px=0):
+        """ Saves the radiomics features from pyradiomics
+        """
+        self.setSplash(True, 0, 2, "Calculating maps...")
 
+        allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
+
+        self.setSplash(True, 1, 2, "Calculating stats...")
+
+        dataset = np.transpose(np.stack(self.imList), [1, 2, 0])
+
+        if do_quantization:
+            data_min = dataset.min()
+            data_max = dataset.max()
+            dataset = np.round((dataset-data_min) * quant_levels / (data_max - data_min))
+
+        first_run = True
+        header = 'roi_name'
+
+        with open(file_out, 'w') as featureFile:
+            for roi_name, roi_mask in allMasks.items():
+                if erode_px > 0:
+                    eroded_mask = binary_erosion(roi_mask, iterations=erode_px)
+                else:
+                    eroded_mask = roi_mask
+
+                extractor = radiomics.featureextractor.RadiomicsFeatureExtractor()
+                image = sitk.GetImageFromArray(dataset)
+                features = extractor.execute(image, sitk.GetImageFromArray(eroded_mask.astype(np.uint8)))
+                featureLine = f'{roi_name}'
+                for k, v in features.items():
+                    if k.startswith('original'):
+                        if first_run:
+                            header += ',' + k
+                        try:
+                            featureLine += ',{:.6f}'.format(v[0])
+                        except:
+                            featureLine += ',{:.6f}'.format(v)
+                if first_run:
+                    featureFile.write(header + '\n')
+                    first_run = False
+                featureFile.write(featureLine + '\n')
+
+        self.setSplash(False, 2, 2, "Finished")
 
     def pickleTransforms(self):
         if not self.basepath: return
