@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>311</width>
-    <height>900</height>
+    <height>999</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -577,6 +577,7 @@
      <string>Tools</string>
     </property>
     <addaction name="actionCalculate_statistics"/>
+    <addaction name="actionPyRadiomics"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -637,6 +638,11 @@
   <action name="actionAbout">
    <property name="text">
     <string>About...</string>
+   </property>
+  </action>
+  <action name="actionPyRadiomics">
+   <property name="text">
+    <string>PyRadiomics...</string>
    </property>
   </action>
  </widget>
