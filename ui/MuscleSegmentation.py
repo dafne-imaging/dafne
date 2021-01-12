@@ -1506,11 +1506,21 @@ class MuscleSegmentation(ImageShow, QObject):
                 for imageIndex in dataForTraining[classification_name]:
                     training_data.append(dataForTraining[classification_name][imageIndex])
                     training_outputs.append(segForTraining[classification_name][imageIndex])
+                orig_model = model.copy()
                 model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2]}, training_outputs)
                 print('Done')
 
-            self.setSplash(True, 2, 4, "Sending the improved model...")
-            #TODO: send the model back to the server
+                # Uploading new model
+                # todo: set proper value for the threshold
+                # all weights lower than threshold will be set to 0 for model compression
+                threshold = 0.0001
+                model = model.calc_delta(orig_model, threshold=threshold)
+                
+                st = time.time()
+                self.model_provider.upload_model(classification_name, model)
+                print(f"took {time.time() - st:.2f}s")
+
+            self.setSplash(True, 2, 4, "Sending the improved model to server...")
 
         self.setSplash(True, 3, 4, "Saving file...")
 
