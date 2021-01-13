@@ -1419,7 +1419,9 @@ class MuscleSegmentation(ImageShow, QObject):
             roiPickleName = self.getRoiFileName()
         print("Saving ROIs", roiPickleName)
         if self.roiManager and not self.roiManager.is_empty():  # make sure ROIs are not empty
-            pickle.dump(self.roiManager, open(roiPickleName, 'wb'))
+            dumpObj = {'classifications': self.classifications,
+                       'roiManager': self.roiManager }
+            pickle.dump(dumpObj, open(roiPickleName, 'wb'))
 
     @pyqtSlot(str)
     def loadROIPickle(self, roiPickleName=None):
@@ -1427,16 +1429,28 @@ class MuscleSegmentation(ImageShow, QObject):
             roiPickleName = self.getRoiFileName()
         print("Loading ROIs", roiPickleName)
         try:
-            roiManager = pickle.load(open(roiPickleName, 'rb'))
+            dumpObj = pickle.load(open(roiPickleName, 'rb'))
         except UnicodeDecodeError:
             print('Warning: Unicode decode error')
-            roiManager = pickle.load(open(roiPickleName, 'rb'), encoding='latin1')
+            dumpObj = pickle.load(open(roiPickleName, 'rb'), encoding='latin1')
         except:
             self.alert("Unspecified error")
             return
 
-        try:
+        roiManager = None
+        classifications = self.classifications
 
+        if type(dumpObj) == ROIManager:
+            roiManager = dumpObj
+        elif type(dumpObj) == dict:
+            try:
+                classifications = dumpObj['classifications']
+                roiManager = dumpObj['roiManager']
+            except KeyError:
+                self.alert("Unrecognized saved ROI type")
+                return
+
+        try:
             # print(self.allROIs)
             assert type(roiManager) == ROIManager
         except:
@@ -1451,7 +1465,9 @@ class MuscleSegmentation(ImageShow, QObject):
         print('Rois loaded')
         self.clearAllROIs()
         self.roiManager = roiManager
+        self.classifications = classifications
         self.updateRoiList()
+        self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
 
     @pyqtSlot(str)
     def loadDirectory(self, path):
