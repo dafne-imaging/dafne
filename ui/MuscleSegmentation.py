@@ -42,6 +42,7 @@ from utils.ThreadHelpers import separate_thread_decorator
 
 from .BrushPatches import SquareBrush, PixelatedCircleBrush
 from .ContourPainter import ContourPainter
+import traceback
 
 try:
     import SimpleITK as sitk # this requires simpleelastix! It is NOT available through PIP
@@ -237,6 +238,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.roi_clear.connect(self.clearCurrentROI)
 
         self.toolbox_window.do_autosegment.connect(self.doSegmentation)
+
+        self.toolbox_window.classification_changed.connect(self.changeClassification)
 
         self.toolbox_window.undo.connect(self.undo)
         self.toolbox_window.redo.connect(self.redo)
@@ -1507,7 +1510,12 @@ class MuscleSegmentation(ImageShow, QObject):
                     training_data.append(dataForTraining[classification_name][imageIndex])
                     training_outputs.append(segForTraining[classification_name][imageIndex])
                 orig_model = model.copy()
-                model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2]}, training_outputs)
+                try:
+                    model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2]}, training_outputs)
+                except Exception as e:
+                    print("Error during incremental learning")
+                    traceback.print_exc()
+
                 print('Done')
 
                 # Uploading new model
@@ -1778,7 +1786,10 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @pyqtSlot(str)
     def changeClassification(self, newClass):
-        self.classifications[int(self.curImage)] = newClass
+        try:
+            self.classifications[int(self.curImage)] = newClass
+        except IndexError:
+            print("Trying to change classification to an unexisting image")
 
     @pyqtSlot()
     @snapshotSaver

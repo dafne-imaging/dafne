@@ -221,6 +221,8 @@ class ROIManager:
             for image_key in image_iter:
                 self.allROIs[roi_key][image_key].clear_subrois()
                 del self.allROIs[roi_key][image_key]
+            if not self.allROIs[roi_key]:
+                del self.allROIs[roi_key] # delete if empty
 
     def clear_subroi(self, roi_name, image_number, subroi_number):
         self.allROIs[roi_name][image_number].delete_subroi(subroi_number)
