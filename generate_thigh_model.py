@@ -366,8 +366,9 @@ modelObject = DynamicDLModel('210e2a21-1984-4e6f-8675-bf57bbabef2f',
                              coscia_unet,
                              coscia_apply,
                              incremental_learn_function=thigh_incremental_mem,
-                             weights=weights
+                             weights=weights,
+                             timestamp_id="1603281020"
                              )
 
-with open('models/thigh.model', 'wb') as f:
+with open('models/thigh_1603281020.model', 'wb') as f:
     modelObject.dump(f)

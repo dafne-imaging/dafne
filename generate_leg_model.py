@@ -355,8 +355,9 @@ modelObject = DynamicDLModel('ba333b4d-90e7-4108-aca5-9216f408d91e',
                              gamba_unet,
                              gamba_apply,
                              incremental_learn_function=leg_incremental_mem,
-                             weights=weights
+                             weights=weights,
+                             timestamp_id="1603281013"
                              )
 
-with open('models/leg.model', 'wb') as f:
+with open('models/leg_1603281013.model', 'wb') as f:
     modelObject.dump(f)
