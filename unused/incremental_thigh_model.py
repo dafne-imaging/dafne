@@ -242,7 +242,8 @@ def thigh_incremental(modelObj: DynamicDLModel, trainingdata: dict, trainingoutp
     netc.compile(loss=weighted_loss,optimizer=adamlr)
     history=netc.fit_generator(generator=training_generator,steps_per_epoch=steps,epochs=5,callbacks=[check],verbose=1)
 
-def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs):
+def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,
+                          bs=5):
     import dl.common.preprocess_train as pretrain
     from dl.common.DataGenerators import DataGeneratorMem
     import os
@@ -272,7 +273,7 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
     BAND=49
-    BATCH_SIZE = 5
+    BATCH_SIZE = bs
     CHECKPOINT_PATH = os.path.join("..", "Weights_incremental")
 
     os.makedirs(CHECKPOINT_PATH, exist_ok=True)

@@ -1511,18 +1511,20 @@ class MuscleSegmentation(ImageShow, QObject):
                     training_outputs.append(segForTraining[classification_name][imageIndex])
                 orig_model = model.copy()
                 try:
-                    model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2]}, training_outputs)
+                    #todo: adapt bs and minTrainImages if needed
+                    model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2]},
+                                                training_outputs, bs=5, minTrainImages=5)
                 except Exception as e:
                     print("Error during incremental learning")
                     traceback.print_exc()
 
-                print('Done')
-
                 # Uploading new model
-                # todo: set proper value for the threshold
+
+                # Only upload delta, to reduce model size -> only activate if rest of federated learning
+                # working properly
                 # all weights lower than threshold will be set to 0 for model compression
-                threshold = 0.0001
-                model = model.calc_delta(orig_model, threshold=threshold)
+                # threshold = 0.0001
+                # model = model.calc_delta(orig_model, threshold=threshold)
                 
                 st = time.time()
                 self.model_provider.upload_model(classification_name, model)
