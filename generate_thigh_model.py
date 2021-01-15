@@ -371,5 +371,5 @@ modelObject = DynamicDLModel('210e2a21-1984-4e6f-8675-bf57bbabef2f',
                              timestamp_id="1603281020"
                              )
 
-with open('models/thigh_1603281020.model', 'wb') as f:
+with open('models/Thigh_1603281020.model', 'wb') as f:
     modelObject.dump(f)

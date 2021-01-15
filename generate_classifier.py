@@ -160,5 +160,5 @@ modelObject = DynamicDLModel('3f2a8066-007d-4c49-96b0-5fb7a703f6d0',
                              timestamp_id="1603281030"
                              )
 
-with open('models/classifier_1603281030.model', 'wb') as f:
+with open('models/Classifier_1603281030.model', 'wb') as f:
     modelObject.dump(f)
