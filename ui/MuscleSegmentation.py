@@ -88,7 +88,7 @@ ROI_SAME_COLOR_ORIG = (1, 1, 0, 0.5)  # yellow with 0.5 opacity
 ROI_OTHER_COLOR_ORIG = (0, 0, 1, 0.4)
 
 ROI_COLOR_WACOM = (1, 0, 0, 1)  # red with 1 opacity
-ROI_SAME_COLOR_WACOM = (1, 1, 0, 1)  # yellow with 0.5 opacity
+ROI_SAME_COLOR_WACOM = (1, 1, 0, 1)  # yellow with 1 opacity
 ROI_OTHER_COLOR_WACOM = (0, 0, 1, 0.8)
 
 ROI_COLOR = ROI_COLOR_ORIG
@@ -108,18 +108,18 @@ COLORS = ['blue', 'red', 'green', 'yellow', 'magenta', 'cyan', 'indigo', 'white'
 
 HISTORY_LENGTH = 20
 
-MASK_LAYER_COLORMAP = matplotlib.colors.ListedColormap(np.array([
-    [0,0,0,0],
-    [*ROI_COLOR[:3],1]
-]))
 
-MASK_LAYER_OTHER_COLORMAP = matplotlib.colors.ListedColormap(np.array([
-    [0,0,0,0],
-    [*ROI_OTHER_COLOR[:3],1]
-]))
+def makeMaskLayerColormap(color):
+    return matplotlib.colors.ListedColormap(np.array([
+        [0, 0, 0, 0],
+        [*color[:3],1]]))
 
+
+MASK_LAYER_COLORMAP = makeMaskLayerColormap(ROI_COLOR)
+MASK_LAYER_OTHER_COLORMAP = makeMaskLayerColormap(ROI_OTHER_COLOR)
 
 MASK_LAYER_ALPHA = 0.4
+
 
 def snapshotSaver(func):
     @functools.wraps(func)
@@ -128,6 +128,7 @@ def snapshotSaver(func):
         func(self, *args, **kwargs)
 
     return wrapper
+
 
 class MuscleSegmentation(ImageShow, QObject):
 
