@@ -339,5 +339,5 @@ modelObject = DynamicDLModel('ba333b4d-90e7-4108-aca5-9216f408d91e',
                              weights=weights
                              )
 
-with open('models/Leg_Split_1603281013.model', 'wb') as f:
+with open('models/Leg-Split_1603281013.model', 'wb') as f:
     modelObject.dump(f)

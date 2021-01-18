@@ -354,5 +354,5 @@ modelObject = DynamicDLModel('210e2a21-1984-4e6f-8675-bf57bbabef2f',
                              weights=weights
                              )
 
-with open('models/Thigh_Split_1603281020.model', 'wb') as f:
+with open('models/Thigh-Split_1603281020.model', 'wb') as f:
     modelObject.dump(f)
