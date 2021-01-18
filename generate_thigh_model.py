@@ -281,7 +281,8 @@ def coscia_apply(modelObj: DynamicDLModel, data: dict):
     return outputLabels
 
 
-def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs):
+def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,
+                          bs=5, minTrainImages=5):
     import dl.common.preprocess_train as pretrain
     from dl.common.DataGenerators import DataGeneratorMem
     import os
@@ -311,9 +312,9 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
     BAND = 49
-    BATCH_SIZE = 5
+    BATCH_SIZE = bs
     CHECKPOINT_PATH = os.path.join(".", "Weights_incremental", "thigh")
-    MIN_TRAINING_IMAGES = 5
+    MIN_TRAINING_IMAGES = minTrainImages
 
     os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
@@ -366,8 +367,9 @@ modelObject = DynamicDLModel('210e2a21-1984-4e6f-8675-bf57bbabef2f',
                              coscia_unet,
                              coscia_apply,
                              incremental_learn_function=thigh_incremental_mem,
-                             weights=weights
+                             weights=weights,
+                             timestamp_id="1603281020"
                              )
 
-with open('models/thigh.model', 'wb') as f:
+with open('models/Thigh_1603281020.model', 'wb') as f:
     modelObject.dump(f)

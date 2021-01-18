@@ -275,7 +275,8 @@ def gamba_apply(modelObj: DynamicDLModel, data: dict):
     return outputLabels
 
 
-def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs):
+def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,
+                        bs=5, minTrainImages=5):
     import dl.common.preprocess_train as pretrain
     from dl.common.DataGenerators import DataGeneratorMem
     import os, time
@@ -297,9 +298,9 @@ def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOu
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
     BAND = 49
-    BATCH_SIZE = 5
+    BATCH_SIZE = bs
     CHECKPOINT_PATH = os.path.join(".", "Weights_incremental", "leg")
-    MIN_TRAINING_IMAGES = 5
+    MIN_TRAINING_IMAGES = minTrainImages
 
     os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
@@ -355,8 +356,9 @@ modelObject = DynamicDLModel('ba333b4d-90e7-4108-aca5-9216f408d91e',
                              gamba_unet,
                              gamba_apply,
                              incremental_learn_function=leg_incremental_mem,
-                             weights=weights
+                             weights=weights,
+                             timestamp_id="1603281013"
                              )
 
-with open('models/leg.model', 'wb') as f:
+with open('models/Leg_1603281013.model', 'wb') as f:
     modelObject.dump(f)
