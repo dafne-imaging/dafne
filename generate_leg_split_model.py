@@ -208,6 +208,7 @@ def gamba_apply(modelObj: DynamicDLModel, data: dict):
     from dl.common.padorcut import padorcut
     import dl.common.biascorrection as biascorrection
     import dl.common.preprocess_train as pretrain
+    from dl.common.preprocess_train import split_mirror
     from scipy.ndimage import zoom
     try:
         np
@@ -246,8 +247,8 @@ def gamba_apply(modelObj: DynamicDLModel, data: dict):
     labelright=np.argmax(np.squeeze(segmentationright[0,:,:,:7]), axis=2)
     labelright=labelright[::1,::-1]
     labelsMask=np.zeros(MODEL_SIZE,dtype='float32')
-    labelsMask[int(b1):int(b2),int(a1):int(a2)]=labelleft[int(math.floor(float(MODEL_SIZE[0] - (b2-b1))/2)):int(math.floor(float(MODEL_SIZE[0] - (b2-b1))/2))+int(b2-b1),int(math.ceil(float(MODEL_SIZE[1] - (a2-a1))/2)):int(math.ceil(float(MODEL_SIZE[1] - (a2-a1))/2))+int(a2-a1)]
-    labelsMask[int(b1):int(b2),int(a3):int(a4)]=labelright[int(math.floor(float(MODEL_SIZE[0] - (b2-b1))/2)):int(math.floor(float(MODEL_SIZE[0] - (b2-b1))/2))+int(b2-b1),int(math.ceil(float(MODEL_SIZE[1] - (a4-a3))/2)):int(math.ceil(float(MODEL_SIZE[1] - (a4-a3))/2))+int(a4-a3)]
+    labelsMask[int(b1):int(b2),int(a1):int(a2)]=padorcut(labelleft, [b2-b1, a2-a1])
+    labelsMask[int(b1):int(b2),int(a3):int(a4)]=padorcut(labelright, [b2-b1, a4-a3])
     labelsMask = zoom(labelsMask, 1/zoomFactor, order=0)
     labelsMask = padorcut(labelsMask, originalShape).astype(np.int8)
     outputLabels = {}
