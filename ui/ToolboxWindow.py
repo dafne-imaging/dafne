@@ -62,6 +62,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     roi_changed = pyqtSignal(str, int)
     roi_clear = pyqtSignal()
     classification_changed = pyqtSignal(str)
+    classification_change_all = pyqtSignal(str)
 
     editmode_changed = pyqtSignal(str)
 
@@ -74,7 +75,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     masks_export = pyqtSignal(str, str)
     mask_import = pyqtSignal(str)
 
-    data_open = pyqtSignal(str)
+    data_open = pyqtSignal(str, str)
 
     statistics_calc = pyqtSignal(str)
     radiomics_calc = pyqtSignal(str, bool, int, int)
@@ -133,6 +134,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.removeall_button.clicked.connect(self.clear_roi)
 
         self.classification_combo.currentTextChanged.connect(self.on_classification_changed)
+        self.classification_all_button.clicked.connect(self.on_classification_change_all)
         self.autosegment_button.clicked.connect(self.on_do_segmentation)
 
         self.undoButton.clicked.connect(self.undo.emit)
@@ -420,6 +422,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def on_classification_changed(self):
         self.classification_changed.emit(self.classification_combo.currentText())
 
+    @pyqtSlot()
+    @ask_confirm("This will replace all the classifications in the dataset")
+    def on_classification_change_all(self):
+        self.classification_change_all.emit(self.classification_combo.currentText())
+
     @pyqtSlot(name="on_do_segmentation")
     @ask_confirm("This might replace the existing segmentation")
     def on_do_segmentation(self, *args, **kwargs):
@@ -442,7 +449,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         dataFile, _ = QFileDialog.getOpenFileName(self, caption='Select dataset to import',
                                                   filter='Image files (*.dcm *.ima *.nii *.nii.gz *.npy);;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;All files (*.*)')
         if dataFile:
-            self.data_open.emit(dataFile)
+            classifications = [(self.classification_combo.itemText(i), self.classification_combo.itemText(i)) for i in range(self.classification_combo.count())]
+            classifications.insert(0, ('Automatic', ''))
+            accepted, chosen_class = GenericInputDialog.show_dialog("Choose classification",
+                                                          [GenericInputDialog.OptionInput("Classification", classifications)])
+            if not accepted:
+                return
+            self.data_open.emit(dataFile, chosen_class[0])
 
     @pyqtSlot()
     def importROI_clicked(self):

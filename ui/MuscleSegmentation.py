@@ -241,6 +241,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.do_autosegment.connect(self.doSegmentation)
 
         self.toolbox_window.classification_changed.connect(self.changeClassification)
+        self.toolbox_window.classification_change_all.connect(self.changeAllClassifications)
 
         self.toolbox_window.undo.connect(self.undo)
         self.toolbox_window.redo.connect(self.redo)
@@ -1470,10 +1471,12 @@ class MuscleSegmentation(ImageShow, QObject):
         self.updateRoiList()
         self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
 
+    @pyqtSlot(str, str)
     @pyqtSlot(str)
-    def loadDirectory(self, path):
+    def loadDirectory(self, path, override_class=None):
         self.imList = []
         self.resetInternalState()
+        self.override_class = override_class
         ImageShow.loadDirectory(self, path)
         roi_bak_name = self.getRoiFileName() + '.' + datetime.now().strftime('%Y%m%d%H%M%S')
         try:
@@ -1493,6 +1496,9 @@ class MuscleSegmentation(ImageShow, QObject):
     def appendImage(self, im):
         ImageShow.appendImage(self, im)
         print("new Append Image")
+        if self.override_class:
+            self.classifications.append(self.override_class)
+            return
         if not self.dl_classifier: return
         class_input = {'image': self.imList[-1], 'resolution': self.resolution[0:2]}
         class_str = self.dl_classifier(class_input)
@@ -1809,6 +1815,11 @@ class MuscleSegmentation(ImageShow, QObject):
             self.classifications[int(self.curImage)] = newClass
         except IndexError:
             print("Trying to change classification to an unexisting image")
+
+    @pyqtSlot(str)
+    def changeAllClassifications(self, newClass):
+        for i in range(len(self.classifications)):
+            self.classifications[i] = newClass
 
     @pyqtSlot()
     @snapshotSaver
