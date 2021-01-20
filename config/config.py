@@ -15,7 +15,7 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.pickle')
 
 defaults = {
     'DO_INCREMENTAL_LEARNING':  (True, 'bool', None),
-    'ROI_CIRCLE_SIZE':  (2, 'int', None),
+    'ROI_CIRCLE_SIZE':  (2, 'int', 1, 200, 1, None),
     'SIMPLIFIED_ROI_POINTS':  (20, 'int', 1, 200, 1, None),
     'SIMPLIFIED_ROI_SPACING':  (15, 'int', 1, 200, 1, None),
     'HIDE_ROIS_RIGHTCLICK':  (True, 'bool', 'Hide ROIs with right click'),
@@ -78,7 +78,7 @@ def show_config_dialog(parent=None, show_all=False):
         elif type == 'float_slider':
             option = GenericInputDialog.FloatSliderInput(display_string, current_value, value[2], value[3], value[4])
         elif type == 'string':
-            option = GenericInputDialog.StringInput(display_string, current_value)
+            option = GenericInputDialog.TextLineInput(display_string, current_value)
         elif type == 'color':
             option = GenericInputDialog.ColorSpinInput(display_string, current_value)
         elif type == 'option': # at the moment not used
@@ -86,7 +86,7 @@ def show_config_dialog(parent=None, show_all=False):
 
         option_list.append(option)
 
-    accepted, values = GenericInputDialog.show_dialog("Configuration", option_list, parent)
+    accepted, values = GenericInputDialog.show_dialog("Configuration", option_list, parent=parent, entries_per_page=11)
     if not accepted:
         return False
 

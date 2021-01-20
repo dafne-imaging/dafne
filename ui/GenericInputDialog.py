@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import Any, Union
 from collections import OrderedDict
 from PyQt5.QtWidgets import QDialog, QWidget, QSpinBox, QDoubleSpinBox, QLineEdit, QFormLayout, QVBoxLayout, \
-    QHBoxLayout, QGroupBox, QDialogButtonBox, QLabel, QApplication, QSlider, QCheckBox, QComboBox, QSizePolicy
+    QHBoxLayout, QGroupBox, QDialogButtonBox, QLabel, QApplication, QSlider, QCheckBox, QComboBox, QSizePolicy, \
+    QTabWidget
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
 import abc
 import sys
@@ -389,17 +390,32 @@ class OptionInput(InputClass):
     def get_value(self) -> Any:
         return self.output_list[self.widget.currentIndex()]
 
+class PageWidget(QWidget):
+
+    def __init__(self, parent=None):
+        QWidget.__init__(self, parent)
+        self.formLayout = QFormLayout(self)
+        self.current_position = 0
+
+    def add_object(self, label_text, widget):
+        label = QLabel(self)
+        label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        label.setText(label_text)
+        self.formLayout.setWidget(self.current_position, QFormLayout.LabelRole, label)
+        self.formLayout.setWidget(self.current_position, QFormLayout.FieldRole, widget)
+        self.current_position += 1
+
 
 ## Dialog class implementation
 
 class GenericDialog(QDialog):
 
-    def __init__(self, title: str, input_list: list[InputClass], parent=None):
+    def __init__(self, title: str, input_list: list[InputClass], entries_per_page: int=10, parent=None):
         QDialog.__init__(self, parent)
         self.setWindowTitle(title)
         self.verticalLayout = QVBoxLayout(self)
-        self.groupBox = QGroupBox(title, self)
-        self.formLayout = QFormLayout(self.groupBox)
+        self.tabWidget = QTabWidget(self)
 
         self.buttonBox = QDialogButtonBox(self)
         self.buttonBox.setOrientation(Qt.Horizontal)
@@ -410,16 +426,24 @@ class GenericDialog(QDialog):
 
         self.input_list = input_list
 
-        for position, input_obj in enumerate(input_list):
-            label = QLabel(self.groupBox)
-            label.setAlignment(Qt.AlignRight|Qt.AlignVCenter)
-            label.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Expanding)
-            label.setText(input_obj.get_label())
-            self.formLayout.setWidget(position, QFormLayout.LabelRole, label)
-            input_field = input_obj.get_widget()
-            self.formLayout.setWidget(position, QFormLayout.FieldRole, input_field)
+        current_page_number = 1
+        current_page = PageWidget(self)
+        if len(input_list) <= entries_per_page:
+            self.tabWidget.addTab(current_page, title)
+        else:
+            self.tabWidget.addTab(current_page, f'{title}: 1')
 
-        self.verticalLayout.addWidget(self.groupBox)
+        current_entry_number = 0
+        for input_obj in input_list:
+            current_entry_number += 1
+            if current_entry_number > entries_per_page:
+                current_page = PageWidget(self)
+                current_page_number += 1
+                self.tabWidget.addTab(current_page, f'{title}: {current_page_number}')
+                current_entry_number = 1
+            current_page.add_object(input_obj.get_label(), input_obj.get_widget())
+
+        self.verticalLayout.addWidget(self.tabWidget)
         self.verticalLayout.addWidget(self.buttonBox)
 
         self.resize(self.verticalLayout.sizeHint())
@@ -439,8 +463,8 @@ class GenericDialog(QDialog):
 
 
 ## This is the main function that should be called
-def show_dialog(title: str, input_list: list[InputClass], parent=None) -> (bool, MixedDict):
-    dialog = GenericDialog(title, input_list, parent)
+def show_dialog(title: str, input_list: list[InputClass], parent=None, entries_per_page=10) -> (bool, MixedDict):
+    dialog = GenericDialog(title, input_list, entries_per_page, parent)
     dialog.exec()
     # this will stop until the dialog is closed
     if dialog.accepted is None:
@@ -467,7 +491,7 @@ if __name__ == '__main__':
                                                             ('option 2', 2.2),
                                                             ('option 3', 3.3)
                                                         ], 2.2),
-                                            FloatSliderInput('Float slider', 0.0, 1.0, 0.1),
+                                            FloatSliderInput('Float slider', 0.0, 0.0, 1.0, 0.1),
                                             ColorSpinInput('Choose color', (0.5, 0.0, 1.0))
                                             ])
     # Note: for option inputs, the value list can be a list of strings, and then the output is the string itself, or a
