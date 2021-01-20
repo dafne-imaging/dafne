@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog,
                             QVBoxLayout, QPushButton
 from PyQt5.QtSvg import QSvgWidget
 from . import GenericInputDialog
+import config
 
 SPLASH_ANIMATION_PATH = os.path.join("ui", "images", "dafne_anim.gif")
 ABOUT_SVG_PATH = os.path.join("ui", "images", "about_paths.svg")
@@ -82,6 +83,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     mask_grow = pyqtSignal()
     mask_shrink = pyqtSignal()
+
+    config_changed = pyqtSignal()
 
     NO_STATE = 0
     ADD_STATE = 1
@@ -183,8 +186,17 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionPyRadiomics.triggered.connect(self.calculate_radiomics)
 
-
         self.actionImport_masks.triggered.connect(self.loadMask_clicked)
+
+        self.actionPreferences.triggered.connect(self.edit_preferences)
+
+    @pyqtSlot()
+    def edit_preferences(self):
+        if config.show_config_dialog(self):
+            print(config.GlobalConfig)
+            config.save_config()
+            self.config_changed.emit()
+
 
     @pyqtSlot()
     def about(self):

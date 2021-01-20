@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>311</width>
-    <height>1044</height>
+    <height>1048</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -596,6 +596,8 @@
     </property>
     <addaction name="actionCalculate_statistics"/>
     <addaction name="actionPyRadiomics"/>
+    <addaction name="separator"/>
+    <addaction name="actionPreferences"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -603,8 +605,16 @@
     </property>
     <addaction name="actionAbout"/>
    </widget>
+   <widget class="QMenu" name="menuROI">
+    <property name="title">
+     <string>ROI</string>
+    </property>
+    <addaction name="actionDuplicate_roi"/>
+    <addaction name="actionCombine_roi"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuTools"/>
+   <addaction name="menuROI"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
@@ -661,6 +671,21 @@
   <action name="actionPyRadiomics">
    <property name="text">
     <string>PyRadiomics...</string>
+   </property>
+  </action>
+  <action name="actionPreferences">
+   <property name="text">
+    <string>Preferences...</string>
+   </property>
+  </action>
+  <action name="actionDuplicate_roi">
+   <property name="text">
+    <string>Duplicate...</string>
+   </property>
+  </action>
+  <action name="actionCombine_roi">
+   <property name="text">
+    <string>Combine...</string>
    </property>
   </action>
  </widget>

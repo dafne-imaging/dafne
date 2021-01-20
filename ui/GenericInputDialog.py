@@ -211,8 +211,7 @@ class FloatSliderWidget(QWidget):
 
 class FloatSliderInput(InputClass):
 
-    def __init__(self, label: str, minimum_value: float = 0.0, maximum_value: float = 1.0, increment: Union[float, None] = None,
-                 default: float = 0):
+    def __init__(self, label: str, default: float = 0, minimum_value: float = 0.0, maximum_value: float = 1.0, increment: Union[float, None] = None):
         self.label = label
         self.widget = FloatSliderWidget(minimum_value, maximum_value, increment, default)
 
@@ -269,10 +268,18 @@ class ColorSliderInput(InputClass):
         return (self.red_slider.value(), self.green_slider.value(), self.blue_slider.value())
 
 class ColorSpinInput(InputClass):
-    def __init__(self, label: str, default_color: tuple[float, float, float] = (1.0, 1.0, 1.0)):
+    def __init__(self, label: str, default_color: Union[tuple[float, float, float], tuple[float, float, float, float]] = (1.0, 1.0, 1.0), has_alpha = False):
         self.label = label
         self.widget = QWidget()
         self.color_label = QLabel()
+
+        if has_alpha or len(default_color) == 4:
+            self.has_alpha = True
+        else:
+            self.has_alpha = False
+
+        if len(default_color) == 3: # add alpha channel
+            default_color = (*default_color, 1.0)
 
         self.color_label.setMinimumWidth(30)
 
@@ -294,22 +301,35 @@ class ColorSpinInput(InputClass):
         self.blue_spin.setSingleStep(0.1)
         self.blue_spin.setValue(default_color[2])
 
+        self.alpha_spin = QDoubleSpinBox()
+        self.alpha_spin.setMinimum(0.0)
+        self.alpha_spin.setMaximum(1.0)
+        self.alpha_spin.setSingleStep(0.1)
+        self.alpha_spin.setValue(default_color[3])
+
         self._update_label_color()
         hlayout = QHBoxLayout(self.widget)
         hlayout.addWidget(self.red_spin)
         hlayout.addWidget(self.green_spin)
         hlayout.addWidget(self.blue_spin)
 
+        if self.has_alpha:
+            hlayout.addWidget(self.alpha_spin)
+
         hlayout.addWidget(self.color_label)
 
         self.red_spin.valueChanged.connect(lambda value: self._update_label_color())
         self.green_spin.valueChanged.connect(lambda value: self._update_label_color())
         self.blue_spin.valueChanged.connect(lambda value: self._update_label_color())
+        self.alpha_spin.valueChanged.connect(lambda value: self._update_label_color())
 
     @pyqtSlot()
     def _update_label_color(self):
-        color = self.get_value()
-        color_string = 'background-color: #{:02x}{:02x}{:02x};'.format(int(color[0]*255), int(color[1]*255), int(color[2]*255))
+        color = self.get_value(force_alpha=True)
+        color_string = 'background-color: rgba({},{},{},{});'.format(int(color[0]*255),
+                                                                     int(color[1]*255),
+                                                                     int(color[2]*255),
+                                                                     int(color[3]*255))
         self.color_label.setStyleSheet(color_string)
 
     def get_label(self) -> str:
@@ -318,8 +338,11 @@ class ColorSpinInput(InputClass):
     def get_widget(self) -> QWidget:
         return self.widget
 
-    def get_value(self) -> Any:
-        return (self.red_spin.value(), self.green_spin.value(), self.blue_spin.value())
+    def get_value(self, force_alpha = False) -> Any:
+        if self.has_alpha or force_alpha:
+            return (self.red_spin.value(), self.green_spin.value(), self.blue_spin.value(), self.alpha_spin.value())
+        else:
+            return (self.red_spin.value(), self.green_spin.value(), self.blue_spin.value())
 
 class OptionInput(InputClass):
 
@@ -437,7 +460,7 @@ if __name__ == '__main__':
                                                             ('option 3', 3.3)
                                                         ], 2.2),
                                             FloatSliderInput('Float slider', 0.0, 1.0, 0.1),
-                                            ColorSliderInput('Choose color', (0.5, 0.0, 1.0))
+                                            ColorSpinInput('Choose color', (0.5, 0.0, 1.0))
                                             ])
     # Note: for option inputs, the value list can be a list of strings, and then the output is the string itself, or a
     # list of tuples, where the first element is a string (the label) and the second is the returned value (any).
@@ -451,3 +474,7 @@ if __name__ == '__main__':
     # they can be iterated like a list
     for v in values:
         print(v)
+
+    # or items can be accessed like a dictionary
+    for k,v in values.items():
+        print(k,v)
