@@ -609,7 +609,7 @@
     <property name="title">
      <string>ROI</string>
     </property>
-    <addaction name="actionDuplicate_roi"/>
+    <addaction name="actionCopy_roi"/>
     <addaction name="actionCombine_roi"/>
    </widget>
    <addaction name="menuFile"/>
@@ -678,9 +678,9 @@
     <string>Preferences...</string>
    </property>
   </action>
-  <action name="actionDuplicate_roi">
+  <action name="actionCopy_roi">
    <property name="text">
-    <string>Duplicate...</string>
+    <string>Copy/Rename...</string>
    </property>
   </action>
   <action name="actionCombine_roi">

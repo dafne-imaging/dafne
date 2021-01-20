@@ -372,6 +372,14 @@ class OptionInput(InputClass):
         if not default_set and type(default) == int:
             self.widget.setCurrentIndex(default)
 
+    def add_option(self, option: Union[str, tuple[str, Any]]):
+        if type(option) == str:
+            self.widget.addItem(option)
+            self.output_list.append(option)
+        else:  # it is a tuple, specified by the type hint in the constructor
+            self.widget.addItem(option[0])
+            self.output_list.append(option[1])
+
     def get_label(self) -> str:
         return self.label
 

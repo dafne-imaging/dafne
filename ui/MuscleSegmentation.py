@@ -104,6 +104,8 @@ class MuscleSegmentation(ImageShow, QObject):
         # self.instructions = "Shift+click: add point, Shift+dblclick: optimize/simplify, Ctrl+click: remove point, Ctrl+dblclick: delete ROI, n: propagate fw, b: propagate back"
         self.setupToolbar()
 
+        self.roiManager = None
+
         self.wacom = False
 
         self.saveDicom = False
@@ -154,6 +156,8 @@ class MuscleSegmentation(ImageShow, QObject):
             self.imPlot.set_interpolation(self.interpolation)
         except:
             pass
+
+        self.setCmap(GlobalConfig['COLORMAP'])
 
         self.mask_layer_colormap = makeMaskLayerColormap(self.roiColor)
         self.mask_layer_other_colormap = makeMaskLayerColormap(self.roiOther)
@@ -247,6 +251,9 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.data_open.connect(self.loadDirectory)
         self.toolbox_window.masks_export.connect(self.saveResults)
 
+        self.toolbox_window.roi_copy.connect(self.copyRoi)
+        self.toolbox_window.roi_combine.connect(self.combineRoi)
+
         self.toolbox_window.statistics_calc.connect(self.saveStats)
         self.toolbox_window.radiomics_calc.connect(self.saveRadiomics)
 
@@ -314,6 +321,7 @@ class MuscleSegmentation(ImageShow, QObject):
             roiDict[roiName] = n_subrois  # dict: roiname -> n subrois per slice
         self.toolbox_window.set_rois_list(roiDict)
         self.updateContourPainters()
+        self.updateMasksFromROIs()
 
     def alert(self, text):
         self.toolbox_window.alert(text)
@@ -421,6 +429,8 @@ class MuscleSegmentation(ImageShow, QObject):
             self.roiManager.add_roi(roiName, int(self.curImage))
         self.updateRoiList()
         self.toolbox_window.set_current_roi(roiName, 0)
+        self.updateMasksFromROIs()
+        self.updateContourPainters()
         self.redraw()
 
     @pyqtSlot()
@@ -534,6 +544,32 @@ class MuscleSegmentation(ImageShow, QObject):
         print(diceScores)
         print("Average Dice score", diceScores.mean())
         return allMasks, dataForTraining, segForTraining, diceScores.mean()
+
+    @pyqtSlot(str, str, bool)
+    @snapshotSaver
+    def copyRoi(self, originalName, newName, makeCopy=True):
+        print(originalName, newName, makeCopy)
+        if makeCopy:
+            self.roiManager.copy_roi(originalName, newName)
+        else:
+            self.roiManager.rename_roi(originalName, newName)
+        self.updateRoiList()
+
+    @pyqtSlot(str, str, str, str)
+    @snapshotSaver
+    def combineRoi(self, roi1, roi2, operator, dest_roi):
+        if operator == 'Union':
+            combine_fn = np.logical_or
+        elif operator == 'Subtraction':
+            combine_fn = lambda x,y: np.logical_and(x, np.logical_not(y))
+        elif operator == 'Intersection':
+            combine_fn = np.logical_and
+        elif operator == 'Exclusion':
+            combine_fn = np.logical_xor
+        self.roiManager.generic_roi_combine(roi1, roi2, combine_fn, dest_roi)
+        self.updateMasksFromROIs()
+        self.updateContourPainters()
+        self.updateRoiList()
 
     #########################################################################################
     ###

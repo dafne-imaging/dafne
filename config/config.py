@@ -20,6 +20,7 @@ defaults = {
     'SIMPLIFIED_ROI_SPACING':  (15, 'int', 1, 200, 1, None),
     'HIDE_ROIS_RIGHTCLICK':  (True, 'bool', 'Hide ROIs with right click'),
     'INTERPOLATION': ('spline36', 'option', ['none', 'nearest', 'bilinear', 'bicubic', 'spline36', 'catrom', 'lanczos'], 'Image interpolation method'),
+    'COLORMAP': ('gray', 'option', ['gray', 'viridis', 'magma', 'gist_yarg', 'hsv'], 'Image colormap'),
     'ROI_COLOR':  ((1, 0, 0, 0.5), 'color', 'Color for active subROI'),  # red with 0.5 opacity,
     'ROI_SAME_COLOR':  ((1, 1, 0, 0.5), 'color', 'Color for inactive subROIs'),  # yellow with 0.5 opacity,
     'ROI_OTHER_COLOR':  ((0, 0, 1, 0.4), 'color', 'Color for inactive ROIs'),
@@ -93,5 +94,4 @@ def show_config_dialog(parent=None, show_all=False):
     for key, value in values.items():
         GlobalConfig[ display_key_map[key] ] = value
 
-    print(GlobalConfig)
     return True

@@ -73,6 +73,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     roi_import = pyqtSignal(str)
     roi_export = pyqtSignal(str)
 
+    # signal to make a copy/rename of ROI. Parameters are old roi, new name, make copy y/n
+    roi_copy = pyqtSignal(str, str, bool)
+    # signal to combine two ROIs. Parameters are roi1, roi2, operator, dest_roi
+    roi_combine = pyqtSignal(str, str, str, str)
+
     masks_export = pyqtSignal(str, str)
     mask_import = pyqtSignal(str)
 
@@ -190,13 +195,56 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionPreferences.triggered.connect(self.edit_preferences)
 
+        self.actionCopy_roi.triggered.connect(self.do_copy_roi)
+        self.actionCombine_roi.triggered.connect(self.do_combine_roi)
+
+        self.actionCopy_roi.setEnabled(False)
+        self.actionCombine_roi.setEnabled(False)
+
     @pyqtSlot()
     def edit_preferences(self):
         if config.show_config_dialog(self):
-            print(config.GlobalConfig)
             config.save_config()
             self.config_changed.emit()
 
+    def _make_roi_list_option_for_dialog(self, label):
+        return GenericInputDialog.OptionInput(label,
+                                              [self.roi_combo.itemText(i) for i in range(self.roi_combo.count())],
+                                              self.roi_combo.currentText())
+
+    @pyqtSlot()
+    def do_copy_roi(self):
+        if not self.roi_combo.currentText(): return
+        accept, values = GenericInputDialog.show_dialog('Copy/Rename ROI', [self._make_roi_list_option_for_dialog('Original ROI'),
+                                                                            GenericInputDialog.BooleanInput('Make copy', True),
+                                                                            GenericInputDialog.TextLineInput('New name')], self)
+        if accept:
+            self.roi_copy.emit(values[0], values[2], values[1])
+
+    @pyqtSlot()
+    def do_combine_roi(self):
+        if not self.roi_combo.currentText(): return
+        input_roi_option_1 = self._make_roi_list_option_for_dialog('First ROI')
+        input_roi_option_2 = self._make_roi_list_option_for_dialog('Second ROI')
+        output_roi_option = self._make_roi_list_option_for_dialog('Output ROI')
+        operator_option = GenericInputDialog.OptionInput('Operation',
+                                                         ['Union', 'Subtraction', 'Intersection', 'Exclusion'])
+        output_roi_option.add_option('Specify a different name')
+        accept, values = GenericInputDialog.show_dialog('Combine ROIs', [input_roi_option_1,
+                                                                         input_roi_option_2,
+                                                                         operator_option,
+                                                                         output_roi_option,
+                                                                         GenericInputDialog.TextLineInput('New name')],
+                                                        self)
+        if accept:
+            if values['Output ROI'] == 'Specify a different name':
+                if values['New name'] == '':
+                    return
+                else:
+                    output_name = values['New name']
+            else:
+                output_name = values['Output ROI']
+            self.roi_combine.emit(values[0], values[1], values[2], output_name)
 
     @pyqtSlot()
     def about(self):
@@ -204,7 +252,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot(bool, int, int)
     @pyqtSlot(bool, int, int, str)
-    def set_splash(self, is_splash, current_value, maximum_value, text= ""):
+    def set_splash(self, is_splash, current_value, maximum_value, text= ''):
         if is_splash:
             self.mainUIWidget.setVisible(False)
             self.splash_progressbar.setMaximum(maximum_value)
@@ -343,6 +391,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         # try to reset the previous selection
         self.set_current_roi(cur_roi, cur_subroi)
+        if not self.roi_combo.currentText():
+            self.actionCopy_roi.setEnabled(False)
+            self.actionCombine_roi.setEnabled(False)
+        else:
+            self.actionCopy_roi.setEnabled(True)
+            self.actionCombine_roi.setEnabled(True)
 
     @pyqtSlot(str, int)
     def set_current_roi(self, current_roi_name, current_subroi_number=-1):
