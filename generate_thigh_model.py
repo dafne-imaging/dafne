@@ -245,21 +245,8 @@ def coscia_apply(modelObj: DynamicDLModel, data: dict):
         np
     except:
         import numpy as np
-    
-    LABELS_DICT = {
-        1: 'VL',
-        2: 'VM',
-        3: 'VI',
-        4: 'RF',
-        5: 'SAR',
-        6: 'GRA',
-        7: 'AM',
-        8: 'SM',
-        9: 'ST',
-        10: 'BFL',
-        11: 'BFS',
-        12: 'AL'
-        }
+
+    from dl.labels.thigh import long_labels as LABELS_DICT
     
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
@@ -294,20 +281,7 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
     except:
         import numpy as np
 
-    LABELS_DICT = {
-        1: 'VL',
-        2: 'VM',
-        3: 'VI',
-        4: 'RF',
-        5: 'SAR',
-        6: 'GRA',
-        7: 'AM',
-        8: 'SM',
-        9: 'ST',
-        10: 'BFL',
-        11: 'BFS',
-        12: 'AL'
-    }
+    from dl.labels.thigh import inverse_labels
 
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
@@ -321,7 +295,7 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
     t = time.time()
     print('Image preprocess')
 
-    image_list, mask_list = pretrain.common_input_process(LABELS_DICT, MODEL_RESOLUTION, MODEL_SIZE, trainingData,
+    image_list, mask_list = pretrain.common_input_process(inverse_labels, MODEL_RESOLUTION, MODEL_SIZE, trainingData,
                                                           trainingOutputs)
 
     print('Done. Elapsed', time.time()-t)

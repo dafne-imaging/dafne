@@ -245,16 +245,9 @@ def gamba_apply(modelObj: DynamicDLModel, data: dict):
         np
     except:
         import numpy as np
-    
-    LABELS_DICT = {
-        1: 'SOL',
-        2: 'GM',
-        3: 'GL',
-        4: 'TA',
-        5: 'ELD',
-        6: 'PE',
-        }
-    
+
+    from dl.labels.leg import long_labels as LABELS_DICT
+
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
     netc = modelObj.model
@@ -287,14 +280,9 @@ def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOu
     except:
         import numpy as np
 
-    LABELS_DICT = {
-        1: 'SOL',
-        2: 'GM',
-        3: 'GL',
-        4: 'TA',
-        5: 'ELD',
-        6: 'PE',
-        }
+    from dl.labels.leg import labels as LABELS_DICT
+    from dl.labels.leg import inverse_labels as INVERSE_LABEL_DICT
+
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
     BAND = 49
@@ -307,7 +295,7 @@ def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOu
     t = time.time()
     print('Image preprocess')
 
-    image_list, mask_list = pretrain.common_input_process(LABELS_DICT, MODEL_RESOLUTION, MODEL_SIZE, trainingData,
+    image_list, mask_list = pretrain.common_input_process(INVERSE_LABEL_DICT, MODEL_RESOLUTION, MODEL_SIZE, trainingData,
                                                           trainingOutputs)
 
     print('Done. Elapsed', time.time() - t)
