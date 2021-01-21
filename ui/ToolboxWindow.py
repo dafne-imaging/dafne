@@ -331,6 +331,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def set_available_classes(self, classes):
         self.classification_combo.clear()
         self.classification_combo.addItems(classes)
+        self.classification_combo.addItem("None") # always add the "None" class
 
     @pyqtSlot(str)
     def set_class(self, class_str):
@@ -369,11 +370,6 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def get_edit_button_state(self):
         if self.temp_edit_state is not None: return self.temp_edit_state
         return self.edit_state
-
-    @pyqtSlot(list)
-    def set_classes_list(self, classes: list):
-        self.classification_combo.clear()
-        self.classification_combo.addItems(classes)
 
     @pyqtSlot(str)
     def set_class(self, class_str: str):
@@ -486,7 +482,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot()
     def on_classification_changed(self):
-        self.classification_changed.emit(self.classification_combo.currentText())
+        cur_class = self.classification_combo.currentText()
+        if cur_class == 'None':
+            self.autosegment_button.setEnabled(False)
+        else:
+            self.autosegment_button.setEnabled(True)
+        self.classification_changed.emit(cur_class)
 
     @pyqtSlot()
     @ask_confirm("This will replace all the classifications in the dataset")

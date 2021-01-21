@@ -28,7 +28,6 @@ if __name__ == "__main__":
     parser.add_argument('-r', '--register', action='store_true', help='Perform the registration after loading.')
     parser.add_argument('-m', '--save-masks', action='store_true', help='Convert saved ROIs to masks.')
     parser.add_argument('-d', '--save-dicoms', action='store_true', help='Save ROIs as dicoms in addition to numpy')
-    parser.add_argument('-w', '--wacom', action='store_true', help='Enable Wacom mode')
     parser.add_argument('-q', '--quit', action='store_true', help='Quit after loading the dataset (useful with -r or -q options).')
     parser.add_argument('-rm', '--remote-model', action='store_true', help='Receive model from server')
     
@@ -60,11 +59,6 @@ if __name__ == "__main__":
     
     if args.save_masks:
         imFig.saveResults()
-    
-    if args.wacom:
-        print("Wacom mode")
-        imFig.toggleWacom(True)
-        
     
     if not args.quit:
         plt.show()

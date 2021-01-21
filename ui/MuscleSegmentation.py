@@ -1853,6 +1853,9 @@ class MuscleSegmentation(ImageShow, QObject):
         # run the segmentation
         imIndex = int(self.curImage)
         class_str = self.classifications[imIndex]
+        if class_str == 'None':
+            self.alert('Segmentation with "None" model is impossible!')
+            return
         self.setSplash(True, 0, 3, "Loading model...")
         try:
             segmenter = self.dl_segmenters[class_str]
