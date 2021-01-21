@@ -1076,7 +1076,6 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def removeMasks(self):
         """ Remove the masks from the plot """
-        print('Removing masks')
         try:
             self.maskImPlot.remove()
         except:
@@ -1131,7 +1130,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.maskImPlot.set_data(active_mask)
 
         if self.maskOtherImPlot is None:
-            self.maskOtherImPlot = self.axes.imshow(other_mask, cmap=self.mask_layer_other_colormap, alpha=GlobalConfig['MASK_LAYER_ALPHA'], vmin=0, vmax=1, zorder=101)
+            relativeAlphaROI = GlobalConfig['ROI_OTHER_COLOR'][3] / GlobalConfig['ROI_COLOR'][3]
+            self.maskOtherImPlot = self.axes.imshow(other_mask, cmap=self.mask_layer_other_colormap, alpha=relativeAlphaROI*GlobalConfig['MASK_LAYER_ALPHA'], vmin=0, vmax=1, zorder=101)
 
         self.maskOtherImPlot.set_data(other_mask)
 
@@ -1442,13 +1442,17 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @pyqtSlot(str)
     def saveROIPickle(self, roiPickleName=None):
+        showWarning = True
         if not roiPickleName:
             roiPickleName = self.getRoiFileName()
+            showWarning = False # don't show a empty roi warning if autosaving
         print("Saving ROIs", roiPickleName)
         if self.roiManager and not self.roiManager.is_empty():  # make sure ROIs are not empty
             dumpObj = {'classifications': self.classifications,
                        'roiManager': self.roiManager }
             pickle.dump(dumpObj, open(roiPickleName, 'wb'))
+        else:
+            if showWarning: self.alert('ROIs are empty - not saved')
 
     @pyqtSlot(str)
     def loadROIPickle(self, roiPickleName=None):
@@ -1494,7 +1498,10 @@ class MuscleSegmentation(ImageShow, QObject):
         self.roiManager = roiManager
         self.classifications = classifications
         self.updateRoiList()
+        self.updateMasksFromROIs()
+        self.updateContourPainters()
         self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
+        self.redraw()
 
     @pyqtSlot(str, str)
     @pyqtSlot(str)
