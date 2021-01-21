@@ -1835,6 +1835,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.set_available_classes(classList)
 
     @pyqtSlot(str)
+    @pyqtSlot(str)
     def changeClassification(self, newClass):
         try:
             self.classifications[int(self.curImage)] = newClass

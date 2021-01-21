@@ -25,6 +25,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Muscle segmentation tool.")
     parser.add_argument('path', nargs='?', type=str)
+    parser.add_argument('-c', '--class', dest='dl_class', type=str, help='Specify the deep learning model to use for the dataset')
     parser.add_argument('-r', '--register', action='store_true', help='Perform the registration after loading.')
     parser.add_argument('-m', '--save-masks', action='store_true', help='Convert saved ROIs to masks.')
     parser.add_argument('-d', '--save-dicoms', action='store_true', help='Save ROIs as dicoms in addition to numpy')
@@ -47,8 +48,13 @@ if __name__ == "__main__":
     imFig.setModelProvider(dl_model_provider)
     imFig.setAvailableClasses(available_models)
 
+    dl_class = None
+
+    if args.dl_class:
+        dl_class = args.dl_class
+
     if args.path:
-        imFig.loadDirectory(args.path)
+        imFig.loadDirectory(args.path, dl_class)
 
     if args.save_dicoms:
         imFig.saveDicom = True
