@@ -33,7 +33,8 @@ defaults = {
     'ROI_FILENAME':  ('rois.p', 'string', None),
     'AUTOSAVE_INTERVAL':  (30, 'int_slider', 1, 1000, 1, 'Interval for autosave (s)'),
     'HISTORY_LENGTH':  (20, 'int_slider', 1, 1000, 1, None),
-    'SPLIT_LATERALITY': (True, 'bool', 'Separate L/R in autosegment')
+    'SPLIT_LATERALITY': (True, 'bool', 'Separate L/R in autosegment'),
+    'ENABLE_DATA_UPLOAD': (False, 'bool', None)
 }
 
 GlobalConfig = { k: v[0] for k,v in defaults.items() }

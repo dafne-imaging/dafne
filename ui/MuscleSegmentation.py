@@ -266,6 +266,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.mask_shrink.connect(self.maskShrink)
 
         self.toolbox_window.config_changed.connect(self.configChanged)
+        self.toolbox_window.data_upload.connect(self.uploadData)
 
 
     def setSplash(self, is_splash, current_value, maximum_value, text= ""):
@@ -1440,6 +1441,9 @@ class MuscleSegmentation(ImageShow, QObject):
     ###
     ################################################################################################################
 
+    def getDatasetAsNumpy(self):
+        return np.transpose(np.stack(self.imList), [1,2,0])
+
     @pyqtSlot(str)
     def saveROIPickle(self, roiPickleName=None):
         showWarning = True
@@ -1553,6 +1557,7 @@ class MuscleSegmentation(ImageShow, QObject):
         # perform incremental learning
         if GlobalConfig['DO_INCREMENTAL_LEARNING']:
             for classification_name in dataForTraining:
+                if classification_name == 'None': continue
                 print(f'Performing incremental learning for {classification_name}')
                 try:
                     model = self.dl_segmenters[classification_name]
@@ -1616,7 +1621,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.setSplash(True, 1, 2, "Calculating stats...")
 
-        dataset = np.transpose(np.stack(self.imList), [1,2,0])
+        dataset = self.getDatasetAsNumpy()
 
         csv_file = open(file_out, 'w')
         field_names = ['roi_name',
@@ -1665,7 +1670,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.setSplash(True, 1, 2, "Calculating stats...")
 
-        dataset = np.transpose(np.stack(self.imList), [1, 2, 0])
+        dataset = self.getDatasetAsNumpy()
 
         if do_quantization:
             data_min = dataset.min()
@@ -1699,6 +1704,18 @@ class MuscleSegmentation(ImageShow, QObject):
                     first_run = False
                 featureFile.write(featureLine + '\n')
 
+        self.setSplash(False, 2, 2, "Finished")
+
+    @pyqtSlot(str)
+    def uploadData(self, comment = ''):
+        print('Uploading data')
+        dataset = self.getDatasetAsNumpy()
+        allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
+        resolution = np.array(self.resolution)
+        out_data = {'data': dataset, 'resolution': resolution, 'comment': comment}
+        for mask_name, mask in allMasks.items():
+            out_data[f'mask_{mask_name}'] = mask
+        self.model_provider.upload_data(out_data)
         self.setSplash(False, 2, 2, "Finished")
 
     def pickleTransforms(self):

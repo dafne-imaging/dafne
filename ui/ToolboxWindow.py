@@ -20,6 +20,22 @@ import config
 SPLASH_ANIMATION_PATH = os.path.join("ui", "images", "dafne_anim.gif")
 ABOUT_SVG_PATH = os.path.join("ui", "images", "about_paths.svg")
 
+UPLOAD_DATA_TXT_1 = \
+"""<h2>!!! This will upload your data to our servers !!!</h2>
+<p>This is not necessary from your side, but it will help us improve our models and create new ones.</p>
+<p><b>THE DATA WILL BE ANONYMOUS. NO PATIENT INFORMATION WILL BE SHARED.</b></p>
+<p>Only the pixel values, the resolution, and the segmented masks will be sent.</p>
+<p>However, make sure that you are complying with your local regulations before proceeding!</p>
+<p>By proceeding, you are <b>relinquishing your rights to the uploaded data</b> and you are releasing them into the public domain.</p>
+"""
+
+UPLOAD_DATA_TXT_2 = \
+"""<h2>Let us ask you one more time:</h2><h2>ARE YOU SURE?</h2>
+By clicking "Yes" you are declaring that you are allowed to share the data according to your local regulations,
+and that you are <b>relinquishing any right on this data</b>.
+This is <b>NOT NECESSARY</b> for the function of the program.
+"""
+
 class AboutDialog(QDialog):
     def __init__(self, *args, **kwargs):
         QDialog.__init__(self, *args, **kwargs)
@@ -90,6 +106,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     mask_shrink = pyqtSignal()
 
     config_changed = pyqtSignal()
+
+    data_upload = pyqtSignal(str)
 
     NO_STATE = 0
     ADD_STATE = 1
@@ -200,6 +218,22 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionCopy_roi.setEnabled(False)
         self.actionCombine_roi.setEnabled(False)
+
+        self.action_Upload_data.triggered.connect(self.do_upload_data)
+        if not config.GlobalConfig['ENABLE_DATA_UPLOAD']:
+            self.action_Upload_data.setVisible(False)
+        else:
+            self.action_Upload_data.setVisible(True)
+
+    @pyqtSlot()
+    @ask_confirm(UPLOAD_DATA_TXT_1)
+    @ask_confirm(UPLOAD_DATA_TXT_2)
+    def do_upload_data(self):
+        accept, values = GenericInputDialog.show_dialog('Add a comment', [
+            GenericInputDialog.TextLineInput('Comment/description of the dataset')
+        ], self)
+        if accept:
+            self.data_upload.emit(values[0])
 
     @pyqtSlot()
     def edit_preferences(self):

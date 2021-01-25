@@ -589,6 +589,8 @@
     <addaction name="separator"/>
     <addaction name="actionImport_masks"/>
     <addaction name="menuSave_masks"/>
+    <addaction name="separator"/>
+    <addaction name="action_Upload_data"/>
    </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
@@ -686,6 +688,11 @@
   <action name="actionCombine_roi">
    <property name="text">
     <string>Combine...</string>
+   </property>
+  </action>
+  <action name="action_Upload_data">
+   <property name="text">
+    <string>! Upload data...</string>
    </property>
   </action>
  </widget>
