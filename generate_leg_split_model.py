@@ -9,23 +9,18 @@ Created on Sun Oct 18 09:36:01 2020
 from dl.DynamicDLModel import DynamicDLModel
 import numpy as np # this is assumed to be available in every context
 
-def coscia_unet():
+def gamba_unet():
     
-    from keras.layers import Layer, InputSpec
-    from keras import initializers, regularizers, constraints
+    from keras import regularizers
     from keras.activations import softmax
-    from keras.layers import Dense, Input, Conv2D, Conv2DTranspose, UpSampling2D, MaxPooling2D, Dropout, Flatten, BatchNormalization, Concatenate, Lambda, ZeroPadding2D, Activation, Reshape, Add
-    from keras.models import Sequential, Model
-    from keras.preprocessing.image import ImageDataGenerator
-    from keras.callbacks import ModelCheckpoint, Callback 
-    from keras.utils import plot_model, Sequence
+    from keras.layers import Input, Conv2D, Conv2DTranspose, BatchNormalization, Concatenate, Lambda, Activation, Reshape, Add
+    from keras.models import Model
 
-    
-    inputs=Input(shape=(432,432,2))
+    inputs=Input(shape=(216,216,2))
     weight_matrix=Lambda(lambda z: z[:,:,:,1])(inputs)
-    weight_matrix=Reshape((432,432,1))(weight_matrix)
+    weight_matrix=Reshape((216,216,1))(weight_matrix)
     reshape=Lambda(lambda z : z[:,:,:,0])(inputs)
-    reshape=Reshape((432,432,1))(reshape)
+    reshape=Reshape((216,216,1))(reshape)
 
     reg=0.01
     
@@ -50,8 +45,6 @@ def coscia_unet():
     Level2_l=BatchNormalization(axis=-1)(Level2_l)
     Level2_l_shortcut=Level2_l
     Level2_l=Activation('relu')(Level2_l)
-    #Level2_l=BatchNormalization(axis=-1)(Level2_l)
-    #Level2_l=ZeroPadding2D(padding=(1,1))(Level2_l)
     Level2_l=Conv2D(filters=64,kernel_size=(3,3),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level2_l)
     Level2_l=BatchNormalization(axis=-1)(Level2_l)
     #Level2_l=InstanceNormalization(axis=-1)(Level2_l)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -68,7 +61,6 @@ def coscia_unet():
     Level3_l=BatchNormalization(axis=-1)(Level3_l)
     Level3_l_shortcut=Level3_l
     Level3_l=Activation('relu')(Level3_l)
-    #Level3_l=ZeroPadding2D(padding=(1,1))(Level3_l)
     Level3_l=Conv2D(filters=128,kernel_size=(3,3),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level3_l)
     Level3_l=BatchNormalization(axis=-1)(Level3_l)
     #Level3_l=InstanceNormalization(axis=-1)(Level3_l)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -85,7 +77,6 @@ def coscia_unet():
     Level4_l=BatchNormalization(axis=-1)(Level4_l)
     Level4_l_shortcut=Level4_l
     Level4_l=Activation('relu')(Level4_l)
-    #Level4_l=ZeroPadding2D(padding=(1,1))(Level4_l)
     Level4_l=Conv2D(filters=256,kernel_size=(3,3),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level4_l)
     Level4_l=BatchNormalization(axis=-1)(Level4_l)
     #Level4_l=InstanceNormalization(axis=-1)(Level4_l)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -102,8 +93,6 @@ def coscia_unet():
     Level5_l=BatchNormalization(axis=-1)(Level5_l)
     Level5_l_shortcut=Level5_l
     Level5_l=Activation('relu')(Level5_l)
-    #Level5_l=BatchNormalization(axis=-1)(Level5_l) 
-    #Level5_l=ZeroPadding2D(padding=(1,1))(Level5_l)
     Level5_l=Conv2D(filters=512,kernel_size=(3,3),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level5_l)
     Level5_l=BatchNormalization(axis=-1)(Level5_l)
     #Level5_l=InstanceNormalization(axis=-1)(Level5_l)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -118,24 +107,9 @@ def coscia_unet():
 
     Level6_l=Conv2D(filters=1024,kernel_size=(3,3),strides=3,kernel_regularizer=regularizers.l2(reg))(Level5_l)
     Level6_l=BatchNormalization(axis=-1)(Level6_l)
-    Level6_l_shortcut=Level6_l
-    Level6_l=Activation('relu')(Level6_l)
-    #Level5_l=BatchNormalization(axis=-1)(Level5_l) 
-    #Level5_l=ZeroPadding2D(padding=(1,1))(Level5_l)
-    Level6_l=Conv2D(filters=1024,kernel_size=(3,3),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level6_l)
-    Level6_l=BatchNormalization(axis=-1)(Level6_l)
-    #Level5_l=InstanceNormalization(axis=-1)(Level5_l)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
-    Level6_l=Activation('relu')(Level6_l)
-    #Level5_l=Dropout(0.5)(Level5_l)
-    Level6_l=Conv2D(filters=1024,kernel_size=(3,3),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level6_l)
-    Level6_l=BatchNormalization(axis=-1)(Level6_l)
-    #Level5_l=InstanceNormalization(axis=-1)(Level5_l)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
-    Level6_l=Add()([Level6_l,Level6_l_shortcut])
     Level6_l=Activation('relu')(Level6_l)
     
-    Level5_r=Conv2DTranspose(filters=512,kernel_size=(3,3),strides=3,kernel_regularizer=regularizers.l2(reg))(Level6_l)
-    #Level4_r=UpSampling2D(size=(2, 2),interpolation='nearest')(Level5_l)
-    #Level4_r=Conv2D(filters=256,kernel_size=(2,2),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level4_r)
+    Level5_r=Conv2DTranspose(filters=512,kernel_size=(3,3),strides=3,output_padding=(1,1),kernel_regularizer=regularizers.l2(reg))(Level6_l)
     Level5_r=BatchNormalization(axis=-1)(Level5_r)
     Level5_r_shortcut=Level5_r
     #Level4_r=InstanceNormalization(axis=-1)(Level4_r)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -153,9 +127,7 @@ def coscia_unet():
     Level5_r=Activation('relu')(Level5_r)
 
     
-    Level4_r=Conv2DTranspose(filters=256,kernel_size=(2,2),strides=2,kernel_regularizer=regularizers.l2(reg))(Level5_r)
-    #Level4_r=UpSampling2D(size=(2, 2),interpolation='nearest')(Level5_l)
-    #Level4_r=Conv2D(filters=256,kernel_size=(2,2),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level4_r)
+    Level4_r=Conv2DTranspose(filters=256,kernel_size=(2,2),strides=2,output_padding=(1,1),kernel_regularizer=regularizers.l2(reg))(Level5_r)
     Level4_r=BatchNormalization(axis=-1)(Level4_r)
     Level4_r_shortcut=Level4_r
     #Level4_r=InstanceNormalization(axis=-1)(Level4_r)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -174,8 +146,6 @@ def coscia_unet():
     
     
     Level3_r=Conv2DTranspose(filters=128,kernel_size=(2,2),strides=2,kernel_regularizer=regularizers.l2(reg))(Level4_r)
-    #Level3_r=UpSampling2D(size=(2, 2),interpolation='nearest')(Level4_r)
-    #Level3_r=Conv2D(filters=128,kernel_size=(2,2),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level3_r)
     Level3_r=BatchNormalization(axis=-1)(Level3_r)
     Level3_r_shortcut=Level3_r
     #Level3_r=InstanceNormalization(axis=-1)(Level3_r)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -194,8 +164,6 @@ def coscia_unet():
     
     
     Level2_r=Conv2DTranspose(filters=64,kernel_size=(2,2),strides=2,kernel_regularizer=regularizers.l2(reg))(Level3_r)
-    #Level2_r=UpSampling2D(size=(2, 2),interpolation='nearest')(Level3_r)
-    #Level2_r=Conv2D(filters=64,kernel_size=(2,2),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level2_r)
     Level2_r=BatchNormalization(axis=-1)(Level2_r)
     Level2_r_shortcut=Level2_r
     #Level2_r=InstanceNormalization(axis=-1)(Level2_r)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -214,8 +182,6 @@ def coscia_unet():
     
     
     Level1_r=Conv2DTranspose(filters=32,kernel_size=(2,2),strides=2,kernel_regularizer=regularizers.l2(reg))(Level2_r)
-    #Level1_r=UpSampling2D(size=(2, 2),interpolation='nearest')(Level2_r)
-    #Level1_r=Conv2D(filters=32,kernel_size=(2,2),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level1_r)
     Level1_r=BatchNormalization(axis=-1)(Level1_r)
     Level1_r_shortcut=Level1_r
     #Level1_r=InstanceNormalization(axis=-1)(Level1_r)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -231,25 +197,29 @@ def coscia_unet():
     #Level1_r=InstanceNormalization(axis=-1)(Level1_r)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
     Level1_r=Add()([Level1_r,Level1_r_shortcut])
     Level1_r=Activation('relu')(Level1_r)
-    output=Conv2D(filters=13,kernel_size=(1,1),strides=1,kernel_regularizer=regularizers.l2(reg))(Level1_r)
+    output=Conv2D(filters=7,kernel_size=(1,1),strides=1,kernel_regularizer=regularizers.l2(reg))(Level1_r)
     #output=BatchNormalization(axis=-1)(output)
     output=Lambda(lambda x : softmax(x,axis=-1))(output)
     output=Concatenate(axis=-1)([output,weight_matrix])
     model=Model(inputs=inputs,outputs=output)
     return model
 
-def coscia_apply(modelObj: DynamicDLModel, data: dict):
+def gamba_apply(modelObj: DynamicDLModel, data: dict):
     from dl.common.padorcut import padorcut
+    import dl.common.biascorrection as biascorrection
+    import dl.common.preprocess_train as pretrain
+    from dl.common.preprocess_train import split_mirror
     from scipy.ndimage import zoom
     try:
         np
     except:
         import numpy as np
 
-    from dl.labels.thigh import long_labels as LABELS_DICT
+    from dl.labels.leg import long_labels as LABELS_DICT
     
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
+    MODEL_SIZE_SPLIT = (216, 216)
     netc = modelObj.model
     resolution = np.array(data['resolution'])
     zoomFactor = resolution/MODEL_RESOLUTION
@@ -257,8 +227,21 @@ def coscia_apply(modelObj: DynamicDLModel, data: dict):
     originalShape = img.shape
     img = zoom(img, zoomFactor) # resample the image to the model resolution
     img = padorcut(img, MODEL_SIZE)
-    segmentation = netc.predict(np.expand_dims(np.stack([img,np.zeros(MODEL_SIZE)],axis=-1),axis=0))
-    labelsMask = np.argmax(np.squeeze(segmentation[0,:,:,:13]), axis=2)
+    imgbc=biascorrection.biascorrection_image(img)
+    a1,a2,a3,a4,b1,b2=split_mirror(imgbc)
+    left=imgbc[int(b1):int(b2),int(a1):int(a2)]
+    left=padorcut(left, MODEL_SIZE_SPLIT)
+    right=imgbc[int(b1):int(b2),int(a3):int(a4)]
+    right=right[::1,::-1]
+    right=padorcut(right, MODEL_SIZE_SPLIT)
+    segmentationleft=netc.predict(np.expand_dims(np.stack([left,np.zeros(MODEL_SIZE_SPLIT)],axis=-1),axis=0))
+    labelleft=np.argmax(np.squeeze(segmentationleft[0,:,:,:7]), axis=2)
+    segmentationright=netc.predict(np.expand_dims(np.stack([right,np.zeros(MODEL_SIZE_SPLIT)],axis=-1),axis=0))
+    labelright=np.argmax(np.squeeze(segmentationright[0,:,:,:7]), axis=2)
+    labelright=labelright[::1,::-1]
+    labelsMask=np.zeros(MODEL_SIZE,dtype='float32')
+    labelsMask[int(b1):int(b2),int(a1):int(a2)]=padorcut(labelleft, [b2-b1, a2-a1])
+    labelsMask[int(b1):int(b2),int(a3):int(a4)]=padorcut(labelright, [b2-b1, a4-a3])
     labelsMask = zoom(labelsMask, 1/zoomFactor, order=0)
     labelsMask = padorcut(labelsMask, originalShape).astype(np.int8)
     outputLabels = {}
@@ -268,37 +251,36 @@ def coscia_apply(modelObj: DynamicDLModel, data: dict):
     return outputLabels
 
 
-def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,
-                          bs=5, minTrainImages=5):
+def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs):
     import dl.common.preprocess_train as pretrain
     from dl.common.DataGenerators import DataGeneratorMem
-    import os
+    import os, time
     from keras.callbacks import ModelCheckpoint
     from keras import optimizers
-    import time
     try:
         np
     except:
         import numpy as np
 
-    from dl.labels.thigh import inverse_labels
+    from dl.labels.leg import inverse_labels as INVERSE_LABEL_DICT
 
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
-    BAND = 49
-    BATCH_SIZE = bs
-    CHECKPOINT_PATH = os.path.join(".", "Weights_incremental", "thigh")
-    MIN_TRAINING_IMAGES = minTrainImages
+    MODEL_SIZE_SPLIT = (216, 216)
+    BAND = 64
+    BATCH_SIZE = 5
+    CHECKPOINT_PATH = os.path.join(".", "Weights_incremental_split", "leg")
+    MIN_TRAINING_IMAGES = 5
 
     os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
     t = time.time()
     print('Image preprocess')
 
-    image_list, mask_list = pretrain.common_input_process(inverse_labels, MODEL_RESOLUTION, MODEL_SIZE, trainingData,
+    image_list, mask_list = pretrain.common_input_process_split(INVERSE_LABEL_DICT, MODEL_RESOLUTION, MODEL_SIZE, MODEL_SIZE_SPLIT, trainingData,
                                                           trainingOutputs)
 
-    print('Done. Elapsed', time.time()-t)
+    print('Done. Elapsed', time.time() - t)
     nImages = len(image_list)
 
     if nImages < MIN_TRAINING_IMAGES:
@@ -318,32 +300,31 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
     card = len(image_list)
     steps = int(float(card) / BATCH_SIZE)
 
-    print(f'Incremental learning for thigh with {nImages} images')
+    print(f'Incremental learning for leg with {nImages} images')
     t = time.time()
 
     netc = modelObj.model
     checkpoint_files = os.path.join(CHECKPOINT_PATH, "weights - {epoch: 02d} - {loss: .2f}.hdf5")
-    training_generator = DataGeneratorMem(output_data_structure, list_X=list(range(steps * BATCH_SIZE)), batch_size=BATCH_SIZE, dim=MODEL_SIZE)
-    #check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=False,save_weights_only=True, mode='auto', period=10)
-    check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=False, save_freq='epoch',
+    training_generator = DataGeneratorMem(output_data_structure, list_X=list(range(steps * BATCH_SIZE)),batch_size=BATCH_SIZE, dim=MODEL_SIZE_SPLIT)
+    # check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=False,save_weights_only=True, mode='auto', period=10)
+    check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=True, # save_freq='epoch',
                             save_weights_only=True, mode='auto')
     adamlr = optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=True)
     netc.compile(loss=pretrain.weighted_loss, optimizer=adamlr)
-    #history = netc.fit_generator(generator=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check], verbose=1)
-    history = netc.fit(x=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check],verbose=1)
+    # history = netc.fit_generator(generator=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check], verbose=1)
+    history = netc.fit(x=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check], verbose=1)
     print('Done. Elapsed', time.time() - t)
 
-model = coscia_unet()
-model.load_weights('weights/weights_coscia.hdf5')
+model = gamba_unet()
+model.load_weights('weights/weights_gamba_split.hdf5')
 weights = model.get_weights()
 
-modelObject = DynamicDLModel('210e2a21-1984-4e6f-8675-bf57bbabef2f',
-                             coscia_unet,
-                             coscia_apply,
-                             incremental_learn_function=thigh_incremental_mem,
-                             weights=weights,
-                             timestamp_id="1603281020"
+modelObject = DynamicDLModel('ba333b4d-90e7-4108-aca5-9216f408d91e',
+                             gamba_unet,
+                             gamba_apply,
+                             incremental_learn_function=leg_incremental_mem,
+                             weights=weights
                              )
 
-with open('models/Thigh_1603281020.model', 'wb') as f:
+with open('models/Leg-Split_1603281013.model', 'wb') as f:
     modelObject.dump(f)

@@ -1,6 +1,7 @@
 import numpy as np
 from .pySplineInterp import SplineInterpROIClass
 import functools
+from copy import deepcopy
 
 def notify_parent_decorator(func):
     @functools.wraps(func)
@@ -254,6 +255,12 @@ class ROIManager:
             self.allROIs[roi_name][image_number] = RoiAndMaskPair(self.mask_size)
         return self.allROIs[roi_name][image_number]
 
+    def copy_roi(self, roi_name, new_name):
+        self.allROIs[new_name] = deepcopy(self.allROIs[roi_name])
+
+    def rename_roi(self, roi_name, new_name):
+        self.allROIs[new_name] = self.allROIs.pop(roi_name)
+
     # make sure that a roi exists for this slice, but only add a subroi if there is none
     def add_roi(self, roi_name, image_number):
         image_number = int(image_number)
@@ -322,4 +329,10 @@ class ROIManager:
     def clear_mask(self, roi_name, image_number):
         self.add_mask(roi_name, image_number)
 
-        
+    def generic_roi_combine(self, roi1, roi2, combine_fn, dest_roi_name):
+        new_dest = {}
+        for key_tuple, mask in self.all_masks(roi_name=roi1):
+            other_mask = self.get_mask(roi2, key_tuple[1])
+            new_dest[key_tuple[1]] = RoiAndMaskPair(self.mask_size)
+            new_dest[key_tuple[1]].set_mask(combine_fn(mask, other_mask))
+        self.allROIs[dest_roi_name] = new_dest

@@ -10,11 +10,10 @@ import matplotlib
 
 matplotlib.use("Qt5Agg")
 
-import sys, os, time, math
+import os, time, math
 
-# print(sys.path)
-#SCRIPT_DIR = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__))))
-#sys.path.append(os.path.normpath(SCRIPT_DIR))
+from config import GlobalConfig, load_config
+load_config()
 
 from .ToolboxWindow import ToolboxWindow
 from .pyDicomView import ImageShow
@@ -78,48 +77,10 @@ except:
     def QString(s):
         return s
 
-DO_INCREMENTAL_LEARNING = True
-
-ROI_CIRCLE_SIZE = 2
-SIMPLIFIED_ROI_POINTS = 20
-SIMPLIFIED_ROI_SPACING = 15
-ROI_COLOR_ORIG = (1, 0, 0, 0.5)  # red with 0.5 opacity
-ROI_SAME_COLOR_ORIG = (1, 1, 0, 0.5)  # yellow with 0.5 opacity
-ROI_OTHER_COLOR_ORIG = (0, 0, 1, 0.4)
-
-ROI_COLOR_WACOM = (1, 0, 0, 1)  # red with 1 opacity
-ROI_SAME_COLOR_WACOM = (1, 1, 0, 1)  # yellow with 0.5 opacity
-ROI_OTHER_COLOR_WACOM = (0, 0, 1, 0.8)
-
-ROI_COLOR = ROI_COLOR_ORIG
-ROI_SAME_COLOR = ROI_SAME_COLOR_ORIG
-ROI_OTHER_COLOR = ROI_OTHER_COLOR_ORIG
-
-BRUSH_PAINT_COLOR = (1, 0, 0, 0.6)
-BRUSH_ERASE_COLOR = (0, 0, 1, 0.6)
-
-
-ROI_FILENAME = 'rois.p'
-AUTOSAVE_INTERVAL = 30
-
-HIDE_ROIS_RIGHTCLICK = True
-
-COLORS = ['blue', 'red', 'green', 'yellow', 'magenta', 'cyan', 'indigo', 'white', 'grey']
-
-HISTORY_LENGTH = 20
-
-MASK_LAYER_COLORMAP = matplotlib.colors.ListedColormap(np.array([
-    [0,0,0,0],
-    [*ROI_COLOR[:3],1]
-]))
-
-MASK_LAYER_OTHER_COLORMAP = matplotlib.colors.ListedColormap(np.array([
-    [0,0,0,0],
-    [*ROI_OTHER_COLOR[:3],1]
-]))
-
-
-MASK_LAYER_ALPHA = 0.4
+def makeMaskLayerColormap(color):
+    return matplotlib.colors.ListedColormap(np.array([
+        [0, 0, 0, 0],
+        [*color[:3],1]]))
 
 def snapshotSaver(func):
     @functools.wraps(func)
@@ -128,6 +89,7 @@ def snapshotSaver(func):
         func(self, *args, **kwargs)
 
     return wrapper
+
 
 class MuscleSegmentation(ImageShow, QObject):
 
@@ -142,10 +104,9 @@ class MuscleSegmentation(ImageShow, QObject):
         # self.instructions = "Shift+click: add point, Shift+dblclick: optimize/simplify, Ctrl+click: remove point, Ctrl+dblclick: delete ROI, n: propagate fw, b: propagate back"
         self.setupToolbar()
 
+        self.roiManager = None
+
         self.wacom = False
-        self.roiColor = ROI_COLOR
-        self.roiOther = ROI_OTHER_COLOR
-        self.roiSame = ROI_SAME_COLOR
 
         self.saveDicom = False
 
@@ -165,7 +126,59 @@ class MuscleSegmentation(ImageShow, QObject):
         self.editMode = ToolboxWindow.EDITMODE_MASK
         self.resetInternalState()
 
+    @pyqtSlot()
+    def configChanged(self):
+        self.resetInterface()
+
+    def resetInterface(self):
+        try:
+            self.brush_patch.remove()
+        except:
+            pass
+
+        self.brush_patch = None
+
+        try:
+            self.removeMasks()
+        except:
+            pass
+
+        self.maskImPlot = None
+        self.maskOtherImPlot = None
+        self.activeMask = None
+        self.otherMask = None
+
+        self.roiColor = GlobalConfig['ROI_COLOR']
+        self.roiOther = GlobalConfig['ROI_OTHER_COLOR']
+        self.roiSame = GlobalConfig['ROI_SAME_COLOR']
+        self.interpolation = GlobalConfig['INTERPOLATION']
+        try:
+            self.imPlot.set_interpolation(self.interpolation)
+        except:
+            pass
+
+        self.setCmap(GlobalConfig['COLORMAP'])
+
+        self.mask_layer_colormap = makeMaskLayerColormap(self.roiColor)
+        self.mask_layer_other_colormap = makeMaskLayerColormap(self.roiOther)
+
+        try:
+            self.removeContours()
+        except:
+            pass
+
+        self.activeRoiPainter = ContourPainter(self.roiColor, GlobalConfig['ROI_CIRCLE_SIZE'])
+        self.sameRoiPainter = ContourPainter(self.roiSame, 0.1)
+        self.otherRoiPainter = ContourPainter(self.roiOther, 0.1)
+
+        try:
+            self.updateContourPainters()
+            self.redraw()
+        except:
+            pass
+
     def resetInternalState(self):
+        load_config()
         self.imList = []
         self.curImage = 0
         self.classifications = []
@@ -173,33 +186,12 @@ class MuscleSegmentation(ImageShow, QObject):
         self.lastsave = datetime.now()
 
         self.roiChanged = {}
-        self.history = deque(maxlen=HISTORY_LENGTH)
+        self.history = deque(maxlen=GlobalConfig['HISTORY_LENGTH'])
         self.currentHistoryPoint = 0
         self.transforms = {}
         self.invtransforms = {}
 
-        try:
-            self.brush_patch.remove()
-        except:
-            pass
-
-        try:
-            self.removeMasks()
-        except:
-            pass
-        self.brush_patch = None
-        self.maskImPlot = None
-        self.maskOtherImPlot = None
-        self.activeMask = None
-        self.otherMask = None
-
-        try:
-            self.removeContours()
-        except:
-            pass
-        self.activeRoiPainter = ContourPainter(self.roiColor, ROI_CIRCLE_SIZE)
-        self.sameRoiPainter = ContourPainter(self.roiSame, 0.1)
-        self.otherRoiPainter = ContourPainter(self.roiOther, 0.1)
+        self.resetInterface()
 
         self.roiManager = None
 
@@ -240,6 +232,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.do_autosegment.connect(self.doSegmentation)
 
         self.toolbox_window.classification_changed.connect(self.changeClassification)
+        self.toolbox_window.classification_change_all.connect(self.changeAllClassifications)
 
         self.toolbox_window.undo.connect(self.undo)
         self.toolbox_window.redo.connect(self.redo)
@@ -258,6 +251,9 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.data_open.connect(self.loadDirectory)
         self.toolbox_window.masks_export.connect(self.saveResults)
 
+        self.toolbox_window.roi_copy.connect(self.copyRoi)
+        self.toolbox_window.roi_combine.connect(self.combineRoi)
+
         self.toolbox_window.statistics_calc.connect(self.saveStats)
         self.toolbox_window.radiomics_calc.connect(self.saveRadiomics)
 
@@ -268,6 +264,9 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.toolbox_window.mask_grow.connect(self.maskGrow)
         self.toolbox_window.mask_shrink.connect(self.maskShrink)
+
+        self.toolbox_window.config_changed.connect(self.configChanged)
+        self.toolbox_window.data_upload.connect(self.uploadData)
 
 
     def setSplash(self, is_splash, current_value, maximum_value, text= ""):
@@ -323,6 +322,7 @@ class MuscleSegmentation(ImageShow, QObject):
             roiDict[roiName] = n_subrois  # dict: roiname -> n subrois per slice
         self.toolbox_window.set_rois_list(roiDict)
         self.updateContourPainters()
+        self.updateMasksFromROIs()
 
     def alert(self, text):
         self.toolbox_window.alert(text)
@@ -391,9 +391,9 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def getRoiFileName(self):
         if self.basename:
-            roi_fname = self.basename + '.' + ROI_FILENAME
+            roi_fname = self.basename + '.' + GlobalConfig['ROI_FILENAME']
         else:
-            roi_fname = ROI_FILENAME
+            roi_fname = GlobalConfig['ROI_FILENAME']
         return os.path.join(self.basepath, roi_fname)
 
     def clearAllROIs(self):
@@ -430,6 +430,8 @@ class MuscleSegmentation(ImageShow, QObject):
             self.roiManager.add_roi(roiName, int(self.curImage))
         self.updateRoiList()
         self.toolbox_window.set_current_roi(roiName, 0)
+        self.updateMasksFromROIs()
+        self.updateContourPainters()
         self.redraw()
 
     @pyqtSlot()
@@ -544,6 +546,32 @@ class MuscleSegmentation(ImageShow, QObject):
         print("Average Dice score", diceScores.mean())
         return allMasks, dataForTraining, segForTraining, diceScores.mean()
 
+    @pyqtSlot(str, str, bool)
+    @snapshotSaver
+    def copyRoi(self, originalName, newName, makeCopy=True):
+        print(originalName, newName, makeCopy)
+        if makeCopy:
+            self.roiManager.copy_roi(originalName, newName)
+        else:
+            self.roiManager.rename_roi(originalName, newName)
+        self.updateRoiList()
+
+    @pyqtSlot(str, str, str, str)
+    @snapshotSaver
+    def combineRoi(self, roi1, roi2, operator, dest_roi):
+        if operator == 'Union':
+            combine_fn = np.logical_or
+        elif operator == 'Subtraction':
+            combine_fn = lambda x,y: np.logical_and(x, np.logical_not(y))
+        elif operator == 'Intersection':
+            combine_fn = np.logical_and
+        elif operator == 'Exclusion':
+            combine_fn = np.logical_xor
+        self.roiManager.generic_roi_combine(roi1, roi2, combine_fn, dest_roi)
+        self.updateMasksFromROIs()
+        self.updateContourPainters()
+        self.updateRoiList()
+
     #########################################################################################
     ###
     ### ROI modifications
@@ -553,8 +581,8 @@ class MuscleSegmentation(ImageShow, QObject):
     @snapshotSaver
     def simplify(self):
         r = self.getCurrentROI()
-        # self.setCurrentROI(r.getSimplifiedSpline(SIMPLIFIED_ROI_POINTS))
-        # self.setCurrentROI(r.getSimplifiedSpline(spacing=SIMPLIFIED_ROI_SPACING))
+        # self.setCurrentROI(r.getSimplifiedSpline(GlobalConfig['SIMPLIFIED_ROI_POINTS']))
+        # self.setCurrentROI(r.getSimplifiedSpline(spacing=GlobalConfig['SIMPLIFIED_ROI_SPACING']))
         self.setCurrentROI(r.getSimplifiedSpline3())
         # self.redraw()
         self.redraw()
@@ -1049,7 +1077,6 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def removeMasks(self):
         """ Remove the masks from the plot """
-        print('Removing masks')
         try:
             self.maskImPlot.remove()
         except:
@@ -1099,12 +1126,13 @@ class MuscleSegmentation(ImageShow, QObject):
             other_mask = np.zeros_like(self.otherMask)
 
         if self.maskImPlot is None:
-            self.maskImPlot = self.axes.imshow(active_mask, cmap=MASK_LAYER_COLORMAP, alpha=MASK_LAYER_ALPHA, vmin=0, vmax=1, zorder=100)
+            self.maskImPlot = self.axes.imshow(active_mask, cmap=self.mask_layer_colormap, alpha=GlobalConfig['MASK_LAYER_ALPHA'], vmin=0, vmax=1, zorder=100)
 
         self.maskImPlot.set_data(active_mask)
 
         if self.maskOtherImPlot is None:
-            self.maskOtherImPlot = self.axes.imshow(other_mask, cmap=MASK_LAYER_OTHER_COLORMAP, alpha=MASK_LAYER_ALPHA, vmin=0, vmax=1, zorder=101)
+            relativeAlphaROI = GlobalConfig['ROI_OTHER_COLOR'][3] / GlobalConfig['ROI_COLOR'][3]
+            self.maskOtherImPlot = self.axes.imshow(other_mask, cmap=self.mask_layer_other_colormap, alpha=relativeAlphaROI*GlobalConfig['MASK_LAYER_ALPHA'], vmin=0, vmax=1, zorder=101)
 
         self.maskOtherImPlot.set_data(other_mask)
 
@@ -1183,7 +1211,7 @@ class MuscleSegmentation(ImageShow, QObject):
     def refreshCB(self):
         # check if ROIs should be autosaved
         now = datetime.now()
-        if (now - self.lastsave).total_seconds() > AUTOSAVE_INTERVAL:
+        if (now - self.lastsave).total_seconds() > GlobalConfig['AUTOSAVE_INTERVAL']:
             self.lastsave = now
             self.saveROIPickle()
 
@@ -1222,9 +1250,9 @@ class MuscleSegmentation(ImageShow, QObject):
         mouseX = event.xdata
         mouseY = event.ydata
         if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:
-            brush_color = BRUSH_PAINT_COLOR
+            brush_color = GlobalConfig['BRUSH_PAINT_COLOR']
         elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
-            brush_color = BRUSH_ERASE_COLOR
+            brush_color = GlobalConfig['BRUSH_ERASE_COLOR']
         else:
             brush_color = None
         if mouseX is None or mouseY is None or brush_color is None:
@@ -1381,7 +1409,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.roiManager.set_mask(self.getCurrentROIName(), self.curImage, self.activeMask)
 
     def rightPressCB(self, event):
-        self.hideRois = HIDE_ROIS_RIGHTCLICK
+        self.hideRois = GlobalConfig['HIDE_ROIS_RIGHTCLICK']
         self.redraw()
 
     def rightReleaseCB(self, event):
@@ -1413,13 +1441,22 @@ class MuscleSegmentation(ImageShow, QObject):
     ###
     ################################################################################################################
 
+    def getDatasetAsNumpy(self):
+        return np.transpose(np.stack(self.imList), [1,2,0])
+
     @pyqtSlot(str)
     def saveROIPickle(self, roiPickleName=None):
+        showWarning = True
         if not roiPickleName:
             roiPickleName = self.getRoiFileName()
+            showWarning = False # don't show a empty roi warning if autosaving
         print("Saving ROIs", roiPickleName)
         if self.roiManager and not self.roiManager.is_empty():  # make sure ROIs are not empty
-            pickle.dump(self.roiManager, open(roiPickleName, 'wb'))
+            dumpObj = {'classifications': self.classifications,
+                       'roiManager': self.roiManager }
+            pickle.dump(dumpObj, open(roiPickleName, 'wb'))
+        else:
+            if showWarning: self.alert('ROIs are empty - not saved')
 
     @pyqtSlot(str)
     def loadROIPickle(self, roiPickleName=None):
@@ -1427,16 +1464,28 @@ class MuscleSegmentation(ImageShow, QObject):
             roiPickleName = self.getRoiFileName()
         print("Loading ROIs", roiPickleName)
         try:
-            roiManager = pickle.load(open(roiPickleName, 'rb'))
+            dumpObj = pickle.load(open(roiPickleName, 'rb'))
         except UnicodeDecodeError:
             print('Warning: Unicode decode error')
-            roiManager = pickle.load(open(roiPickleName, 'rb'), encoding='latin1')
+            dumpObj = pickle.load(open(roiPickleName, 'rb'), encoding='latin1')
         except:
             self.alert("Unspecified error")
             return
 
-        try:
+        roiManager = None
+        classifications = self.classifications
 
+        if type(dumpObj) == ROIManager:
+            roiManager = dumpObj
+        elif type(dumpObj) == dict:
+            try:
+                classifications = dumpObj['classifications']
+                roiManager = dumpObj['roiManager']
+            except KeyError:
+                self.alert("Unrecognized saved ROI type")
+                return
+
+        try:
             # print(self.allROIs)
             assert type(roiManager) == ROIManager
         except:
@@ -1451,12 +1500,19 @@ class MuscleSegmentation(ImageShow, QObject):
         print('Rois loaded')
         self.clearAllROIs()
         self.roiManager = roiManager
+        self.classifications = classifications
         self.updateRoiList()
+        self.updateMasksFromROIs()
+        self.updateContourPainters()
+        self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
+        self.redraw()
 
+    @pyqtSlot(str, str)
     @pyqtSlot(str)
-    def loadDirectory(self, path):
+    def loadDirectory(self, path, override_class=None):
         self.imList = []
         self.resetInternalState()
+        self.override_class = override_class
         ImageShow.loadDirectory(self, path)
         roi_bak_name = self.getRoiFileName() + '.' + datetime.now().strftime('%Y%m%d%H%M%S')
         try:
@@ -1476,6 +1532,9 @@ class MuscleSegmentation(ImageShow, QObject):
     def appendImage(self, im):
         ImageShow.appendImage(self, im)
         print("new Append Image")
+        if self.override_class:
+            self.classifications.append(self.override_class)
+            return
         if not self.dl_classifier: return
         class_input = {'image': self.imList[-1], 'resolution': self.resolution[0:2]}
         class_str = self.dl_classifier(class_input)
@@ -1496,8 +1555,9 @@ class MuscleSegmentation(ImageShow, QObject):
         self.setSplash(True, 1, 4, "Incremental learning...")
 
         # perform incremental learning
-        if DO_INCREMENTAL_LEARNING:
+        if GlobalConfig['DO_INCREMENTAL_LEARNING']:
             for classification_name in dataForTraining:
+                if classification_name == 'None': continue
                 print(f'Performing incremental learning for {classification_name}')
                 try:
                     model = self.dl_segmenters[classification_name]
@@ -1561,7 +1621,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.setSplash(True, 1, 2, "Calculating stats...")
 
-        dataset = np.transpose(np.stack(self.imList), [1,2,0])
+        dataset = self.getDatasetAsNumpy()
 
         csv_file = open(file_out, 'w')
         field_names = ['roi_name',
@@ -1610,7 +1670,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.setSplash(True, 1, 2, "Calculating stats...")
 
-        dataset = np.transpose(np.stack(self.imList), [1, 2, 0])
+        dataset = self.getDatasetAsNumpy()
 
         if do_quantization:
             data_min = dataset.min()
@@ -1644,6 +1704,18 @@ class MuscleSegmentation(ImageShow, QObject):
                     first_run = False
                 featureFile.write(featureLine + '\n')
 
+        self.setSplash(False, 2, 2, "Finished")
+
+    @pyqtSlot(str)
+    def uploadData(self, comment = ''):
+        print('Uploading data')
+        dataset = self.getDatasetAsNumpy()
+        allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
+        resolution = np.array(self.resolution)
+        out_data = {'data': dataset, 'resolution': resolution, 'comment': comment}
+        for mask_name, mask in allMasks.items():
+            out_data[f'mask_{mask_name}'] = mask
+        self.model_provider.upload_data(out_data)
         self.setSplash(False, 2, 2, "Finished")
 
     def pickleTransforms(self):
@@ -1787,11 +1859,17 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.set_available_classes(classList)
 
     @pyqtSlot(str)
+    @pyqtSlot(str)
     def changeClassification(self, newClass):
         try:
             self.classifications[int(self.curImage)] = newClass
         except IndexError:
             print("Trying to change classification to an unexisting image")
+
+    @pyqtSlot(str)
+    def changeAllClassifications(self, newClass):
+        for i in range(len(self.classifications)):
+            self.classifications[i] = newClass
 
     @pyqtSlot()
     @snapshotSaver
@@ -1800,6 +1878,9 @@ class MuscleSegmentation(ImageShow, QObject):
         # run the segmentation
         imIndex = int(self.curImage)
         class_str = self.classifications[imIndex]
+        if class_str == 'None':
+            self.alert('Segmentation with "None" model is impossible!')
+            return
         self.setSplash(True, 0, 3, "Loading model...")
         try:
             segmenter = self.dl_segmenters[class_str]
@@ -1809,7 +1890,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.setSplash(True, 1, 3, "Running segmentation...")
         t = time.time()
-        inputData = {'image': self.imList[imIndex], 'resolution': self.resolution[0:2]}
+        inputData = {'image': self.imList[imIndex], 'resolution': self.resolution[0:2], 'split_laterality': GlobalConfig['SPLIT_LATERALITY']}
         print("Segmenting image...")
         masks_out = segmenter(inputData)
         self.originalSegmentationMasks[imIndex] = masks_out # save original segmentation for statistics

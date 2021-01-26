@@ -15,9 +15,26 @@ from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog,
                             QVBoxLayout, QPushButton
 from PyQt5.QtSvg import QSvgWidget
 from . import GenericInputDialog
+import config
 
 SPLASH_ANIMATION_PATH = os.path.join("ui", "images", "dafne_anim.gif")
 ABOUT_SVG_PATH = os.path.join("ui", "images", "about_paths.svg")
+
+UPLOAD_DATA_TXT_1 = \
+"""<h2>!!! This will upload your data to our servers !!!</h2>
+<p>This is not necessary from your side, but it will help us improve our models and create new ones.</p>
+<p><b>THE DATA WILL BE ANONYMOUS. NO PATIENT INFORMATION WILL BE SHARED.</b></p>
+<p>Only the pixel values, the resolution, and the segmented masks will be sent.</p>
+<p>However, make sure that you are complying with your local regulations before proceeding!</p>
+<p>By proceeding, you are <b>relinquishing your rights to the uploaded data</b> and you are releasing them into the public domain.</p>
+"""
+
+UPLOAD_DATA_TXT_2 = \
+"""<h2>Let us ask you one more time:</h2><h2>ARE YOU SURE?</h2>
+By clicking "Yes" you are declaring that you are allowed to share the data according to your local regulations,
+and that you are <b>relinquishing any right on this data</b>.
+This is <b>NOT NECESSARY</b> for the function of the program.
+"""
 
 class AboutDialog(QDialog):
     def __init__(self, *args, **kwargs):
@@ -62,6 +79,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     roi_changed = pyqtSignal(str, int)
     roi_clear = pyqtSignal()
     classification_changed = pyqtSignal(str)
+    classification_change_all = pyqtSignal(str)
 
     editmode_changed = pyqtSignal(str)
 
@@ -71,16 +89,25 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     roi_import = pyqtSignal(str)
     roi_export = pyqtSignal(str)
 
+    # signal to make a copy/rename of ROI. Parameters are old roi, new name, make copy y/n
+    roi_copy = pyqtSignal(str, str, bool)
+    # signal to combine two ROIs. Parameters are roi1, roi2, operator, dest_roi
+    roi_combine = pyqtSignal(str, str, str, str)
+
     masks_export = pyqtSignal(str, str)
     mask_import = pyqtSignal(str)
 
-    data_open = pyqtSignal(str)
+    data_open = pyqtSignal(str, str)
 
     statistics_calc = pyqtSignal(str)
     radiomics_calc = pyqtSignal(str, bool, int, int)
 
     mask_grow = pyqtSignal()
     mask_shrink = pyqtSignal()
+
+    config_changed = pyqtSignal()
+
+    data_upload = pyqtSignal(str)
 
     NO_STATE = 0
     ADD_STATE = 1
@@ -133,6 +160,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.removeall_button.clicked.connect(self.clear_roi)
 
         self.classification_combo.currentTextChanged.connect(self.on_classification_changed)
+        self.classification_all_button.clicked.connect(self.on_classification_change_all)
         self.autosegment_button.clicked.connect(self.on_do_segmentation)
 
         self.undoButton.clicked.connect(self.undo.emit)
@@ -181,8 +209,76 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionPyRadiomics.triggered.connect(self.calculate_radiomics)
 
-
         self.actionImport_masks.triggered.connect(self.loadMask_clicked)
+
+        self.actionPreferences.triggered.connect(self.edit_preferences)
+
+        self.actionCopy_roi.triggered.connect(self.do_copy_roi)
+        self.actionCombine_roi.triggered.connect(self.do_combine_roi)
+
+        self.actionCopy_roi.setEnabled(False)
+        self.actionCombine_roi.setEnabled(False)
+
+        self.action_Upload_data.triggered.connect(self.do_upload_data)
+        if not config.GlobalConfig['ENABLE_DATA_UPLOAD']:
+            self.action_Upload_data.setVisible(False)
+        else:
+            self.action_Upload_data.setVisible(True)
+
+    @pyqtSlot()
+    @ask_confirm(UPLOAD_DATA_TXT_1)
+    @ask_confirm(UPLOAD_DATA_TXT_2)
+    def do_upload_data(self):
+        accept, values = GenericInputDialog.show_dialog('Add a comment', [
+            GenericInputDialog.TextLineInput('Comment/description of the dataset')
+        ], self)
+        if accept:
+            self.data_upload.emit(values[0])
+
+    @pyqtSlot()
+    def edit_preferences(self):
+        if config.show_config_dialog(self):
+            config.save_config()
+            self.config_changed.emit()
+
+    def _make_roi_list_option_for_dialog(self, label):
+        return GenericInputDialog.OptionInput(label,
+                                              [self.roi_combo.itemText(i) for i in range(self.roi_combo.count())],
+                                              self.roi_combo.currentText())
+
+    @pyqtSlot()
+    def do_copy_roi(self):
+        if not self.roi_combo.currentText(): return
+        accept, values = GenericInputDialog.show_dialog('Copy/Rename ROI', [self._make_roi_list_option_for_dialog('Original ROI'),
+                                                                            GenericInputDialog.BooleanInput('Make copy', True),
+                                                                            GenericInputDialog.TextLineInput('New name')], self)
+        if accept:
+            self.roi_copy.emit(values[0], values[2], values[1])
+
+    @pyqtSlot()
+    def do_combine_roi(self):
+        if not self.roi_combo.currentText(): return
+        input_roi_option_1 = self._make_roi_list_option_for_dialog('First ROI')
+        input_roi_option_2 = self._make_roi_list_option_for_dialog('Second ROI')
+        output_roi_option = self._make_roi_list_option_for_dialog('Output ROI')
+        operator_option = GenericInputDialog.OptionInput('Operation',
+                                                         ['Union', 'Subtraction', 'Intersection', 'Exclusion'])
+        output_roi_option.add_option('Specify a different name')
+        accept, values = GenericInputDialog.show_dialog('Combine ROIs', [input_roi_option_1,
+                                                                         input_roi_option_2,
+                                                                         operator_option,
+                                                                         output_roi_option,
+                                                                         GenericInputDialog.TextLineInput('New name')],
+                                                        self)
+        if accept:
+            if values['Output ROI'] == 'Specify a different name':
+                if values['New name'] == '':
+                    return
+                else:
+                    output_name = values['New name']
+            else:
+                output_name = values['Output ROI']
+            self.roi_combine.emit(values[0], values[1], values[2], output_name)
 
     @pyqtSlot()
     def about(self):
@@ -190,7 +286,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot(bool, int, int)
     @pyqtSlot(bool, int, int, str)
-    def set_splash(self, is_splash, current_value, maximum_value, text= ""):
+    def set_splash(self, is_splash, current_value, maximum_value, text= ''):
         if is_splash:
             self.mainUIWidget.setVisible(False)
             self.splash_progressbar.setMaximum(maximum_value)
@@ -269,6 +365,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def set_available_classes(self, classes):
         self.classification_combo.clear()
         self.classification_combo.addItems(classes)
+        self.classification_combo.addItem("None") # always add the "None" class
 
     @pyqtSlot(str)
     def set_class(self, class_str):
@@ -308,11 +405,6 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         if self.temp_edit_state is not None: return self.temp_edit_state
         return self.edit_state
 
-    @pyqtSlot(list)
-    def set_classes_list(self, classes: list):
-        self.classification_combo.clear()
-        self.classification_combo.addItems(classes)
-
     @pyqtSlot(str)
     def set_class(self, class_str: str):
         self.classification_combo.setCurrentText(class_str)
@@ -329,6 +421,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         # try to reset the previous selection
         self.set_current_roi(cur_roi, cur_subroi)
+        if not self.roi_combo.currentText():
+            self.actionCopy_roi.setEnabled(False)
+            self.actionCombine_roi.setEnabled(False)
+        else:
+            self.actionCopy_roi.setEnabled(True)
+            self.actionCombine_roi.setEnabled(True)
 
     @pyqtSlot(str, int)
     def set_current_roi(self, current_roi_name, current_subroi_number=-1):
@@ -418,7 +516,17 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot()
     def on_classification_changed(self):
-        self.classification_changed.emit(self.classification_combo.currentText())
+        cur_class = self.classification_combo.currentText()
+        if cur_class == 'None':
+            self.autosegment_button.setEnabled(False)
+        else:
+            self.autosegment_button.setEnabled(True)
+        self.classification_changed.emit(cur_class)
+
+    @pyqtSlot()
+    @ask_confirm("This will replace all the classifications in the dataset")
+    def on_classification_change_all(self):
+        self.classification_change_all.emit(self.classification_combo.currentText())
 
     @pyqtSlot(name="on_do_segmentation")
     @ask_confirm("This might replace the existing segmentation")
@@ -442,7 +550,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         dataFile, _ = QFileDialog.getOpenFileName(self, caption='Select dataset to import',
                                                   filter='Image files (*.dcm *.ima *.nii *.nii.gz *.npy);;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;All files (*.*)')
         if dataFile:
-            self.data_open.emit(dataFile)
+            classifications = [(self.classification_combo.itemText(i), self.classification_combo.itemText(i)) for i in range(self.classification_combo.count())]
+            classifications.insert(0, ('Automatic', ''))
+            accepted, chosen_class = GenericInputDialog.show_dialog("Choose classification",
+                                                          [GenericInputDialog.OptionInput("Classification", classifications)])
+            if not accepted:
+                return
+            self.data_open.emit(dataFile, chosen_class[0])
 
     @pyqtSlot()
     def importROI_clicked(self):

@@ -21,7 +21,7 @@ except:
 import traceback
 
 DEFAULT_INTERPOLATION = 'spline36'
-#DEFAULT_INTERPOLATION = None # DEBUG
+#DEFAULT_INTERPOLATION = 'none' # DEBUG
 INVERT_SCROLL = True
 DO_DEBUG = True
 
@@ -59,6 +59,8 @@ class ImageShow:
         self.resolution = [1,1,1]
         self.affine = None
         self.transpose = None
+
+        self.interpolation = DEFAULT_INTERPOLATION
 
         # These methods can be defined in a subclass and called when some event occurs
         #self.leftPressCB = None
@@ -108,7 +110,7 @@ class ImageShow:
         dispImage[dispImage < 0] = 0
         dispImage[dispImage > 1] = 1
         if self.imPlot is None:
-            self.imPlot = self.axes.imshow(dispImage, interpolation = DEFAULT_INTERPOLATION)
+            self.imPlot = self.axes.imshow(dispImage, interpolation = self.interpolation)
         else:
             self.imPlot.set_data(dispImage)
         self.redraw()
@@ -172,7 +174,7 @@ class ImageShow:
 
         # Create the image plot if there is none; otherwise update the data in the existing frame (faster)
         if self.imPlot is None:
-            self.imPlot = self.axes.imshow(self.image, interpolation = DEFAULT_INTERPOLATION, vmin=ImageShow.contrastWindow[0], vmax=ImageShow.contrastWindow[1], cmap=self.cmap, zorder = -1)
+            self.imPlot = self.axes.imshow(self.image, interpolation = self.interpolation, vmin=ImageShow.contrastWindow[0], vmax=ImageShow.contrastWindow[1], cmap=self.cmap, zorder = -1)
         else:
             self.imPlot.set_data(self.image)
             
@@ -252,7 +254,7 @@ class ImageShow:
             except Exception as err:
                 if DO_DEBUG: traceback.print_exc()
         if event.button == 3:
-            self.imPlot.set_interpolation(DEFAULT_INTERPOLATION)
+            self.imPlot.set_interpolation(self.interpolation)
             self.startXY = None # 
             self.redraw()
             self.rightReleaseCB(event)

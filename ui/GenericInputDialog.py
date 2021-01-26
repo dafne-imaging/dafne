@@ -3,10 +3,12 @@ from __future__ import annotations
 from typing import Any, Union
 from collections import OrderedDict
 from PyQt5.QtWidgets import QDialog, QWidget, QSpinBox, QDoubleSpinBox, QLineEdit, QFormLayout, QVBoxLayout, \
-    QHBoxLayout, QGroupBox, QDialogButtonBox, QLabel, QApplication, QSlider, QCheckBox, QComboBox
-from PyQt5.QtCore import Qt
+    QHBoxLayout, QGroupBox, QDialogButtonBox, QLabel, QApplication, QSlider, QCheckBox, QComboBox, QSizePolicy, \
+    QTabWidget
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
 import abc
 import sys
+import math
 
 
 class MixedDict(OrderedDict):
@@ -142,7 +144,6 @@ class IntSliderInput(InputClass):
     def get_value(self) -> Any:
         return self.slider.value()
 
-
 class BooleanInput(InputClass):
 
     def __init__(self, label: str, default:bool = False):
@@ -159,6 +160,190 @@ class BooleanInput(InputClass):
     def get_value(self) -> Any:
         return self.widget.isChecked()
 
+
+class FloatSliderWidget(QWidget):
+
+    valueChanged = pyqtSignal(float)
+
+    def __init__(self, minimum_value: float = 0.0, maximum_value: float = 1.0, increment: Union[float, None] = None,
+                 initial_value: float = 0, parent=None):
+        QWidget.__init__(self, parent)
+        if increment is None:
+            increment = (maximum_value - minimum_value) / 100
+
+        self.min = minimum_value
+        self.max = maximum_value
+        self.increment = increment
+
+        # set the significant digits displayed so that the increment is always displayed
+        self.significant_digits = int(math.log10(max([abs(self.min), abs(self.max)]) / self.increment)) + 1
+
+        self.slider = QSlider(self)
+        self.slider.setOrientation(Qt.Horizontal)
+        self.slider.setMinimum(0)
+        self.slider.setMaximum(self.value_to_slider(self.max))
+        self.slider.setValue(self.value_to_slider(initial_value))
+        self.slider.setSingleStep(1)
+        self.slider_label = QLabel(self)
+        self.slider_label.setText(self.format_label(initial_value))
+        layout = QHBoxLayout(self)
+        layout.addWidget(self.slider)
+        layout.addWidget(self.slider_label)
+        self.slider.valueChanged.connect(lambda value: self.slider_label.setText(
+            self.format_label(self.slider_to_value(value))))
+        self.slider.valueChanged.connect(lambda value: self.valueChanged.emit(self.slider_to_value(value)))
+
+    # convert an int value of the slider position to actual value
+    def slider_to_value(self, slider_value):
+        return slider_value * self.increment + self.min
+
+    def value_to_slider(self, value):
+        return int((value - self.min) / self.increment)
+
+    def format_label(self, value):
+        return ('{:' + str(self.significant_digits) + 'g}').format(value)
+
+    def setValue(self, value):
+        self.slider.setValue(self.value_to_slider(value))
+
+    def value(self):
+        return self.slider_to_value(self.slider.value())
+
+
+class FloatSliderInput(InputClass):
+
+    def __init__(self, label: str, default: float = 0, minimum_value: float = 0.0, maximum_value: float = 1.0, increment: Union[float, None] = None):
+        self.label = label
+        self.widget = FloatSliderWidget(minimum_value, maximum_value, increment, default)
+
+    def get_label(self) -> str:
+        return self.label
+
+    def get_widget(self) -> QWidget:
+        return self.widget
+
+    def get_value(self) -> Any:
+        return self.widget.value()
+
+
+class ColorSliderInput(InputClass):
+    def __init__(self, label: str, default_color: tuple[float, float, float] = (1.0, 1.0, 1.0)):
+        self.label = label
+        self.widget = QWidget()
+        self.slider_container = QWidget()
+        self.color_label = QLabel()
+
+        self.color_label.setMinimumWidth(30)
+
+        self.red_slider = FloatSliderWidget(0.0, 1.0, 0.1, default_color[0])
+        self.green_slider = FloatSliderWidget(0.0, 1.0, 0.1, default_color[1])
+        self.blue_slider = FloatSliderWidget(0.0, 1.0, 0.1, default_color[2])
+
+        self._update_label_color()
+        vlayout = QVBoxLayout(self.slider_container)
+        vlayout.setContentsMargins(0,0,0,0)
+        vlayout.addWidget(self.red_slider)
+        vlayout.addWidget(self.green_slider)
+        vlayout.addWidget(self.blue_slider)
+        hlayout = QHBoxLayout(self.widget)
+        hlayout.addWidget(self.slider_container)
+        hlayout.addWidget(self.color_label)
+
+        self.red_slider.valueChanged.connect(lambda value: self._update_label_color())
+        self.green_slider.valueChanged.connect(lambda value: self._update_label_color())
+        self.blue_slider.valueChanged.connect(lambda value: self._update_label_color())
+
+    @pyqtSlot()
+    def _update_label_color(self):
+        color = self.get_value()
+        color_string = 'background-color: #{:02x}{:02x}{:02x};'.format(int(color[0]*255), int(color[1]*255), int(color[2]*255))
+        self.color_label.setStyleSheet(color_string)
+
+    def get_label(self) -> str:
+        return self.label
+
+    def get_widget(self) -> QWidget:
+        return self.widget
+
+    def get_value(self) -> Any:
+        return (self.red_slider.value(), self.green_slider.value(), self.blue_slider.value())
+
+class ColorSpinInput(InputClass):
+    def __init__(self, label: str, default_color: Union[tuple[float, float, float], tuple[float, float, float, float]] = (1.0, 1.0, 1.0), has_alpha = False):
+        self.label = label
+        self.widget = QWidget()
+        self.color_label = QLabel()
+
+        if has_alpha or len(default_color) == 4:
+            self.has_alpha = True
+        else:
+            self.has_alpha = False
+
+        if len(default_color) == 3: # add alpha channel
+            default_color = (*default_color, 1.0)
+
+        self.color_label.setMinimumWidth(30)
+
+        self.red_spin = QDoubleSpinBox()
+        self.red_spin.setMinimum(0.0)
+        self.red_spin.setMaximum(1.0)
+        self.red_spin.setSingleStep(0.1)
+        self.red_spin.setValue(default_color[0])
+
+        self.green_spin = QDoubleSpinBox()
+        self.green_spin.setMinimum(0.0)
+        self.green_spin.setMaximum(1.0)
+        self.green_spin.setSingleStep(0.1)
+        self.green_spin.setValue(default_color[1])
+
+        self.blue_spin = QDoubleSpinBox()
+        self.blue_spin.setMinimum(0.0)
+        self.blue_spin.setMaximum(1.0)
+        self.blue_spin.setSingleStep(0.1)
+        self.blue_spin.setValue(default_color[2])
+
+        self.alpha_spin = QDoubleSpinBox()
+        self.alpha_spin.setMinimum(0.0)
+        self.alpha_spin.setMaximum(1.0)
+        self.alpha_spin.setSingleStep(0.1)
+        self.alpha_spin.setValue(default_color[3])
+
+        self._update_label_color()
+        hlayout = QHBoxLayout(self.widget)
+        hlayout.addWidget(self.red_spin)
+        hlayout.addWidget(self.green_spin)
+        hlayout.addWidget(self.blue_spin)
+
+        if self.has_alpha:
+            hlayout.addWidget(self.alpha_spin)
+
+        hlayout.addWidget(self.color_label)
+
+        self.red_spin.valueChanged.connect(lambda value: self._update_label_color())
+        self.green_spin.valueChanged.connect(lambda value: self._update_label_color())
+        self.blue_spin.valueChanged.connect(lambda value: self._update_label_color())
+        self.alpha_spin.valueChanged.connect(lambda value: self._update_label_color())
+
+    @pyqtSlot()
+    def _update_label_color(self):
+        color = self.get_value(force_alpha=True)
+        color_string = 'background-color: rgba({},{},{},{});'.format(int(color[0]*255),
+                                                                     int(color[1]*255),
+                                                                     int(color[2]*255),
+                                                                     int(color[3]*255))
+        self.color_label.setStyleSheet(color_string)
+
+    def get_label(self) -> str:
+        return self.label
+
+    def get_widget(self) -> QWidget:
+        return self.widget
+
+    def get_value(self, force_alpha = False) -> Any:
+        if self.has_alpha or force_alpha:
+            return (self.red_spin.value(), self.green_spin.value(), self.blue_spin.value(), self.alpha_spin.value())
+        else:
+            return (self.red_spin.value(), self.green_spin.value(), self.blue_spin.value())
 
 class OptionInput(InputClass):
 
@@ -188,6 +373,14 @@ class OptionInput(InputClass):
         if not default_set and type(default) == int:
             self.widget.setCurrentIndex(default)
 
+    def add_option(self, option: Union[str, tuple[str, Any]]):
+        if type(option) == str:
+            self.widget.addItem(option)
+            self.output_list.append(option)
+        else:  # it is a tuple, specified by the type hint in the constructor
+            self.widget.addItem(option[0])
+            self.output_list.append(option[1])
+
     def get_label(self) -> str:
         return self.label
 
@@ -197,17 +390,32 @@ class OptionInput(InputClass):
     def get_value(self) -> Any:
         return self.output_list[self.widget.currentIndex()]
 
+class PageWidget(QWidget):
+
+    def __init__(self, parent=None):
+        QWidget.__init__(self, parent)
+        self.formLayout = QFormLayout(self)
+        self.current_position = 0
+
+    def add_object(self, label_text, widget):
+        label = QLabel(self)
+        label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        label.setText(label_text)
+        self.formLayout.setWidget(self.current_position, QFormLayout.LabelRole, label)
+        self.formLayout.setWidget(self.current_position, QFormLayout.FieldRole, widget)
+        self.current_position += 1
+
 
 ## Dialog class implementation
 
 class GenericDialog(QDialog):
 
-    def __init__(self, title: str, input_list: list[InputClass], parent=None):
+    def __init__(self, title: str, input_list: list[InputClass], entries_per_page: int=10, parent=None):
         QDialog.__init__(self, parent)
         self.setWindowTitle(title)
         self.verticalLayout = QVBoxLayout(self)
-        self.groupBox = QGroupBox(title, self)
-        self.formLayout = QFormLayout(self.groupBox)
+        self.tabWidget = QTabWidget(self)
 
         self.buttonBox = QDialogButtonBox(self)
         self.buttonBox.setOrientation(Qt.Horizontal)
@@ -218,14 +426,24 @@ class GenericDialog(QDialog):
 
         self.input_list = input_list
 
-        for position, input_obj in enumerate(input_list):
-            label = QLabel(self.groupBox)
-            label.setText(input_obj.get_label())
-            self.formLayout.setWidget(position, QFormLayout.LabelRole, label)
-            input_field = input_obj.get_widget()
-            self.formLayout.setWidget(position, QFormLayout.FieldRole, input_field)
+        current_page_number = 1
+        current_page = PageWidget(self)
+        if len(input_list) <= entries_per_page:
+            self.tabWidget.addTab(current_page, title)
+        else:
+            self.tabWidget.addTab(current_page, f'{title}: 1')
 
-        self.verticalLayout.addWidget(self.groupBox)
+        current_entry_number = 0
+        for input_obj in input_list:
+            current_entry_number += 1
+            if current_entry_number > entries_per_page:
+                current_page = PageWidget(self)
+                current_page_number += 1
+                self.tabWidget.addTab(current_page, f'{title}: {current_page_number}')
+                current_entry_number = 1
+            current_page.add_object(input_obj.get_label(), input_obj.get_widget())
+
+        self.verticalLayout.addWidget(self.tabWidget)
         self.verticalLayout.addWidget(self.buttonBox)
 
         self.resize(self.verticalLayout.sizeHint())
@@ -245,8 +463,8 @@ class GenericDialog(QDialog):
 
 
 ## This is the main function that should be called
-def show_dialog(title: str, input_list: list[InputClass], parent=None) -> (bool, MixedDict):
-    dialog = GenericDialog(title, input_list, parent)
+def show_dialog(title: str, input_list: list[InputClass], parent=None, entries_per_page=10) -> (bool, MixedDict):
+    dialog = GenericDialog(title, input_list, entries_per_page, parent)
     dialog.exec()
     # this will stop until the dialog is closed
     if dialog.accepted is None:
@@ -272,7 +490,9 @@ if __name__ == '__main__':
                                                             ('option 1', 1.1),
                                                             ('option 2', 2.2),
                                                             ('option 3', 3.3)
-                                                        ], 2.2)
+                                                        ], 2.2),
+                                            FloatSliderInput('Float slider', 0.0, 0.0, 1.0, 0.1),
+                                            ColorSpinInput('Choose color', (0.5, 0.0, 1.0))
                                             ])
     # Note: for option inputs, the value list can be a list of strings, and then the output is the string itself, or a
     # list of tuples, where the first element is a string (the label) and the second is the returned value (any).
@@ -286,3 +506,7 @@ if __name__ == '__main__':
     # they can be iterated like a list
     for v in values:
         print(v)
+
+    # or items can be accessed like a dictionary
+    for k,v in values.items():
+        print(k,v)
