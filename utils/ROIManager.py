@@ -123,12 +123,18 @@ class RoiAndMaskPair:
 
     def get_mask(self):
         if self.mask is None:
-            self.subroi_to_mask()
+            if self.subroi_stack is None:
+                self.set_mask(np.zeros(self.mask_size))
+            else:
+                self.subroi_to_mask()
         return self.mask
 
     def get_subroi_stack(self):
         if self.subroi_stack is None:
-            self.mask_to_subroi()
+            if self.mask is None:
+                self.subroi_stack = []
+            else:
+                self.mask_to_subroi()
         return self.subroi_stack
 
     def get_subroi(self, index):
@@ -194,7 +200,7 @@ class ROIManager:
             else:
                 image_iter = [int(image_number)]
             for image_key in image_iter:
-                roi_and_mask = self.allROIs[roi_key][image_key]
+                roi_and_mask = self.get_roi_mask_pair(roi_key, image_key)
                 yield (roi_key, image_key), roi_and_mask
 
     def all_rois(self, roi_name = None, image_number = None):
