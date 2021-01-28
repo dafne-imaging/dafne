@@ -2,8 +2,6 @@ import os
 import pickle
 from ui import GenericInputDialog
 
-GlobalConfig = {}
-
 CONFIG_DIR = os.path.dirname(os.path.realpath(__file__))
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.pickle')
 
@@ -14,6 +12,10 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.pickle')
 ## Only elements with a visualization label are shown in the normal interface.
 
 defaults = {
+    'SERVER_URL': ('http://www.dafne.network:5000/', 'string', None),
+    'API_KEY': ('abc123', 'string', 'Personal server access key'),
+    'MODEL_PROVIDER': ('Local', 'option', ['Local', 'Remote'], 'Location of the deep learning models'),
+    'MODEL_PATH': ('models', 'string', None),
     'DO_INCREMENTAL_LEARNING':  (True, 'bool', None),
     'ROI_CIRCLE_SIZE':  (2, 'int', 1, 200, 1, None),
     'SIMPLIFIED_ROI_POINTS':  (20, 'int', 1, 200, 1, None),

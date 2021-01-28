@@ -43,6 +43,9 @@ from .BrushPatches import SquareBrush, PixelatedCircleBrush
 from .ContourPainter import ContourPainter
 import traceback
 
+from dl.LocalModelProvider import LocalModelProvider
+from dl.RemoteModelProvider import RemoteModelProvider
+
 try:
     import SimpleITK as sitk # this requires simpleelastix! It is NOT available through PIP
 except:
@@ -126,9 +129,30 @@ class MuscleSegmentation(ImageShow, QObject):
         self.editMode = ToolboxWindow.EDITMODE_MASK
         self.resetInternalState()
 
+    def resetModelProvider(self):
+        if GlobalConfig['MODEL_PROVIDER'] == 'Local':
+            model_provider = LocalModelProvider(GlobalConfig['MODEL_PATH'])
+            available_models = model_provider.available_models()
+        else:
+            model_provider = RemoteModelProvider(GlobalConfig['MODEL_PATH'], GlobalConfig['SERVER_URL'], GlobalConfig['API_KEY'])
+            available_models = model_provider.available_models()
+            if available_models is None:
+                self.alert("Error in using Remote Model Loading. Falling back to Local")
+                GlobalConfig['MODEL_PROVIDER'] = 'Local'
+                model_provider = LocalModelProvider(GlobalConfig['MODEL_PATH'])
+                available_models = model_provider.available_models()
+
+        self.setModelProvider(model_provider)
+
+        print(available_models)
+
+        available_models.remove('Classifier')
+        self.setAvailableClasses(available_models)
+
     @pyqtSlot()
     def configChanged(self):
         self.resetInterface()
+        self.resetModelProvider()
 
     def resetInterface(self):
         try:
@@ -178,7 +202,7 @@ class MuscleSegmentation(ImageShow, QObject):
             pass
 
     def resetInternalState(self):
-        load_config()
+        #load_config() # this was already loaded in dafne.py
         self.imList = []
         self.curImage = 0
         self.classifications = []
@@ -191,6 +215,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.transforms = {}
         self.invtransforms = {}
 
+        self.resetModelProvider()
         self.resetInterface()
 
         self.roiManager = None
@@ -198,6 +223,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.currentPoint = None
         self.translateDelta = None
         self.rotationDelta = None
+
 
 
     #############################################################################################
@@ -1095,6 +1121,9 @@ class MuscleSegmentation(ImageShow, QObject):
             pass
         self.brush_patch = None
 
+        self.activeMask = None
+        self.otherMask = None
+
     def removeContours(self):
         """ Remove all the contours from the plot """
         self.activeRoiPainter.clear_patches(self.axes)
@@ -1184,16 +1213,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.redraw()
 
     def displayImage(self, im, cmap=None):
-        try:
-            self.maskImPlot.remove()
-        except:
-            pass
-        try:
-            self.maskOtherImPlot.remove()
-        except:
-            pass
-        self.maskImPlot = None
-        self.maskOtherImPlot = None
+        self.removeMasks()
+        self.removeContours()
         ImageShow.displayImage(self, im, cmap)
         self.updateRoiList()  # set the appropriate (sub)roi list for the current image
         self.activeMask = None
