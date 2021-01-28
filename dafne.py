@@ -19,7 +19,7 @@ import argparse
 import matplotlib.pyplot as plt
 matplotlib.use("Qt5Agg")
 
-MODELS_DIR = 'models'
+MODELS_DIR = 'models_old'
 
 
 if __name__ == "__main__":

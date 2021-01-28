@@ -286,6 +286,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.mask_import.connect(self.loadMask)
 
         self.splash_signal.connect(self.toolbox_window.set_splash)
+        self.interface_disabled = False
         self.splash_signal.connect(self.disableInterface)
 
         self.toolbox_window.mask_grow.connect(self.maskGrow)
@@ -301,6 +302,8 @@ class MuscleSegmentation(ImageShow, QObject):
     #dis/enable interface callbacks
     @pyqtSlot(bool, int, int, str)
     def disableInterface(self, disable, unused1, unused2, txt):
+        if self.interface_disabled == disable: return
+        self.interface_disabled = disable
         if disable:
             self.disconnectSignals()
         else:
@@ -1906,7 +1909,11 @@ class MuscleSegmentation(ImageShow, QObject):
         try:
             segmenter = self.dl_segmenters[class_str]
         except KeyError:
-            segmenter = self.model_provider.load_model(class_str)
+            segmenter = self.model_provider.load_model(class_str, lambda cur_val,max_val: self.setSplash(True, cur_val, max_val, 'Downloading Model...'))
+            if segmenter is None:
+                self.setSplash(False, 0, 3, "Loading model...")
+                self.alert(f"Error loading model {class_str}")
+                return
             self.dl_segmenters[class_str] = segmenter
 
         self.setSplash(True, 1, 3, "Running segmentation...")
