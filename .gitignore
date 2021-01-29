@@ -1,3 +1,6 @@
+# avoid sending user configuration
+config.pickle
+
 # avoid sending data
 *.dcm
 *.model

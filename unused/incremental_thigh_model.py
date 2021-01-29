@@ -243,7 +243,7 @@ def thigh_incremental(modelObj: DynamicDLModel, trainingdata: dict, trainingoutp
     history=netc.fit_generator(generator=training_generator,steps_per_epoch=steps,epochs=5,callbacks=[check],verbose=1)
 
 def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,
-                          bs=5):
+                          bs=5, minTrainImages=5):
     import dl.common.preprocess_train as pretrain
     from dl.common.DataGenerators import DataGeneratorMem
     import os

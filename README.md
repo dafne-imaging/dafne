@@ -10,10 +10,6 @@ Install dependencies for pypotrace
 Run: 
 `python dafne.py <path_to_dicom_img>`
 
-To run with server backend:  
-Edit `config.txt` to use the right server. Then run dafne with RemoteModelProvider:  
-`python dafne.py <path_to_dicom_img> -rm`
-
 
 # Notes for the DL models
 

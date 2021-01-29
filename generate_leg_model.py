@@ -280,7 +280,7 @@ def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOu
     except:
         import numpy as np
 
-    from dl.labels.leg import labels as LABELS_DICT
+    from dl.labels.leg import long_labels as LABELS_DICT
     from dl.labels.leg import inverse_labels as INVERSE_LABEL_DICT
 
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])

@@ -251,7 +251,8 @@ def gamba_apply(modelObj: DynamicDLModel, data: dict):
     return outputLabels
 
 
-def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs):
+def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,
+                        bs=5, minTrainImages=5):
     import dl.common.preprocess_train as pretrain
     from dl.common.DataGenerators import DataGeneratorMem
     import os, time

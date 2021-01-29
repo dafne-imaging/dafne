@@ -1166,7 +1166,7 @@ class MuscleSegmentation(ImageShow, QObject):
             relativeAlphaROI = GlobalConfig['ROI_OTHER_COLOR'][3] / GlobalConfig['ROI_COLOR'][3]
             self.maskOtherImPlot = self.axes.imshow(other_mask, cmap=self.mask_layer_other_colormap, alpha=relativeAlphaROI*GlobalConfig['MASK_LAYER_ALPHA'], vmin=0, vmax=1, zorder=101)
 
-        self.maskOtherImPlot.set_data(other_mask)
+        self.maskOtherImPlot.set_data(other_mask.astype(np.float32))
 
     def updateContourPainters(self):
         self.activeRoiPainter.clear_rois(self.axes)
