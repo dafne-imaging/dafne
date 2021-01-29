@@ -19,8 +19,8 @@ class SquareBrush(Rectangle):
         h = self.get_height()
         w = self.get_width()
         # x and y are inverted
-        x0 = int(np.round(xy[1] - 0.5))
-        y0 = int(np.round(xy[0] - 0.5))
+        x0 = int(np.round(xy[1] + 0.5))
+        y0 = int(np.round(xy[0] + 0.5))
         x1 = int(x0 + np.round(h))
         y1 = int(y0 + np.round(w))
 
@@ -58,8 +58,11 @@ class PixelatedCircleBrush(Polygon):
 
     def to_mask(self, shape):
         mask = np.zeros(shape, dtype=np.uint8)
-        mask[0:2*self.radius+1, 0:2*self.radius+1] = self.base_mask
-        mask = shift(mask, (self.center[1] - self.radius - 0.5, self.center[0] - self.radius - 0.5), order=0, prefilter=False)
+        mask[0:self.base_mask.shape[0], 0:self.base_mask.shape[1]] = self.base_mask
+        if self.radius > 1:
+            mask = shift(mask, (self.center[1] - self.radius, self.center[0] - self.radius), order=0, prefilter=False)
+        else:
+            mask = shift(mask, (self.center[1], self.center[0]), order=0, prefilter=False)
         return mask
 
     def _recalculate_xy(self):
@@ -68,7 +71,8 @@ class PixelatedCircleBrush(Polygon):
 
     def _recalculate_vertices(self):
         if self.radius == 1:
-            self.point_array = np.array([[0,0],[1,0],[1,1],[0,1]])
+            self.base_mask = np.ones((1,1), dtype=np.uint8)
+            self.point_array = np.array([[0,0],[1,0],[1,1],[0,1]]) - 0.5
             return
 
         # midpoint circle algorithm

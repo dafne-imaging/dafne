@@ -207,7 +207,6 @@ class ImageShow:
             pass
 
     def keyReleaseCB(self, event):
-        print("key release")
         pass
 
     def keyPressCB(self, event):
@@ -409,7 +408,6 @@ class ImageShow:
 
             dataset = niimage.get_fdata()
             self.transpose = [ orig_orient[new_axes[ax]] for ax in range(3)]
-            print(orig_affine)
             dataset = dataset.transpose([ orig_orient[new_axes[ax]] for ax in range(3)] )
             signs = [1,1,1]
             for ax in range(3):
@@ -417,20 +415,16 @@ class ImageShow:
                 if signs[ax] < 0:
                     dataset = np.flip(dataset, axis=ax)
 
-            print("Signs/transpose:", self.transpose)
-
             #orients = np.array([(i,1 if niimage.affine[i,i]>0 else -1) for i in range(len(niimage.shape))])
             #dataset = niimage.as_reoriented(orients).get_fdata()
             if np.max(dataset) < 1:
                 dataset *= 1000
             self.resolution = niimage.header.get_zooms()[0:3]
             self.resolution = [ self.resolution[self.transpose[ax]] for ax in range(3) ]
-            print(self.resolution)
             self.transpose = [(1 + self.transpose[ax]) * signs[ax] for ax in range(3)]
             for sl in range(dataset.shape[2]):
                 self.appendImage(dataset[:,:,sl])
             self.basepath = os.path.dirname(path)
-            print(self.affine)
 
         elif ext.lower() in npy_ext:
             data = np.load(path).astype(np.float32)
@@ -453,7 +447,6 @@ class ImageShow:
                     if self.dicomHeaderList is None: self.dicomHeaderList = []
                     self.appendImage(basepath + os.path.sep + f)
             self.affine = create_affine(self.dicomHeaderList)
-            print(self.affine)
         if len(self.imList) > 0:
             self.curImage = 0
             self.displayImage(int(0))

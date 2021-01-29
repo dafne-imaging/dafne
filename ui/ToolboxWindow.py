@@ -551,7 +551,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
                                                   filter='Image files (*.dcm *.ima *.nii *.nii.gz *.npy);;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;All files (*.*)')
         if dataFile:
             classifications = [(self.classification_combo.itemText(i), self.classification_combo.itemText(i)) for i in range(self.classification_combo.count())]
-            classifications.insert(0, ('Automatic', ''))
+            if config.GlobalConfig['USE_CLASSIFIER']:
+                classifications.insert(0, ('Automatic', ''))
             accepted, chosen_class = GenericInputDialog.show_dialog("Choose classification",
                                                           [GenericInputDialog.OptionInput("Classification", classifications)])
             if not accepted:

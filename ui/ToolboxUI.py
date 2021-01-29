@@ -209,7 +209,7 @@ class Ui_SegmentationToolbox(object):
         sizePolicy.setHeightForWidth(self.brushsize_slider.sizePolicy().hasHeightForWidth())
         self.brushsize_slider.setSizePolicy(sizePolicy)
         self.brushsize_slider.setMinimum(0)
-        self.brushsize_slider.setMaximum(50)
+        self.brushsize_slider.setMaximum(15)
         self.brushsize_slider.setSingleStep(1)
         self.brushsize_slider.setPageStep(10)
         self.brushsize_slider.setProperty("value", 5)

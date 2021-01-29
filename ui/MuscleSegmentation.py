@@ -130,14 +130,24 @@ class MuscleSegmentation(ImageShow, QObject):
         self.resetInternalState()
 
     def resetModelProvider(self):
+        available_models = None
         if GlobalConfig['MODEL_PROVIDER'] == 'Local':
             model_provider = LocalModelProvider(GlobalConfig['MODEL_PATH'])
             available_models = model_provider.available_models()
         else:
             model_provider = RemoteModelProvider(GlobalConfig['MODEL_PATH'], GlobalConfig['SERVER_URL'], GlobalConfig['API_KEY'])
-            available_models = model_provider.available_models()
-            if available_models is None:
-                self.alert("Error in using Remote Model Loading. Falling back to Local")
+            fallback = False
+            try:
+                available_models = model_provider.available_models()
+            except PermissionError:
+                self.alert("Error in using Remote Model. Please check your API key. Falling back to Local")
+                fallback = True
+            else:
+                if available_models is None:
+                    self.alert("Error in using Remote Model Loading. Falling back to Local")
+                    fallback = True
+
+            if fallback:
                 GlobalConfig['MODEL_PROVIDER'] = 'Local'
                 model_provider = LocalModelProvider(GlobalConfig['MODEL_PATH'])
                 available_models = model_provider.available_models()
@@ -364,7 +374,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def saveSnapshot(self):
         # clear history until the current point, so we can't redo anymore
-        print("Saving snapshot")
+        # print("Saving snapshot")
         while self.currentHistoryPoint > 0:
             self.history.popleft()
             self.currentHistoryPoint -= 1
@@ -578,7 +588,6 @@ class MuscleSegmentation(ImageShow, QObject):
     @pyqtSlot(str, str, bool)
     @snapshotSaver
     def copyRoi(self, originalName, newName, makeCopy=True):
-        print(originalName, newName, makeCopy)
         if makeCopy:
             self.roiManager.copy_roi(originalName, newName)
         else:
@@ -694,7 +703,6 @@ class MuscleSegmentation(ImageShow, QObject):
 
         # find sharpest bright-to-dark transition. Maybe check if there are similar transitions in the line and only take the closest one
         minDeriv = np.argmax(np.abs(diffz)) + 1
-        print(minDeriv)
         return (xpoints[minDeriv], ypoints[minDeriv])
 
     # optimizes a knot along an (approximate) normal to the curve, going from inside the ROI to outside
@@ -1160,13 +1168,13 @@ class MuscleSegmentation(ImageShow, QObject):
         if self.maskImPlot is None:
             self.maskImPlot = self.axes.imshow(active_mask, cmap=self.mask_layer_colormap, alpha=GlobalConfig['MASK_LAYER_ALPHA'], vmin=0, vmax=1, zorder=100)
 
-        self.maskImPlot.set_data(active_mask)
+        self.maskImPlot.set_data(active_mask.astype(np.uint8))
 
         if self.maskOtherImPlot is None:
             relativeAlphaROI = GlobalConfig['ROI_OTHER_COLOR'][3] / GlobalConfig['ROI_COLOR'][3]
             self.maskOtherImPlot = self.axes.imshow(other_mask, cmap=self.mask_layer_other_colormap, alpha=relativeAlphaROI*GlobalConfig['MASK_LAYER_ALPHA'], vmin=0, vmax=1, zorder=101)
 
-        self.maskOtherImPlot.set_data(other_mask.astype(np.float32))
+        self.maskOtherImPlot.set_data(other_mask.astype(np.uint8))
 
     def updateContourPainters(self):
         self.activeRoiPainter.clear_rois(self.axes)
@@ -1319,7 +1327,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.brush_patch.set_width(brush_size)
 
         elif brush_type == ToolboxWindow.BRUSH_CIRCLE:
-            center = (math.floor(mouseX) + 0.5, math.floor(mouseY) + 0.5)
+            center = (math.floor(mouseX), math.floor(mouseY))
             if type(self.brush_patch) != PixelatedCircleBrush:
                 try:
                     self.brush_patch.remove()
@@ -1386,8 +1394,6 @@ class MuscleSegmentation(ImageShow, QObject):
         if not self.imPlot.contains(event):
             print("Event outside")
             return
-
-        print(self.getState())
 
         if self.getState() != 'MUSCLE': return
 
@@ -1555,11 +1561,12 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def appendImage(self, im):
         ImageShow.appendImage(self, im)
-        print("new Append Image")
         if self.override_class:
             self.classifications.append(self.override_class)
             return
-        if not self.dl_classifier: return
+        if not self.dl_classifier:
+            self.classifications.append('None')
+            return
         class_input = {'image': self.imList[-1], 'resolution': self.resolution[0:2]}
         class_str = self.dl_classifier(class_input)
         #class_str = 'Thigh' # DEBUG
@@ -1877,10 +1884,20 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def setModelProvider(self, modelProvider):
         self.model_provider = modelProvider
-        self.dl_classifier = modelProvider.load_model('Classifier')
+        if GlobalConfig['USE_CLASSIFIER']:
+            self.dl_classifier = modelProvider.load_model('Classifier')
+        else:
+            self.dl_classifier = None
 
     def setAvailableClasses(self, classList):
+        for i, classification in enumerate(self.classifications[:]):
+            if classification not in classList:
+                self.classifications[i] = 'None'
         self.toolbox_window.set_available_classes(classList)
+        try:
+            self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
+        except IndexError:
+            pass
 
     @pyqtSlot(str)
     @pyqtSlot(str)
