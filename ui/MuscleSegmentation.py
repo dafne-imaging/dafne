@@ -1626,12 +1626,13 @@ class MuscleSegmentation(ImageShow, QObject):
                 # all weights lower than threshold will be set to 0 for model compression
                 # threshold = 0.0001
                 # model = model.calc_delta(orig_model, threshold=threshold)
-                
-                st = time.time()
-                self.model_provider.upload_model(classification_name, model)
-                print(f"took {time.time() - st:.2f}s")
+                self.setSplash(True, 2, 4, "Sending the improved model to server...")
 
-            self.setSplash(True, 2, 4, "Sending the improved model to server...")
+                st = time.time()
+                if meanDiceScore is None:
+                    meanDiceScore = -1.0
+                self.model_provider.upload_model(classification_name, model, meanDiceScore)
+                print(f"took {time.time() - st:.2f}s")
 
         self.setSplash(True, 3, 4, "Saving file...")
 
