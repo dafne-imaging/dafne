@@ -367,6 +367,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.classification_combo.addItems(classes)
         self.classification_combo.addItem("None") # always add the "None" class
 
+    def get_available_classes(self):
+        return [self.classification_combo.itemText(i) for i in range(self.classification_combo.count())]
+
     @pyqtSlot(str)
     def set_class(self, class_str):
         self.classification_combo.setCurrentText(class_str)

@@ -46,6 +46,8 @@ import traceback
 from dl.LocalModelProvider import LocalModelProvider
 from dl.RemoteModelProvider import RemoteModelProvider
 
+import requests
+
 try:
     import SimpleITK as sitk # this requires simpleelastix! It is NOT available through PIP
 except:
@@ -141,6 +143,9 @@ class MuscleSegmentation(ImageShow, QObject):
                 available_models = model_provider.available_models()
             except PermissionError:
                 self.alert("Error in using Remote Model. Please check your API key. Falling back to Local")
+                fallback = True
+            except requests.exceptions.ConnectionError:
+                self.alert("Remote server unavailable. Falling back to Local")
                 fallback = True
             else:
                 if available_models is None:
@@ -1530,6 +1535,11 @@ class MuscleSegmentation(ImageShow, QObject):
         print('Rois loaded')
         self.clearAllROIs()
         self.roiManager = roiManager
+        available_classes = self.toolbox_window.get_available_classes()
+        for i, classification in enumerate(classifications[:]):
+            if classification not in available_classes:
+                classifications[i] = 'None'
+
         self.classifications = classifications
         self.updateRoiList()
         self.updateMasksFromROIs()
@@ -1600,7 +1610,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 for imageIndex in dataForTraining[classification_name]:
                     training_data.append(dataForTraining[classification_name][imageIndex])
                     training_outputs.append(segForTraining[classification_name][imageIndex])
-                orig_model = model.copy()
+
                 try:
                     #todo: adapt bs and minTrainImages if needed
                     model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2]},
