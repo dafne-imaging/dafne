@@ -240,6 +240,7 @@ def coscia_unet():
 
 def coscia_apply(modelObj: DynamicDLModel, data: dict):
     from dl.common.padorcut import padorcut
+    from dl.common.preprocess_train import split_mirror
     from scipy.ndimage import zoom
     try:
         np
@@ -259,13 +260,30 @@ def coscia_apply(modelObj: DynamicDLModel, data: dict):
     img = padorcut(img, MODEL_SIZE)
     segmentation = netc.predict(np.expand_dims(np.stack([img,np.zeros(MODEL_SIZE)],axis=-1),axis=0))
     labelsMask = np.argmax(np.squeeze(segmentation[0,:,:,:13]), axis=2)
-    labelsMask = zoom(labelsMask, 1/zoomFactor, order=0)
-    labelsMask = padorcut(labelsMask, originalShape).astype(np.int8)
-    outputLabels = {}
-    for labelValue, labelName in LABELS_DICT.items():
-        outputLabels[labelName] = (labelsMask == labelValue).astype(np.int8)
+    if (data['split_laterality']):
+        a1,a2,a3,a4,b1,b2=split_mirror(img)
+        labelsMask_left=np.zeros(MODEL_SIZE,dtype='float32')
+        labelsMask_right=np.zeros(MODEL_SIZE,dtype='float32')
+        labelsMask_left[int(b1):int(b2),int(a1):int(a2)]=labelsMask[int(b1):int(b2),int(a1):int(a2)]
+        labelsMask_right[int(b1):int(b2),int(a3):int(a4)]=labelsMask[int(b1):int(b2),int(a3):int(a4)]
+        labelsMask_left = zoom(labelsMask_left, 1/zoomFactor, order=0)
+        labelsMask_left = padorcut(labelsMask_left, originalShape).astype(np.int8)
+        labelsMask_right = zoom(labelsMask_right, 1/zoomFactor, order=0)
+        labelsMask_right = padorcut(labelsMask_right, originalShape).astype(np.int8)
+        outputLabels = {}
+        for labelValue, labelName in LABELS_DICT.items():
+            outputLabels[labelName+'_L'] = (labelsMask_left == labelValue).astype(np.int8)
+            outputLabels[labelName+'_R'] = (labelsMask_right == labelValue).astype(np.int8)
     
-    return outputLabels
+        return outputLabels
+    else:
+        labelsMask = zoom(labelsMask, 1/zoomFactor, order=0)
+        labelsMask = padorcut(labelsMask, originalShape).astype(np.int8)
+        outputLabels = {}
+        for labelValue, labelName in LABELS_DICT.items():
+            outputLabels[labelName] = (labelsMask == labelValue).astype(np.int8)
+    
+        return outputLabels
 
 
 def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,

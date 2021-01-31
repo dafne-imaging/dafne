@@ -7,7 +7,7 @@ import pickle
 GENERATE_PICKLE = False
 
 model_provider = LocalModelProvider('models')
-segmenter = model_provider.load_model('Thigh_Split')
+segmenter = model_provider.load_model('Thigh-Split')
 
 data_in = np.load('testImages/test_data.npy')
 segment_in = np.load('testImages/test_segment.npy',allow_pickle=True)

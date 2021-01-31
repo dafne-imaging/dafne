@@ -239,16 +239,32 @@ def gamba_apply(modelObj: DynamicDLModel, data: dict):
     segmentationright=netc.predict(np.expand_dims(np.stack([right,np.zeros(MODEL_SIZE_SPLIT)],axis=-1),axis=0))
     labelright=np.argmax(np.squeeze(segmentationright[0,:,:,:7]), axis=2)
     labelright=labelright[::1,::-1]
-    labelsMask=np.zeros(MODEL_SIZE,dtype='float32')
-    labelsMask[int(b1):int(b2),int(a1):int(a2)]=padorcut(labelleft, [b2-b1, a2-a1])
-    labelsMask[int(b1):int(b2),int(a3):int(a4)]=padorcut(labelright, [b2-b1, a4-a3])
-    labelsMask = zoom(labelsMask, 1/zoomFactor, order=0)
-    labelsMask = padorcut(labelsMask, originalShape).astype(np.int8)
-    outputLabels = {}
-    for labelValue, labelName in LABELS_DICT.items():
-        outputLabels[labelName] = (labelsMask == labelValue).astype(np.int8)
+    if (data['split_laterality']):
+        labelsMask_left=np.zeros(MODEL_SIZE,dtype='float32')
+        labelsMask_right=np.zeros(MODEL_SIZE,dtype='float32')
+        labelsMask_left[int(b1):int(b2),int(a1):int(a2)]=padorcut(labelleft, [b2-b1, a2-a1])
+        labelsMask_right[int(b1):int(b2),int(a3):int(a4)]=padorcut(labelright, [b2-b1, a4-a3])
+        labelsMask_left = zoom(labelsMask_left, 1/zoomFactor, order=0)
+        labelsMask_left = padorcut(labelsMask_left, originalShape).astype(np.int8)
+        labelsMask_right = zoom(labelsMask_right, 1/zoomFactor, order=0)
+        labelsMask_right = padorcut(labelsMask_right, originalShape).astype(np.int8)
+        outputLabels = {}
+        for labelValue, labelName in LABELS_DICT.items():
+            outputLabels[labelName+'_L'] = (labelsMask_left == labelValue).astype(np.int8)
+            outputLabels[labelName+'_R'] = (labelsMask_right == labelValue).astype(np.int8)
     
-    return outputLabels
+        return outputLabels
+    else:
+        labelsMask=np.zeros(MODEL_SIZE,dtype='float32')
+        labelsMask[int(b1):int(b2),int(a1):int(a2)]=padorcut(labelleft, [b2-b1, a2-a1])
+        labelsMask[int(b1):int(b2),int(a3):int(a4)]=padorcut(labelright, [b2-b1, a4-a3])
+        labelsMask = zoom(labelsMask, 1/zoomFactor, order=0)
+        labelsMask = padorcut(labelsMask, originalShape).astype(np.int8)
+        outputLabels = {}
+        for labelValue, labelName in LABELS_DICT.items():
+            outputLabels[labelName] = (labelsMask == labelValue).astype(np.int8)
+    
+        return outputLabels
 
 
 def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,
@@ -269,9 +285,9 @@ def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOu
     MODEL_SIZE = (432, 432)
     MODEL_SIZE_SPLIT = (216, 216)
     BAND = 64
-    BATCH_SIZE = 5
+    BATCH_SIZE = bs
     CHECKPOINT_PATH = os.path.join(".", "Weights_incremental_split", "leg")
-    MIN_TRAINING_IMAGES = 5
+    MIN_TRAINING_IMAGES = minTrainImages
 
     os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
