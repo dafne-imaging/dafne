@@ -325,8 +325,11 @@ modelObject = DynamicDLModel('ba333b4d-90e7-4108-aca5-9216f408d91e',
                              gamba_apply,
                              incremental_learn_function=leg_incremental_mem,
                              weights=weights,
-                             timestamp_id="1603281013"
+                             timestamp_id=None
                              )
 
-with open('models/Leg_1603281013.model', 'wb') as f:
+filename = f'models/Leg_{modelObject.timestamp_id}.model'
+with open(filename, 'wb') as f:
     modelObject.dump(f)
+
+print('Saved', filename)

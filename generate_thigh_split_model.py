@@ -327,8 +327,11 @@ modelObject = DynamicDLModel('210e2a21-1984-4e6f-8675-bf57bbabef2f',
                              coscia_apply,
                              incremental_learn_function=thigh_incremental_mem,
                              weights=weights,
-                             timestamp_id="1603281020"
+                             timestamp_id=None
                              )
 
-with open('models/Thigh_1603281020.model', 'wb') as f:
+filename = f'models/Thigh_{modelObject.timestamp_id}.model'
+with open(filename, 'wb') as f:
     modelObject.dump(f)
+
+print('Saved', filename)

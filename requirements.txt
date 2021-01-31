@@ -10,5 +10,6 @@ pypotrace
 dill
 progress
 keras
+appdirs
 SimpleITK # including Elastix
 pyradiomics # optional requirement

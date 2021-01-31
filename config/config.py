@@ -1,8 +1,29 @@
 import os
 import pickle
 from ui import GenericInputDialog
+from appdirs import AppDirs
 
-CONFIG_DIR = os.path.dirname(os.path.realpath(__file__))
+APP_NAME='Dafne'
+APP_DEVELOPER='Dafne-imaging'
+
+DEBUG_ENVIRONMENT = True # this changes all the directory locations
+
+if DEBUG_ENVIRONMENT:
+    class AppDirTemp:
+        pass
+
+    APP_DIR = os.path.abspath(
+        os.path.join(
+            os.path.dirname(os.path.join(os.path.realpath(__file__))), os.pardir))
+
+    app_dirs = AppDirTemp()
+    app_dirs.user_config_dir = os.path.join(APP_DIR, 'config')
+    app_dirs.user_data_dir = APP_DIR
+    app_dirs.user_cache_dir = APP_DIR
+else:
+    app_dirs = AppDirs(APP_NAME, APP_DEVELOPER)
+
+CONFIG_DIR = app_dirs.user_config_dir
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.pickle')
 
 ## Defaults
@@ -12,10 +33,8 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.pickle')
 ## Only elements with a visualization label are shown in the normal interface.
 
 defaults = {
-    # todo important: change
     'SERVER_URL': ('http://www.dafne.network:5000/', 'string', None),
-    #'SERVER_URL': ('http://localhost:5000/', 'string', None),
-    'API_KEY': ('abc123', 'string', 'Personal server access key'),
+    'API_KEY': ('', 'string', 'Personal server access key'),
     'USE_CLASSIFIER': (False, 'bool', None),
     'MODEL_PROVIDER': ('Local', 'option', ['Local', 'Remote'], 'Location of the deep learning models'),
     'MODEL_PATH': ('models', 'string', None),
@@ -39,13 +58,32 @@ defaults = {
     'AUTOSAVE_INTERVAL':  (30, 'int_slider', 1, 1000, 1, 'Interval for autosave (s)'),
     'HISTORY_LENGTH':  (20, 'int_slider', 1, 1000, 1, None),
     'SPLIT_LATERALITY': (True, 'bool', 'Separate L/R in autosegment'),
-    'ENABLE_DATA_UPLOAD': (False, 'bool', None)
 }
 
+# This part of the config is only stored here and can be changed by new software releases
+static_config = {
+    'ENABLE_DATA_UPLOAD': False,
+    'MODEL_PATH': os.path.join(app_dirs.user_data_dir, 'models'),
+    'MODEL_TEMP_UPLOAD_DIR': os.path.join(app_dirs.user_cache_dir, 'models_temp')
+}
+
+## Initialization
+
 GlobalConfig = { k: v[0] for k,v in defaults.items() }
+for k, v in static_config.items():
+    GlobalConfig[k] = v
+
+os.makedirs(CONFIG_DIR, exist_ok=True)
+os.makedirs(GlobalConfig['MODEL_PATH'], exist_ok=True)
+os.makedirs(GlobalConfig['MODEL_TEMP_UPLOAD_DIR'], exist_ok=True)
 
 def load_config():
     global GlobalConfig
+
+    # load defaults
+    for k, v in defaults.items():
+        GlobalConfig[k] = v[0]
+
     try:
         with open(CONFIG_FILE, 'rb') as f:
             stored_config = pickle.load(f)
@@ -53,7 +91,12 @@ def load_config():
         print("Warning no stored config file found!")
         stored_config = {}
 
+    # overwrite with stored configuration
     for k, v in stored_config.items():
+        GlobalConfig[k] = v
+
+    # static config always supersedes stored config
+    for k, v in static_config.items():
         GlobalConfig[k] = v
 
 
