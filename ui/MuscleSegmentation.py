@@ -134,10 +134,10 @@ class MuscleSegmentation(ImageShow, QObject):
     def resetModelProvider(self):
         available_models = None
         if GlobalConfig['MODEL_PROVIDER'] == 'Local':
-            model_provider = LocalModelProvider(GlobalConfig['MODEL_PATH'])
+            model_provider = LocalModelProvider(GlobalConfig['MODEL_PATH'], GlobalConfig['TEMP_UPLOAD_DIR'])
             available_models = model_provider.available_models()
         else:
-            model_provider = RemoteModelProvider(GlobalConfig['MODEL_PATH'], GlobalConfig['SERVER_URL'], GlobalConfig['API_KEY'])
+            model_provider = RemoteModelProvider(GlobalConfig['MODEL_PATH'], GlobalConfig['SERVER_URL'], GlobalConfig['API_KEY'], GlobalConfig['TEMP_UPLOAD_DIR'])
             fallback = False
             try:
                 available_models = model_provider.available_models()
@@ -154,14 +154,16 @@ class MuscleSegmentation(ImageShow, QObject):
 
             if fallback:
                 GlobalConfig['MODEL_PROVIDER'] = 'Local'
-                model_provider = LocalModelProvider(GlobalConfig['MODEL_PATH'])
+                model_provider = LocalModelProvider(GlobalConfig['MODEL_PATH'], GlobalConfig['TEMP_UPLOAD_DIR'])
                 available_models = model_provider.available_models()
 
         self.setModelProvider(model_provider)
 
         print(available_models)
-
-        available_models.remove('Classifier')
+        try:
+            available_models.remove('Classifier')
+        except ValueError: # Classifier doesn't exist. It doesn't matter
+            pass
         self.setAvailableClasses(available_models)
 
     @pyqtSlot()
@@ -1615,6 +1617,7 @@ class MuscleSegmentation(ImageShow, QObject):
                     #todo: adapt bs and minTrainImages if needed
                     model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2]},
                                                 training_outputs, bs=5, minTrainImages=5)
+                    model.reset_timestamp()
                 except Exception as e:
                     print("Error during incremental learning")
                     traceback.print_exc()
@@ -1896,7 +1899,10 @@ class MuscleSegmentation(ImageShow, QObject):
     def setModelProvider(self, modelProvider):
         self.model_provider = modelProvider
         if GlobalConfig['USE_CLASSIFIER']:
-            self.dl_classifier = modelProvider.load_model('Classifier')
+            try:
+                self.dl_classifier = modelProvider.load_model('Classifier')
+            except:
+                self.dl_classifier = None
         else:
             self.dl_classifier = None
 

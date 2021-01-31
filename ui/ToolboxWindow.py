@@ -191,6 +191,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         ## Menus
 
+        self.actionSave_as_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
+
         self.actionImport_ROIs.triggered.connect(self.importROI_clicked)
         self.actionExport_ROIs.triggered.connect(self.exportROI_clicked)
 
@@ -550,8 +552,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot()
     def loadData_clicked(self):
+        if config.GlobalConfig['ENABLE_NIFTI']:
+            filter = 'Image files (*.dcm *.ima *.nii *.nii.gz *.npy);;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;All files (*.*)'
+        else:
+            filter = 'Image files (*.dcm *.ima *.npy);;Dicom files (*.dcm *.ima);;Numpy files (*.npy);;All files (*.*)'
+
         dataFile, _ = QFileDialog.getOpenFileName(self, caption='Select dataset to import',
-                                                  filter='Image files (*.dcm *.ima *.nii *.nii.gz *.npy);;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;All files (*.*)')
+                                                  filter=filter)
         if dataFile:
             classifications = [(self.classification_combo.itemText(i), self.classification_combo.itemText(i)) for i in range(self.classification_combo.count())]
             if config.GlobalConfig['USE_CLASSIFIER']:

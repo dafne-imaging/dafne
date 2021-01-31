@@ -37,7 +37,7 @@ defaults = {
     'API_KEY': ('', 'string', 'Personal server access key'),
     'USE_CLASSIFIER': (False, 'bool', None),
     'MODEL_PROVIDER': ('Local', 'option', ['Local', 'Remote'], 'Location of the deep learning models'),
-    'MODEL_PATH': ('models', 'string', None),
+    'SPLIT_LATERALITY': (True, 'bool', 'Separate L/R in autosegment'),
     'DO_INCREMENTAL_LEARNING':  (True, 'bool', None),
     'ROI_CIRCLE_SIZE':  (2, 'int', 1, 200, 1, None),
     'SIMPLIFIED_ROI_POINTS':  (20, 'int', 1, 200, 1, None),
@@ -56,15 +56,15 @@ defaults = {
     'BRUSH_ERASE_COLOR':  ((0, 0, 1, 0.6), 'color', 'Brush color - erase'),
     'ROI_FILENAME':  ('rois.p', 'string', None),
     'AUTOSAVE_INTERVAL':  (30, 'int_slider', 1, 1000, 1, 'Interval for autosave (s)'),
-    'HISTORY_LENGTH':  (20, 'int_slider', 1, 1000, 1, None),
-    'SPLIT_LATERALITY': (True, 'bool', 'Separate L/R in autosegment'),
+    'HISTORY_LENGTH':  (20, 'int_slider', 1, 1000, 1, None)
 }
 
 # This part of the config is only stored here and can be changed by new software releases
 static_config = {
     'ENABLE_DATA_UPLOAD': False,
     'MODEL_PATH': os.path.join(app_dirs.user_data_dir, 'models'),
-    'MODEL_TEMP_UPLOAD_DIR': os.path.join(app_dirs.user_cache_dir, 'models_temp')
+    'TEMP_UPLOAD_DIR': os.path.join(app_dirs.user_cache_dir, 'upload_temp'),
+    'ENABLE_NIFTI': False
 }
 
 ## Initialization
@@ -75,7 +75,7 @@ for k, v in static_config.items():
 
 os.makedirs(CONFIG_DIR, exist_ok=True)
 os.makedirs(GlobalConfig['MODEL_PATH'], exist_ok=True)
-os.makedirs(GlobalConfig['MODEL_TEMP_UPLOAD_DIR'], exist_ok=True)
+os.makedirs(GlobalConfig['TEMP_UPLOAD_DIR'], exist_ok=True)
 
 def load_config():
     global GlobalConfig
