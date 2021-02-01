@@ -256,9 +256,8 @@ def coscia_apply(modelObj: DynamicDLModel, data: dict):
             outputLabels[labelName + '_L'] = (labelsMask_right == labelValue).astype(np.int8)
         return outputLabels
     else:
-        labelsMask = np.logical_or(labelsMask_left, labelsMask_right)
         for labelValue, labelName in LABELS_DICT.items():
-            outputLabels[labelName] = (labelsMask == labelValue).astype(np.int8)
+            outputLabels[labelName] = np.logical_or(labelsMask_left == labelValue, labelsMask_right == labelValue).astype(np.int8)
         return outputLabels
 
 
