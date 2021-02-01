@@ -1268,8 +1268,8 @@ class MuscleSegmentation(ImageShow, QObject):
         #plt.draw() - already in redraw
 
     def closeCB(self, event):
-        if not self.basepath: return
         self.toolbox_window.close()
+        if not self.basepath: return
         if self.transformsChanged: self.pickleTransforms()
         self.saveROIPickle()
 
