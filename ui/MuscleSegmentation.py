@@ -160,10 +160,6 @@ class MuscleSegmentation(ImageShow, QObject):
         self.setModelProvider(model_provider)
 
         print(available_models)
-        try:
-            available_models.remove('Classifier')
-        except ValueError: # Classifier doesn't exist. It doesn't matter
-            pass
         self.setAvailableClasses(available_models)
 
     @pyqtSlot()
@@ -311,6 +307,8 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.toolbox_window.config_changed.connect(self.configChanged)
         self.toolbox_window.data_upload.connect(self.uploadData)
+
+        self.toolbox_window.model_import.connect(self.importModel)
 
 
     def setSplash(self, is_splash, current_value, maximum_value, text= ""):
@@ -1896,6 +1894,26 @@ class MuscleSegmentation(ImageShow, QObject):
     ###
     ########################################################################################
 
+    @pyqtSlot(str, str)
+    def importModel(self, modelFile, modelName):
+        if not isinstance(self.model_provider, LocalModelProvider):
+            print('Trying to import a model in a non-local provider')
+            return
+
+        self.setSplash(True, 0, 1, 'Importing model...')
+
+        try:
+            self.model_provider.import_model(modelFile, modelName)
+        except Exception as err:
+            self.alert('Error while importing model. Probably invalid model')
+            self.setSplash(False, 0, 1, 'Importing model...')
+            traceback.print_exc()
+            return
+        self.setSplash(True, 1, 1, 'Importing model...')
+        self.alert('Model imported successfully')
+        self.setSplash(False, 1, 1, 'Importing model...')
+        self.setAvailableClasses(self.model_provider.available_models())
+
     def setModelProvider(self, modelProvider):
         self.model_provider = modelProvider
         if GlobalConfig['USE_CLASSIFIER']:
@@ -1907,6 +1925,10 @@ class MuscleSegmentation(ImageShow, QObject):
             self.dl_classifier = None
 
     def setAvailableClasses(self, classList):
+        try:
+            classList.remove('Classifier')
+        except ValueError: # Classifier doesn't exist. It doesn't matter
+            pass
         for i, classification in enumerate(self.classifications[:]):
             if classification not in classList:
                 self.classifications[i] = 'None'

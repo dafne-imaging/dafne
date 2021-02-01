@@ -590,6 +590,7 @@
     <addaction name="actionImport_masks"/>
     <addaction name="menuSave_masks"/>
     <addaction name="separator"/>
+    <addaction name="actionImport_model"/>
     <addaction name="action_Upload_data"/>
    </widget>
    <widget class="QMenu" name="menuTools">
@@ -693,6 +694,11 @@
   <action name="action_Upload_data">
    <property name="text">
     <string>! Upload data...</string>
+   </property>
+  </action>
+  <action name="actionImport_model">
+   <property name="text">
+    <string>Import model...</string>
    </property>
   </action>
  </widget>

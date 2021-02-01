@@ -6,16 +6,19 @@ from appdirs import AppDirs
 APP_NAME='Dafne'
 APP_DEVELOPER='Dafne-imaging'
 
-DEBUG_ENVIRONMENT = True # this changes all the directory locations.
+APP_DIR = os.path.abspath(
+    os.path.join(
+        os.path.dirname(os.path.join(os.path.realpath(__file__))), os.pardir))
+
+DEBUG_ENVIRONMENT = os.path.isfile(os.path.join(APP_DIR, 'use_local_directories')) # this changes all the directory locations.
 # True means local directories, False means system standard
 
 if DEBUG_ENVIRONMENT:
+
+    print('Using local directories for configuration')
+
     class AppDirTemp:
         pass
-
-    APP_DIR = os.path.abspath(
-        os.path.join(
-            os.path.dirname(os.path.join(os.path.realpath(__file__))), os.pardir))
 
     app_dirs = AppDirTemp()
     app_dirs.user_config_dir = os.path.join(APP_DIR, 'config')
@@ -62,7 +65,7 @@ defaults = {
 
 # This part of the config is only stored here and can be changed by new software releases
 static_config = {
-    'ENABLE_DATA_UPLOAD': False,
+    'ENABLE_DATA_UPLOAD': True,
     'MODEL_PATH': os.path.join(app_dirs.user_data_dir, 'models'),
     'TEMP_UPLOAD_DIR': os.path.join(app_dirs.user_cache_dir, 'upload_temp'),
     'ENABLE_NIFTI': False

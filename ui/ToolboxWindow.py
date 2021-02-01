@@ -109,6 +109,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     data_upload = pyqtSignal(str)
 
+    model_import = pyqtSignal(str, str)
+
     NO_STATE = 0
     ADD_STATE = 1
     REMOVE_STATE = 2
@@ -191,8 +193,6 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         ## Menus
 
-        self.actionSave_as_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
-
         self.actionImport_ROIs.triggered.connect(self.importROI_clicked)
         self.actionExport_ROIs.triggered.connect(self.exportROI_clicked)
 
@@ -222,10 +222,33 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionCombine_roi.setEnabled(False)
 
         self.action_Upload_data.triggered.connect(self.do_upload_data)
-        if not config.GlobalConfig['ENABLE_DATA_UPLOAD']:
-            self.action_Upload_data.setVisible(False)
-        else:
-            self.action_Upload_data.setVisible(True)
+
+        self.actionImport_model.triggered.connect(self.do_import_model)
+
+        self.reload_config()
+        self.config_changed.connect(self.reload_config)
+
+        self.resize(self.mainUIWidget.sizeHint())
+
+    @pyqtSlot()
+    def reload_config(self):
+        # all config-dependent UI elements go here
+        self.action_Upload_data.setVisible(config.GlobalConfig['ENABLE_DATA_UPLOAD'])
+        self.actionSave_as_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
+        self.actionImport_model.setVisible(config.GlobalConfig['MODEL_PROVIDER'] == 'Local')
+        self.action_Upload_data.setVisible(config.GlobalConfig['MODEL_PROVIDER'] == 'Remote')
+
+    @pyqtSlot()
+    def do_import_model(self):
+        modelFile, _ = QFileDialog.getOpenFileName(self, caption='Select model to import',
+                                                   filter='Model files (*.model);;All files (*.*)')
+        if modelFile:
+            accept, values = GenericInputDialog.show_dialog('Model Import', [
+                GenericInputDialog.TextLineInput('Model name')
+            ], self)
+            if accept:
+                modelName = values[0]
+                self.model_import.emit(modelFile, modelName)
 
     @pyqtSlot()
     @ask_confirm(UPLOAD_DATA_TXT_1)
