@@ -39,9 +39,9 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.pickle')
 
 defaults = {
     'SERVER_URL': ('https://www.dafne.network:5001/', 'string', None),
-    'API_KEY': ('', 'string', 'Personal server access key'),
     'USE_CLASSIFIER': (False, 'bool', None),
-    'MODEL_PROVIDER': ('Local', 'option', ['Local', 'Remote'], 'Location of the deep learning models'),
+    'MODEL_PROVIDER': ('Local', 'option', ['Local', 'Remote'], 'Model location'),
+    'API_KEY': ('', 'string', 'Personal server access key'),
     'SPLIT_LATERALITY': (True, 'bool', 'Separate L/R in autosegment'),
     'DO_INCREMENTAL_LEARNING':  (True, 'bool', None),
     'ROI_CIRCLE_SIZE':  (2, 'int', 1, 200, 1, None),

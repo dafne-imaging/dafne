@@ -1558,6 +1558,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.unPickleTransforms()
         #self.loadROIPickle()
         self.redraw()
+        self.toolbox_window.general_enable(True)
         self.toolbox_window.set_exports_enabled(numpy= True,
                                                 dicom= (self.dicomHeaderList is not None),
                                                 nifti= (self.affine is not None)

@@ -223,7 +223,20 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.reload_config()
         self.config_changed.connect(self.reload_config)
 
+        self.general_enable(False)
+
         self.resize(self.mainUIWidget.sizeHint())
+
+    @pyqtSlot()
+    def general_enable(self, enabled = True):
+        self.mainUIWidget.setEnabled(enabled)
+        self.actionImport_ROIs.setEnabled(enabled)
+        self.actionExport_ROIs.setEnabled(enabled)
+        self.actionImport_masks.setEnabled(enabled)
+        self.menuSave_masks.setEnabled(enabled)
+        self.action_Upload_data.setEnabled(enabled)
+        self.actionCalculate_statistics.setEnabled(enabled)
+        self.actionPyRadiomics.setEnabled(enabled)
 
     @pyqtSlot()
     def reload_config(self):
