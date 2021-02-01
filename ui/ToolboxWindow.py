@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Oct 19 16:07:32 2020
-
-@author: francesco
-"""
 import functools
 
 import os

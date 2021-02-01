@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Oct 19 10:32:50 2020
-
-@author: francesco
-"""
 from dl.DynamicDLModel import DynamicDLModel
 from utils.dicomUtils import loadDicomFile
 #import numpy as np

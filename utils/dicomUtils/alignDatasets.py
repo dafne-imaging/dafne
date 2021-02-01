@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Fri Jul  5 16:24:26 2019
-
-@author: francesco
-"""
 import math
 import numpy as np
 import scipy.ndimage as ndimage

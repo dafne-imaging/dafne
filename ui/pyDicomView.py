@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Feb 18 09:26:07 2015
-
-@author: francesco
-"""
 
 import matplotlib.pyplot as plt
 try:

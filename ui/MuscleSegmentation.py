@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Fri Oct 16 15:14:33 2020
-
-@author: francesco
-
-"""
 import matplotlib
 
 matplotlib.use("Qt5Agg")

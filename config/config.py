@@ -25,6 +25,7 @@ if DEBUG_ENVIRONMENT:
     app_dirs.user_data_dir = APP_DIR
     app_dirs.user_cache_dir = APP_DIR
 else:
+    print('Using system directories for configuration')
     app_dirs = AppDirs(APP_NAME, APP_DEVELOPER)
 
 CONFIG_DIR = app_dirs.user_config_dir
@@ -107,6 +108,7 @@ def load_config():
 def save_config():
     with open(CONFIG_FILE, 'wb') as f:
         pickle.dump(GlobalConfig, f)
+
 
 def show_config_dialog(parent=None, show_all=False):
     option_list = []

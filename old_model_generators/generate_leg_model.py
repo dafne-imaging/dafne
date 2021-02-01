@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Oct 18 09:36:01 2020
-
-@author: francesco
-"""
 
 from dl.DynamicDLModel import DynamicDLModel
 import numpy as np # this is assumed to be available in every context

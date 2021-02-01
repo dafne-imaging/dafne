@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Mar  3 12:10:41 2015
-
-@author: francesco
-"""
 import os
 # Hide tensorflow warnings; set to 1 to see warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # or any {'0', '1', '2', '3'}

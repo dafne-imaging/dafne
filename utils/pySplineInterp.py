@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Mar  2 15:10:45 2015
-
-@author: francesco
-"""
 from numpy import linalg
 from scipy.interpolate import splprep, splev
 import numpy as np
