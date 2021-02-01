@@ -6,7 +6,8 @@ from appdirs import AppDirs
 APP_NAME='Dafne'
 APP_DEVELOPER='Dafne-imaging'
 
-DEBUG_ENVIRONMENT = True # this changes all the directory locations
+DEBUG_ENVIRONMENT = True # this changes all the directory locations.
+# True means local directories, False means system standard
 
 if DEBUG_ENVIRONMENT:
     class AppDirTemp:
