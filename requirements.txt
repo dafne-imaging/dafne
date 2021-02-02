@@ -11,5 +11,7 @@ dill
 progress
 keras
 appdirs
+requests
+scikit-image
 SimpleITK # including Elastix
 pyradiomics # optional requirement

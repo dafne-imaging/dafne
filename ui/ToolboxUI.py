@@ -1,20 +1,5 @@
 # -*- coding: utf-8 -*-
 
-#  Copyright (c) 2021 Dafne-Imaging Team
-#
-#  This program is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 # Form implementation generated from reading ui file 'toolbox.ui'
 #
 # Created by: PyQt5 UI code generator 5.12.3
@@ -224,7 +209,7 @@ class Ui_SegmentationToolbox(object):
         sizePolicy.setHeightForWidth(self.brushsize_slider.sizePolicy().hasHeightForWidth())
         self.brushsize_slider.setSizePolicy(sizePolicy)
         self.brushsize_slider.setMinimum(0)
-        self.brushsize_slider.setMaximum(15)
+        self.brushsize_slider.setMaximum(20)
         self.brushsize_slider.setSingleStep(1)
         self.brushsize_slider.setPageStep(10)
         self.brushsize_slider.setProperty("value", 5)
