@@ -344,7 +344,7 @@ modelObject = DynamicDLModel('ba333b4d-90e7-4108-aca5-9216f408d91e',
                              gamba_apply,
                              incremental_learn_function=leg_incremental_mem,
                              weights=weights,
-                             timestamp_id=None
+                             timestamp_id=1610001000
                              )
 
 filename = f'models/Leg_{modelObject.timestamp_id}.model'

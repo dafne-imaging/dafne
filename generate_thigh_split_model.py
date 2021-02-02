@@ -346,7 +346,7 @@ modelObject = DynamicDLModel('210e2a21-1984-4e6f-8675-bf57bbabef2f',
                              coscia_apply,
                              incremental_learn_function=thigh_incremental_mem,
                              weights=weights,
-                             timestamp_id=None
+                             timestamp_id=1610001000
                              )
 
 filename = f'models/Thigh_{modelObject.timestamp_id}.model'
