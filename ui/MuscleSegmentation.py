@@ -579,7 +579,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
                 if originalSegmentation is not None:
                     diceScores.append(calc_dice_score(originalSegmentation, roi))
-                    print(diceScores)
+                    #print(diceScores)
 
                 # TODO: maybe add this to the training according to the dice score?
                 classification_name = self.classifications[imageIndex]
