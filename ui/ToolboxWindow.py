@@ -354,7 +354,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot(int)
     def brushsliderCB(self, value):
-        self.brushsize_label.setText(str(value*2+1))
+        #self.brushsize_label.setText(str(value*2+1))
+        self.brushsize_label.setText(str(value))
 
     def get_brush(self):
         brush_size = int(self.brushsize_label.text())

@@ -74,10 +74,7 @@ class PixelatedCircleBrush(Polygon):
     def to_mask(self, shape):
         mask = np.zeros(shape, dtype=np.uint8)
         mask[0:self.base_mask.shape[0], 0:self.base_mask.shape[1]] = self.base_mask
-        if self.radius > 1:
-            mask = shift(mask, (self.center[1] - self.radius, self.center[0] - self.radius), order=0, prefilter=False)
-        else:
-            mask = shift(mask, (self.center[1], self.center[0]), order=0, prefilter=False)
+        mask = shift(mask, (self.center[1] - self.radius, self.center[0] - self.radius), order=0, prefilter=False)
         return mask
 
     def _recalculate_xy(self):
@@ -85,7 +82,7 @@ class PixelatedCircleBrush(Polygon):
         self.set_xy(xy)
 
     def _recalculate_vertices(self):
-        if self.radius == 1:
+        if self.radius == 0:
             self.base_mask = np.ones((1,1), dtype=np.uint8)
             self.point_array = np.array([[0,0],[1,0],[1,1],[0,1]]) - 0.5
             return
