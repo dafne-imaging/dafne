@@ -137,6 +137,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.extraOutputParams = []
         self.transformsChanged = False
 
+        self.workDir = os.getcwd()
+
         self.hideRois = False
         self.editMode = ToolboxWindow.EDITMODE_MASK
         self.resetInternalState()
@@ -247,6 +249,12 @@ class MuscleSegmentation(ImageShow, QObject):
         self.translateDelta = None
         self.rotationDelta = None
 
+    def moveToTempDir(self):
+        self.workDir = os.getcwd()
+        os.chdir(GlobalConfig['TEMP_DIR'])
+
+    def moveToWorkDir(self):
+        os.chdir(self.workDir)
 
 
     #############################################################################################
@@ -922,10 +930,12 @@ class MuscleSegmentation(ImageShow, QObject):
         elastixImageFilter.SetMovingImage(sitk.GetImageFromArray(movingImage))
         print("Registering...")
 
+        self.moveToTempDir()
         elastixImageFilter.Execute()
         print("Done")
         pMap = elastixImageFilter.GetTransformParameterMap()
         self.cleanElastixFiles()
+        self.moveToWorkDir()
         return pMap
 
     def calcTransforms(self):
@@ -986,11 +996,13 @@ class MuscleSegmentation(ImageShow, QObject):
         transformixImageFilter.SetTransformParameterMap(transform)
 
         transformixImageFilter.SetMovingImage(sitk.GetImageFromArray(mask))
+        self.moveToTempDir()
         transformixImageFilter.Execute()
 
         mask_out = sitk.GetArrayFromImage(transformixImageFilter.GetResultImage())
 
         self.cleanElastixFiles()
+        self.moveToWorkDir()
 
         return mask_out.astype(np.uint8)
 
@@ -1002,6 +1014,8 @@ class MuscleSegmentation(ImageShow, QObject):
 
         transformixImageFilter.SetTransformParameterMap(transform)
 
+        self.moveToTempDir()
+
         # create Transformix point file
         with open("TransformixPoints.txt", "w") as f:
             f.write("point\n")
@@ -1009,6 +1023,7 @@ class MuscleSegmentation(ImageShow, QObject):
             for k in knots:
                 # f.write("%.3f %.3f\n" % (k[0], k[1]))
                 f.write("%.3f %.3f\n" % (k[0], k[1]))
+
 
         transformixImageFilter.SetFixedPointSetFileName("TransformixPoints.txt")
         transformixImageFilter.SetOutputDirectory(".")
@@ -1025,6 +1040,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 knotsOut.append(knot)
 
         self.cleanElastixFiles()
+        self.moveToWorkDir()
 
         return knotsOut
 

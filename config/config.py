@@ -84,6 +84,7 @@ static_config = {
     'ENABLE_DATA_UPLOAD': True,
     'MODEL_PATH': os.path.join(app_dirs.user_data_dir, 'models'),
     'TEMP_UPLOAD_DIR': os.path.join(app_dirs.user_cache_dir, 'upload_temp'),
+    'TEMP_DIR': os.path.join(app_dirs.user_cache_dir, 'temp'),
     'ENABLE_NIFTI': False
 }
 
@@ -96,6 +97,7 @@ for k, v in static_config.items():
 os.makedirs(CONFIG_DIR, exist_ok=True)
 os.makedirs(GlobalConfig['MODEL_PATH'], exist_ok=True)
 os.makedirs(GlobalConfig['TEMP_UPLOAD_DIR'], exist_ok=True)
+os.makedirs(GlobalConfig['TEMP_DIR'], exist_ok=True)
 
 def load_config():
     global GlobalConfig
