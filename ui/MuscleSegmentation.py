@@ -138,6 +138,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.transformsChanged = False
 
         self.workDir = os.getcwd()
+        print("Work dir", self.workDir)
 
         self.hideRois = False
         self.editMode = ToolboxWindow.EDITMODE_MASK

@@ -21,7 +21,7 @@ import functools
 import os
 from ui.ToolboxUI import Ui_SegmentationToolbox
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt
-from PyQt5.QtGui import QMovie
+from PyQt5.QtGui import QMovie, QIcon, QPixmap
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog, QApplication, QDialog, \
                             QVBoxLayout, QPushButton
 from PyQt5.QtSvg import QSvgWidget
@@ -29,8 +29,11 @@ from . import GenericInputDialog
 import config
 import platform
 
-SPLASH_ANIMATION_PATH = os.path.join("ui", "images", "dafne_anim.gif")
-ABOUT_SVG_PATH = os.path.join("ui", "images", "about_paths.svg")
+#print("Toolbox Window Path", os.path.abspath(__file__))
+UI_PATH = os.path.dirname(os.path.abspath(__file__))
+
+SPLASH_ANIMATION_PATH = os.path.join(UI_PATH, "images", "dafne_anim.gif")
+ABOUT_SVG_PATH = os.path.join(UI_PATH, "images", "about_paths.svg")
 
 UPLOAD_DATA_TXT_1 = \
 """<h2>!!! This will upload your data to our servers !!!</h2>
@@ -147,10 +150,19 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.rotateContour_button: self.ROTATE_STATE
         }
 
+        self.setWindowFlag(Qt.WindowCloseButtonHint, False)
+
         if platform.system() == 'Darwin':
             self.menubar.setNativeMenuBar(False) # native menu bar behaves weirdly in Mac OS
+            icon = QIcon()    
+            icon.addPixmap(QPixmap(os.path.join(UI_PATH, 'images', 'circle.png')), QIcon.Normal, QIcon.Off)
+            self.circlebrush_button.setIcon(icon)
+            icon1 = QIcon()
+            icon1.addPixmap(QPixmap(os.path.join(UI_PATH, 'images', 'square.png')), QIcon.Normal, QIcon.Off)
+            self.squarebrush_button.setIcon(icon1)
+            self.setWindowFlag(Qt.CustomizeWindowHint, True)
 
-        self.setWindowFlag(Qt.WindowCloseButtonHint, False)
+        
         self.setWindowTitle("Segmentation Toolbox")
         self.splashWidget.setVisible(False)
         self.all_rois = {}
