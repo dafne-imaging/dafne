@@ -27,6 +27,7 @@ from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog,
 from PyQt5.QtSvg import QSvgWidget
 from . import GenericInputDialog
 import config
+import platform
 
 SPLASH_ANIMATION_PATH = os.path.join("ui", "images", "dafne_anim.gif")
 ABOUT_SVG_PATH = os.path.join("ui", "images", "about_paths.svg")
@@ -145,6 +146,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.translateContour_button: self.TRANSLATE_STATE,
             self.rotateContour_button: self.ROTATE_STATE
         }
+
+        if platform.system() == 'Darwin':
+            self.actionPreferences.setText(' Preferences') # need to change the name for MacOS otherwise it's not shown
 
         self.setWindowFlag(Qt.WindowCloseButtonHint, False)
         self.setWindowTitle("Segmentation Toolbox")
