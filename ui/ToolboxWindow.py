@@ -148,7 +148,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         }
 
         if platform.system() == 'Darwin':
-            self.actionPreferences.setText(' Preferences') # need to change the name for MacOS otherwise it's not shown
+            self.menubar.setNativeMenuBar(False) # native menu bar behaves weirdly in Mac OS
 
         self.setWindowFlag(Qt.WindowCloseButtonHint, False)
         self.setWindowTitle("Segmentation Toolbox")
