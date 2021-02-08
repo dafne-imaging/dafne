@@ -80,7 +80,7 @@ def ask_confirm(text):
 
 
 class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
-    do_autosegment = pyqtSignal()
+    do_autosegment = pyqtSignal(int, int)
     contour_optimize = pyqtSignal()
     contour_simplify = pyqtSignal()
     contour_propagate_fw = pyqtSignal()
@@ -139,7 +139,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     EDITMODE_CONTOUR = 'Contour'
 
 
-    def __init__(self, activate_registration=True, activate_radiomics=True):
+    def __init__(self, muscle_segmentation_window, activate_registration=True, activate_radiomics=True):
         super(ToolboxWindow, self).__init__()
         self.setupUi(self)
 
@@ -149,6 +149,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.translateContour_button: self.TRANSLATE_STATE,
             self.rotateContour_button: self.ROTATE_STATE
         }
+
+        self.muscle_segmentation_window = muscle_segmentation_window
 
         self.setWindowFlag(Qt.WindowCloseButtonHint, False)
 
@@ -182,6 +184,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.removeerase_button.clicked.connect(self.manage_edit_toggle)
         self.translateContour_button.clicked.connect(self.manage_edit_toggle)
         self.rotateContour_button.clicked.connect(self.manage_edit_toggle)
+
+        self.eraseFromAllROIs_checkbox.setVisible(False)
 
         self.edit_state = self.NO_STATE
         self.temp_edit_state = None
@@ -380,6 +384,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             brush_type = self.BRUSH_CIRCLE
         return brush_type, brush_size
 
+    def get_erase_from_all_rois(self):
+        return self.eraseFromAllROIs_checkbox.isChecked()
+
     def get_edit_mode(self):
         if self.editmode_combo.currentText() == self.EDITMODE_MASK:
             return self.EDITMODE_MASK
@@ -401,6 +408,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.translateContour_button.setChecked(False)
             self.rotateContour_button.setChecked(False)
             #self.removeall_button.setVisible(False)
+            self.eraseFromAllROIs_checkbox.setVisible(self.edit_state == self.REMOVE_STATE)
             self.editmode_changed.emit(self.EDITMODE_MASK)
         else:
             self.subroi_widget.setVisible(True)
@@ -410,6 +418,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.addpaint_button.setText("Add/Move")
             self.removeerase_button.setText("Remove")
             #self.removeall_button.setVisible(True)
+            self.eraseFromAllROIs_checkbox.setVisible(False)
             self.editmode_changed.emit(self.EDITMODE_CONTOUR)
 
     @pyqtSlot(bool)
@@ -459,6 +468,10 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
                 obj.setChecked(True)
             else:
                 obj.setChecked(False)
+        if self.get_edit_mode() == self.EDITMODE_MASK and self.edit_state == self.REMOVE_STATE:
+            self.eraseFromAllROIs_checkbox.setVisible(True)
+        else:
+            self.eraseFromAllROIs_checkbox.setVisible(False)
 
     @pyqtSlot()
     def restore_edit_button_state(self):
@@ -597,10 +610,17 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def on_classification_change_all(self):
         self.classification_change_all.emit(self.classification_combo.currentText())
 
-    @pyqtSlot(name="on_do_segmentation")
-    @ask_confirm("This might replace the existing segmentation")
+    @pyqtSlot()
     def on_do_segmentation(self, *args, **kwargs):
-        self.do_autosegment.emit()
+        cur_slice = self.muscle_segmentation_window.curImage
+        min_slice = 0
+        max_slice = len(self.muscle_segmentation_window.imList)-1
+        accept, values = GenericInputDialog.show_dialog('Define slice range', [
+                GenericInputDialog.IntSpinInput('Start slice', cur_slice, min_slice, max_slice),
+                GenericInputDialog.IntSpinInput('End slice', cur_slice, min_slice, max_slice)
+            ], self, message='Warning! This might replace the existing segmentation!')
+        if accept:
+            self.do_autosegment.emit(values[0], values[1])
 
     @pyqtSlot()
     @ask_confirm("This will calculate nonrigid transformations for all slices. It will take a few minutes")

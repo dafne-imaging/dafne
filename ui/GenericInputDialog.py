@@ -426,7 +426,7 @@ class PageWidget(QWidget):
 
 class GenericDialog(QDialog):
 
-    def __init__(self, title: str, input_list: list[InputClass], entries_per_page: int=10, parent=None):
+    def __init__(self, title: str, input_list: list[InputClass], entries_per_page: int=10, parent=None, message=None):
         QDialog.__init__(self, parent)
         self.setWindowTitle(title)
         self.verticalLayout = QVBoxLayout(self)
@@ -458,6 +458,12 @@ class GenericDialog(QDialog):
                 current_entry_number = 1
             current_page.add_object(input_obj.get_label(), input_obj.get_widget())
 
+        if message:
+            messageLabel = QLabel()
+            messageLabel.setText(message)
+            self.verticalLayout.addWidget(messageLabel)
+
+
         self.verticalLayout.addWidget(self.tabWidget)
         self.verticalLayout.addWidget(self.buttonBox)
 
@@ -478,8 +484,8 @@ class GenericDialog(QDialog):
 
 
 ## This is the main function that should be called
-def show_dialog(title: str, input_list: list[InputClass], parent=None, entries_per_page=10) -> (bool, MixedDict):
-    dialog = GenericDialog(title, input_list, entries_per_page, parent)
+def show_dialog(title: str, input_list: list[InputClass], parent=None, entries_per_page=10, message=None) -> (bool, MixedDict):
+    dialog = GenericDialog(title, input_list, entries_per_page, parent, message)
     dialog.exec()
     # this will stop until the dialog is closed
     if dialog.accepted is None:

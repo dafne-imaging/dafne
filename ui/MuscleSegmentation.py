@@ -272,7 +272,7 @@ class MuscleSegmentation(ImageShow, QObject):
             print("Elastix is not available")
             showRegistrationGui = False
 
-        self.toolbox_window = ToolboxWindow(activate_registration=showRegistrationGui, activate_radiomics= (radiomics is not None))
+        self.toolbox_window = ToolboxWindow(self, activate_registration=showRegistrationGui, activate_radiomics= (radiomics is not None))
         self.toolbox_window.show()
 
         self.toolbox_window.editmode_changed.connect(self.changeEditMode)
@@ -287,7 +287,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.toolbox_window.roi_clear.connect(self.clearCurrentROI)
 
-        self.toolbox_window.do_autosegment.connect(self.doSegmentation)
+        self.toolbox_window.do_autosegment.connect(self.doSegmentationMultislice)
 
         self.toolbox_window.classification_changed.connect(self.changeClassification)
         self.toolbox_window.classification_change_all.connect(self.changeAllClassifications)
@@ -1382,8 +1382,10 @@ class MuscleSegmentation(ImageShow, QObject):
             np.logical_or(self.activeMask, self.brush_patch.to_mask(self.activeMask.shape), out=self.activeMask)
         elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
             if saveSnapshot: self.saveSnapshot()
-            np.logical_and(self.activeMask, np.logical_not(self.brush_patch.to_mask(self.activeMask.shape)),
-                           out=self.activeMask)
+            eraseMask = np.logical_not(self.brush_patch.to_mask(self.activeMask.shape))
+            np.logical_and(self.activeMask, eraseMask, out=self.activeMask)
+            if self.toolbox_window.get_erase_from_all_rois():
+                np.logical_and(self.otherMask, eraseMask, out=self.otherMask)
         self.redraw()
 
     # override from ImageShow
@@ -1469,6 +1471,10 @@ class MuscleSegmentation(ImageShow, QObject):
         self.rotationDelta = None
         if self.editMode == ToolboxWindow.EDITMODE_MASK:
             self.roiManager.set_mask(self.getCurrentROIName(), self.curImage, self.activeMask)
+            if self.toolbox_window.get_erase_from_all_rois():
+                for (key_tuple, mask) in self.roiManager.all_masks(image_number=self.curImage):
+                    if key_tuple[0] == self.getCurrentROIName(): continue
+                    self.roiManager.set_mask(key_tuple[0], key_tuple[1], np.logical_and(mask, self.otherMask))
 
     def rightPressCB(self, event):
         self.hideRois = GlobalConfig['HIDE_ROIS_RIGHTCLICK']
@@ -1979,9 +1985,19 @@ class MuscleSegmentation(ImageShow, QObject):
         for i in range(len(self.classifications)):
             self.classifications[i] = newClass
 
+    @pyqtSlot(int, int)
+    @separate_thread_decorator
+    def doSegmentationMultislice(self, min_slice, max_slice):
+        if min_slice > max_slice: # invert order if one is bigger than the other
+            min_slice, max_slice = max_slice, min_slice
+
+        for slice_number in range(min_slice, max_slice+1):
+            self.displayImage(slice_number)
+            self.doSegmentation()
+            time.sleep(0.5)
+
     @pyqtSlot()
     @snapshotSaver
-    @separate_thread_decorator
     def doSegmentation(self):
         # run the segmentation
         imIndex = int(self.curImage)
