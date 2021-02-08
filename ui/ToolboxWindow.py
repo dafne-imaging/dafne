@@ -625,7 +625,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @pyqtSlot()
     @ask_confirm("This will calculate nonrigid transformations for all slices. It will take a few minutes")
     def do_registration(self):
-        self.do_registration.emit()
+        self.calculate_transforms.emit()
 
     @pyqtSlot()
     def loadMask_clicked(self):

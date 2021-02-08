@@ -56,6 +56,8 @@ import traceback
 from dl.LocalModelProvider import LocalModelProvider
 from dl.RemoteModelProvider import RemoteModelProvider
 
+from utils.RegistrationManager import RegistrationManager
+
 import requests
 
 try:
@@ -135,10 +137,8 @@ class MuscleSegmentation(ImageShow, QObject):
 
         # self.setCmap('viridis')
         self.extraOutputParams = []
-        self.transformsChanged = False
 
-        self.workDir = os.getcwd()
-        print("Work dir", self.workDir)
+        self.registrationManager = None
 
         self.hideRois = False
         self.editMode = ToolboxWindow.EDITMODE_MASK
@@ -238,8 +238,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.roiChanged = {}
         self.history = deque(maxlen=GlobalConfig['HISTORY_LENGTH'])
         self.currentHistoryPoint = 0
-        self.transforms = {}
-        self.invtransforms = {}
+
+        self.registrationManager = None
 
         self.resetModelProvider()
         self.resetInterface()
@@ -249,13 +249,6 @@ class MuscleSegmentation(ImageShow, QObject):
         self.currentPoint = None
         self.translateDelta = None
         self.rotationDelta = None
-
-    def moveToTempDir(self):
-        self.workDir = os.getcwd()
-        os.chdir(GlobalConfig['TEMP_DIR'])
-
-    def moveToWorkDir(self):
-        os.chdir(self.workDir)
 
 
     #############################################################################################
@@ -894,72 +887,16 @@ class MuscleSegmentation(ImageShow, QObject):
     ###
     #####################################################################################################
 
-    def getInverseTransform(self, imIndex):
-        try:
-            return self.invtransforms[imIndex]
-        except KeyError:
-            self.calcInverseTransform(imIndex)
-            return self.invtransforms[imIndex]
-
-    def getTransform(self, imIndex):
-        try:
-            return self.transforms[imIndex]
-        except KeyError:
-            self.calcTransform(imIndex)
-            return self.transforms[imIndex]
-
-    def calcTransform(self, imIndex):
-        if imIndex >= len(self.imList) - 1: return
-        fixedImage = self.imList[imIndex]
-        movingImage = self.imList[imIndex + 1]
-        self.transforms[imIndex] = self.runElastix(fixedImage, movingImage)
-        self.transformsChanged = True
-
-    def calcInverseTransform(self, imIndex):
-        if imIndex < 1: return
-        fixedImage = self.imList[imIndex]
-        movingImage = self.imList[imIndex - 1]
-        self.invtransforms[imIndex] = self.runElastix(fixedImage, movingImage)
-        self.transformsChanged = True
-
-    def runElastix(self, fixedImage, movingImage):
-        elastixImageFilter = sitk.ElastixImageFilter()
-        elastixImageFilter.SetLogToConsole(False)
-        elastixImageFilter.SetLogToFile(False)
-
-        elastixImageFilter.SetFixedImage(sitk.GetImageFromArray(fixedImage))
-        elastixImageFilter.SetMovingImage(sitk.GetImageFromArray(movingImage))
-        print("Registering...")
-
-        self.moveToTempDir()
-        elastixImageFilter.Execute()
-        print("Done")
-        pMap = elastixImageFilter.GetTransformParameterMap()
-        self.cleanElastixFiles()
-        self.moveToWorkDir()
-        return pMap
-
+    @separate_thread_decorator
     def calcTransforms(self):
-        qbar = QProgressBar()
-        qbar.setRange(0, len(self.imList) - 1)
-        qbar.setWindowTitle(QString("Registering images"))
-        qbar.setWindowModality(Qt.ApplicationModal)
-        qbar.move(800, 500)
-        qbar.show()
+        if not self.registrationManager: return
+        def local_setSplash(image_number):
+            self.setSplash(True, image_number, len(self.imList), 'Registering images...')
 
-        for imIndex in range(len(self.imList)):
-            qbar.setValue(imIndex)
-            plt.pause(.000001)
-            print("Calculating image:", imIndex)
-            # the transform was already calculated
-            if imIndex not in self.transforms:
-                self.calcTransform(imIndex)
-            if imIndex not in self.invtransforms:
-                self.calcInverseTransform(imIndex)
+        local_setSplash(0)
+        self.registrationManager.calc_transforms(local_setSplash)
+        self.setSplash(False, 0, len(self.imList), 'Registering images...')
 
-        qbar.close()
-        print("Saving transforms")
-        self.pickleTransforms()
 
     def propagateAll(self):
         while self.curImage < len(self.imList) - 1:
@@ -971,84 +908,11 @@ class MuscleSegmentation(ImageShow, QObject):
             self.propagateBack()
             plt.pause(.000001)
 
-    def cleanElastixFiles(self):
-        files_to_delete = ['TransformixPoints.txt',
-                           'outputpoints.txt',
-                           'TransformParameters.0.txt',
-                           'TransformParameters.1.txt',
-                           'TransformParameters.2.txt']
-
-        for file in files_to_delete:
-            try:
-                os.remove(file)
-            except:
-                pass
-
-
-    def runTransformixMask(self, mask, transform):
-        transformixImageFilter = sitk.TransformixImageFilter()
-
-        transformixImageFilter.SetLogToConsole(False)
-        transformixImageFilter.SetLogToFile(False)
-
-        for t in transform:
-            t['ResampleInterpolator'] = ["FinalNearestNeighborInterpolator"]
-
-        transformixImageFilter.SetTransformParameterMap(transform)
-
-        transformixImageFilter.SetMovingImage(sitk.GetImageFromArray(mask))
-        self.moveToTempDir()
-        transformixImageFilter.Execute()
-
-        mask_out = sitk.GetArrayFromImage(transformixImageFilter.GetResultImage())
-
-        self.cleanElastixFiles()
-        self.moveToWorkDir()
-
-        return mask_out.astype(np.uint8)
-
-    def runTransformixKnots(self, knots, transform):
-        transformixImageFilter = sitk.TransformixImageFilter()
-
-        transformixImageFilter.SetLogToConsole(False)
-        transformixImageFilter.SetLogToFile(False)
-
-        transformixImageFilter.SetTransformParameterMap(transform)
-
-        self.moveToTempDir()
-
-        # create Transformix point file
-        with open("TransformixPoints.txt", "w") as f:
-            f.write("point\n")
-            f.write("%d\n" % (len(knots)))
-            for k in knots:
-                # f.write("%.3f %.3f\n" % (k[0], k[1]))
-                f.write("%.3f %.3f\n" % (k[0], k[1]))
-
-
-        transformixImageFilter.SetFixedPointSetFileName("TransformixPoints.txt")
-        transformixImageFilter.SetOutputDirectory(".")
-        transformixImageFilter.Execute()
-
-        outputCoordRE = re.compile("OutputPoint\s*=\s*\[\s*([\d.]+)\s+([\d.]+)\s*\]")
-
-        knotsOut = []
-
-        with open("outputpoints.txt", "r") as f:
-            for line in f:
-                m = outputCoordRE.search(line)
-                knot = (float(m.group(1)), float(m.group(2)))
-                knotsOut.append(knot)
-
-        self.cleanElastixFiles()
-        self.moveToWorkDir()
-
-        return knotsOut
-
     @snapshotSaver
     @separate_thread_decorator
     def propagate(self):
         if self.curImage >= len(self.imList) - 1: return
+        if not self.registrationManager: return
         # fixedImage = self.image
         # movingImage = self.imList[int(self.curImage+1)]
 
@@ -1058,7 +922,8 @@ class MuscleSegmentation(ImageShow, QObject):
         if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
             curROI = self.getCurrentROI()
             nextROI = self.getCurrentROI(+1)
-            knotsOut = self.runTransformixKnots(curROI.knots, self.getTransform(int(self.curImage)))
+            knotsOut = self.registrationManager.run_transformix_knots(curROI.knots,
+                                                                      self.registrationManager.get_transform(int(self.curImage)))
 
             if len(nextROI.knots) < 3:
                 nextROI.removeAllKnots()
@@ -1075,7 +940,8 @@ class MuscleSegmentation(ImageShow, QObject):
             mask_in = self.getCurrentMask()
             # Note: we are using the inverse transform, because the transforms are originally calculated to
             # transform points, which is the inverse as transforming images
-            mask_out = self.runTransformixMask(mask_in, self.getInverseTransform(int(self.curImage+1)))
+            mask_out = self.registrationManager.run_transformix_mask(mask_in,
+                                                                     self.registrationManager.get_inverse_transform(int(self.curImage+1)))
             self.setCurrentMask(mask_out, +1)
 
 
@@ -1103,7 +969,8 @@ class MuscleSegmentation(ImageShow, QObject):
         if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
             curROI = self.getCurrentROI()
             nextROI = self.getCurrentROI(-1)
-            knotsOut = self.runTransformixKnots(curROI.knots, self.getInverseTransform(int(self.curImage)))
+            knotsOut = self.registrationManager.run_transformix_knots(curROI.knots,
+                                                                      self.registrationManager.get_inverse_transform(int(self.curImage)))
 
             if len(nextROI.knots) < 3:
                 nextROI.removeAllKnots()
@@ -1119,7 +986,8 @@ class MuscleSegmentation(ImageShow, QObject):
             mask_in = self.getCurrentMask()
             # Note: we are using the inverse transform, because the transforms are originally calculated to
             # transform points, which is the inverse as transforming images
-            mask_out = self.runTransformixMask(mask_in, self.getTransform(int(self.curImage-1)))
+            mask_out = self.registrationManager.run_transformix_mask(mask_in,
+                                                                     self.registrationManager.get_transform(int(self.curImage-1)))
             self.setCurrentMask(mask_out, -1)
 
         self.setSplash(True, 1, 3)
@@ -1303,7 +1171,8 @@ class MuscleSegmentation(ImageShow, QObject):
     def closeCB(self, event):
         self.toolbox_window.close()
         if not self.basepath: return
-        if self.transformsChanged: self.pickleTransforms()
+        if self.registrationManager:
+            self.registrationManager.pickle_transforms()
         self.saveROIPickle()
 
     def moveBrushPatch(self, event):
@@ -1594,7 +1463,10 @@ class MuscleSegmentation(ImageShow, QObject):
             print("Warning: cannot copy roi file")
 
         self.roiManager = ROIManager(self.imList[0].shape)
-        self.unPickleTransforms()
+        self.registrationManager = RegistrationManager(self.imList,
+                                                       os.path.join(self.basepath, 'transforms.p'),
+                                                       os.getcwd(),
+                                                       GlobalConfig['TEMP_DIR'])
         #self.loadROIPickle()
         self.redraw()
         self.toolbox_window.general_enable(True)
@@ -1794,50 +1666,6 @@ class MuscleSegmentation(ImageShow, QObject):
             out_data[f'mask_{mask_name}'] = mask
         self.model_provider.upload_data(out_data)
         self.setSplash(False, 2, 2, "Finished")
-
-    def pickleTransforms(self):
-        if not self.basepath: return
-        pickleObj = {}
-        transformDict = {}
-        for k, transformList in self.transforms.items():
-            curTransformList = []
-            for transform in transformList:
-                curTransformList.append(transform.asdict())
-            transformDict[k] = curTransformList
-        invTransformDict = {}
-        for k, transformList in self.invtransforms.items():
-            curTransformList = []
-            for transform in transformList:
-                curTransformList.append(transform.asdict())
-            invTransformDict[k] = curTransformList
-        pickleObj['direct'] = transformDict
-        pickleObj['inverse'] = invTransformDict
-        outFile = os.path.join(self.basepath, 'transforms.p')
-        pickle.dump(pickleObj, open(outFile, 'wb'))
-
-    def unPickleTransforms(self):
-        if not self.basepath: return
-        pickleFile = os.path.join(self.basepath, 'transforms.p')
-        try:
-            pickleObj = pickle.load(open(pickleFile, 'rb'))
-        except:
-            print("Error trying to load transforms")
-            return
-
-        transformDict = pickleObj['direct']
-        self.transforms = {}
-        for k, transformList in transformDict.items():
-            curTransformList = []
-            for transform in transformList:
-                curTransformList.append(sitk.ParameterMap(transform))
-            self.transforms[k] = tuple(curTransformList)
-        invTransformDict = pickleObj['inverse']
-        self.invtransforms = {}
-        for k, transformList in invTransformDict.items():
-            curTransformList = []
-            for transform in transformList:
-                curTransformList.append(sitk.ParameterMap(transform))
-            self.invtransforms[k] = tuple(curTransformList)
 
     @pyqtSlot(str)
     @separate_thread_decorator
