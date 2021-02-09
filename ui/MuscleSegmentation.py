@@ -1898,6 +1898,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.doSegmentation()
             self.setSplash(True, 0, 3, "Loading model...")
             time.sleep(0.5)
+        self.setSplash(False, 0, 3, "")
 
     @pyqtSlot()
     @snapshotSaver
