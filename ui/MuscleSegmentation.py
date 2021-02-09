@@ -1577,6 +1577,7 @@ class MuscleSegmentation(ImageShow, QObject):
         field_names = ['roi_name',
                        'slices',
                        'voxels',
+                       'volume',
                        'mean',
                        'standard_deviation',
                        'perc_0',
@@ -1588,23 +1589,31 @@ class MuscleSegmentation(ImageShow, QObject):
         csv_writer.writeheader()
 
         for roi_name, roi_mask in allMasks.items():
-            csvRow = {}
-            csvRow['roi_name'] = roi_name
-            mask = roi_mask > 0
-            masked = np.ma.array(dataset, mask=np.logical_not(roi_mask))
-            csvRow['voxels'] = mask.sum()
-            # count the slices where the roi is present
-            mask_pencil = np.sum(mask, axis=(0,1))
-            csvRow['slices'] = np.sum(mask_pencil > 0)
-            compressed_array = masked.compressed()
-            csvRow['mean'] = compressed_array.mean()
-            csvRow['standard_deviation'] = compressed_array.std()
-            csvRow['perc_0'] = compressed_array.min()
-            csvRow['perc_100'] = compressed_array.max()
-            csvRow['perc_25'] = np.percentile(compressed_array, 25)
-            csvRow['perc_50'] = np.percentile(compressed_array, 50)
-            csvRow['perc_75'] = np.percentile(compressed_array, 75)
-            csv_writer.writerow(csvRow)
+            try:
+                csvRow = {}
+                csvRow['roi_name'] = roi_name
+                mask = roi_mask > 0
+                masked = np.ma.array(dataset, mask=np.logical_not(roi_mask))
+                csvRow['voxels'] = mask.sum()
+                try:
+                    csvRow['volume'] = csvRow['voxels']*self.resolution[0]*self.resolution[1]*self.resolution[2]
+                except:
+                    csvRow['volume'] = 0
+                # count the slices where the roi is present
+                mask_pencil = np.sum(mask, axis=(0,1))
+                csvRow['slices'] = np.sum(mask_pencil > 0)
+                compressed_array = masked.compressed()
+                csvRow['mean'] = compressed_array.mean()
+                csvRow['standard_deviation'] = compressed_array.std()
+                csvRow['perc_0'] = compressed_array.min()
+                csvRow['perc_100'] = compressed_array.max()
+                csvRow['perc_25'] = np.percentile(compressed_array, 25)
+                csvRow['perc_50'] = np.percentile(compressed_array, 50)
+                csvRow['perc_75'] = np.percentile(compressed_array, 75)
+                csv_writer.writerow(csvRow)
+            except:
+                print('Error calculating statistics for ROI', roi_name)
+                traceback.print_exc()
 
         csv_file.close()
         self.setSplash(False, 2, 2, "Finished")
