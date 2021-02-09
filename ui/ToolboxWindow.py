@@ -28,6 +28,8 @@ from PyQt5.QtSvg import QSvgWidget
 from . import GenericInputDialog
 import config
 import platform
+import multiprocessing
+from . import BatchCalcTransforms
 
 #print("Toolbox Window Path", os.path.abspath(__file__))
 UI_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -257,6 +259,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionImport_model.triggered.connect(self.do_import_model)
 
+        self.actionOpen_transform_calculator.triggered.connect(self.open_transform_calculator)
+
         self.reload_config()
         self.config_changed.connect(self.reload_config)
 
@@ -282,6 +286,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionSave_as_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
         self.actionImport_model.setVisible(config.GlobalConfig['MODEL_PROVIDER'] == 'Local')
         self.action_Upload_data.setVisible(config.GlobalConfig['MODEL_PROVIDER'] == 'Remote')
+
+    @pyqtSlot()
+    def open_transform_calculator(self):
+        #process = multiprocessing.Process(target=BatchCalcTransforms.run)
+        #process.start()
+        self.batchProcessWidget = BatchCalcTransforms.CalcTransformWindow()
+        self.batchProcessWidget.show()
 
     @pyqtSlot()
     def do_import_model(self):

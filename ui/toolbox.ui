@@ -614,6 +614,8 @@
     <addaction name="actionCalculate_statistics"/>
     <addaction name="actionPyRadiomics"/>
     <addaction name="separator"/>
+    <addaction name="actionOpen_transform_calculator"/>
+    <addaction name="separator"/>
     <addaction name="actionPreferences"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
@@ -718,6 +720,11 @@
   <action name="actionImport_multiple_masks">
    <property name="text">
     <string>Import multiple masks...</string>
+   </property>
+  </action>
+  <action name="actionOpen_transform_calculator">
+   <property name="text">
+    <string>Open transform calculator</string>
    </property>
   </action>
  </widget>

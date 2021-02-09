@@ -20,7 +20,7 @@ import matplotlib
 
 matplotlib.use("Qt5Agg")
 
-import os, time, math
+import os, time, math, sys
 
 from config import GlobalConfig, load_config
 load_config()
@@ -598,7 +598,7 @@ class MuscleSegmentation(ImageShow, QObject):
             allMasks[roiName] = npMask
 
         diceScores = np.array(diceScores)
-        print(diceScores)
+        #print(diceScores)
         print("Average Dice score", diceScores.mean())
         return allMasks, dataForTraining, segForTraining, diceScores.mean()
 
@@ -1174,6 +1174,7 @@ class MuscleSegmentation(ImageShow, QObject):
         if self.registrationManager:
             self.registrationManager.pickle_transforms()
         self.saveROIPickle()
+        sys.exit(0)
 
     def moveBrushPatch(self, event):
         """
@@ -1895,6 +1896,7 @@ class MuscleSegmentation(ImageShow, QObject):
         for slice_number in range(min_slice, max_slice+1):
             self.displayImage(slice_number)
             self.doSegmentation()
+            self.setSplash(True, 0, 3, "Loading model...")
             time.sleep(0.5)
 
     @pyqtSlot()

@@ -26,15 +26,14 @@ from dl.RemoteModelProvider import RemoteModelProvider
 from config import GlobalConfig, load_config
 
 import matplotlib
+matplotlib.use("Qt5Agg")
 import argparse
 import matplotlib.pyplot as plt
-matplotlib.use("Qt5Agg")
 
 MODELS_DIR = 'models_old'
 
 
 if __name__ == "__main__":
-    
     parser = argparse.ArgumentParser(description="Muscle segmentation tool.")
     parser.add_argument('path', nargs='?', type=str)
     parser.add_argument('-c', '--class', dest='dl_class', type=str, help='Specify the deep learning model to use for the dataset')
@@ -70,7 +69,6 @@ if __name__ == "__main__":
     
     if args.register:
         imFig.calcTransforms()
-        imFig.pickleTransforms()
     
     if args.save_masks:
         imFig.saveResults()
