@@ -242,7 +242,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionPyRadiomics.triggered.connect(self.calculate_radiomics)
 
-        self.actionImport_masks.triggered.connect(self.loadMask_clicked)
+        self.actionImport_masks.triggered.connect(self.load_mask_clicked)
+        self.actionImport_multiple_masks.triggered.connect(self.load_multi_mask_clicked)
 
         self.actionPreferences.triggered.connect(self.edit_preferences)
 
@@ -268,7 +269,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.mainUIWidget.setEnabled(enabled)
         self.actionImport_ROIs.setEnabled(enabled)
         self.actionExport_ROIs.setEnabled(enabled)
-        self.actionImport_masks.setEnabled(enabled)
+        self.menuImport.setEnabled(enabled)
         self.menuSave_masks.setEnabled(enabled)
         self.action_Upload_data.setEnabled(enabled)
         self.actionCalculate_statistics.setEnabled(enabled)
@@ -306,7 +307,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot()
     def edit_preferences(self):
-        if config.show_config_dialog(self):
+        if config.show_config_dialog(self, config.GlobalConfig['ADVANCED_CONFIG']):
             config.save_config()
             self.config_changed.emit()
 
@@ -628,11 +629,17 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.calculate_transforms.emit()
 
     @pyqtSlot()
-    def loadMask_clicked(self):
+    def load_mask_clicked(self):
         maskFile, _ = QFileDialog.getOpenFileName(self, caption='Select mask to import',
                                                   filter='Image files (*.dcm *.ima *.npy *.npz);;Dicom files (*.dcm *.ima);;Numpy files (*.npy *.npz);;All files (*.*)')
         if maskFile:
             self.mask_import.emit(maskFile)
+
+    def load_multi_mask_clicked(self):
+        maskDir = QFileDialog.getExistingDirectory(self, caption='Select folder containing other DICOM folders')
+
+        if maskDir:
+            self.mask_import.emit(maskDir)
 
     @pyqtSlot()
     def loadData_clicked(self):

@@ -76,7 +76,8 @@ defaults = {
     'BRUSH_ERASE_COLOR':  ((0, 0, 1, 0.6), 'color', 'Brush color - erase'),
     'ROI_FILENAME':  ('rois.p', 'string', None),
     'AUTOSAVE_INTERVAL':  (30, 'int_slider', 1, 1000, 1, 'Interval for autosave (s)'),
-    'HISTORY_LENGTH':  (20, 'int_slider', 1, 1000, 1, None)
+    'HISTORY_LENGTH':  (20, 'int_slider', 1, 1000, 1, None),
+    'ADVANCED_CONFIG': (False, 'bool', 'Show advanced configuration')
 }
 
 # This part of the config is only stored here and can be changed by new software releases

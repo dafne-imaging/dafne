@@ -1677,6 +1677,28 @@ class MuscleSegmentation(ImageShow, QObject):
         path = os.path.abspath(filename)
         _, ext = os.path.splitext(path)
 
+        if os.path.isdir(path):
+            containsDirs = False
+            containsDicom = False
+            firstDicom = None
+            for element in os.listdir(path):
+                if element.startswith('.'): continue
+                new_path = os.path.join(path, element)
+                if os.path.isdir(new_path):
+                    containsDirs = True
+                else: # check if the folder contains dicoms
+                    _, ext2 = os.path.splitext(new_path)
+                    if ext2.lower() in dicom_ext:
+                        containsDicom = True
+                        if firstDicom is None:
+                            firstDicom = new_path
+
+            if containsDicom:
+                path = new_path # "fake" the loading of the first image
+                _, ext = os.path.splitext(path)
+            elif containsDirs:
+                ext = 'multidicom' # "fake" extension to load a directory
+
         basename = os.path.basename(path)
         is3D = False
 
@@ -1697,6 +1719,34 @@ class MuscleSegmentation(ImageShow, QObject):
                     return
             mask = mask > 0
             self.masksToRois({name: mask}, int(self.curImage)) # this is OK for 2D and 3D
+
+        def is_local_stack_2d():
+            try:
+                # in a 3D dataset, the following is not defined
+                spacing = self.dicomHeaderList[0].SpacingBetweenSlices
+                print("Aligning 2D Stack")
+                return True
+            except:
+                print("Aligning 3D Stack")
+                return False
+
+        def align_dicom(dataset, dicomInfo):
+            # check if 1) we have dicom headers to align the dataset and 2) the datasets are not already aligned
+            if self.dicomHeaderList or not \
+                    (all(self.dicomHeaderList[0].ImageOrientationPatient == dicomInfo[0].ImageOrientationPatient) \
+                     and all(self.dicomHeaderList[0].ImagePositionPatient == dicomInfo[0].ImagePositionPatient)):
+                # align datasets
+                # find out if the loaded dataset is 3D or 2D stack
+                self.setSplash(True, 1, 3, "Performing alignment")
+                if is_local_stack_2d():
+                    transform = calcTransform2DStack(None, self.dicomHeaderList, None, dicomInfo)
+                else:
+                    transform = calcTransform(None, self.dicomHeaderList, None, dicomInfo, False)
+                mask = transform(dataset, maskMode=True)
+            else:
+                # we cannot align the datasets
+                mask = dataset.squeeze()
+            return mask
 
         ext = ext.lower()
 
@@ -1723,32 +1773,55 @@ class MuscleSegmentation(ImageShow, QObject):
             path = os.path.dirname(path)
             dataset, dicomInfo = load3dDicom(path)
             name = os.path.basename(path)
-            if self.dicomHeaderList:
-                # align datasets
-                #find out if the loaded dataset is 3D or 2D stack
-                self.setSplash(True, 1, 3, "Performing alignment")
-                is2DStack = True
-                try:
-                    # in a 3D dataset, the following is not defined
-                    spacing = self.dicomHeaderList[0].SpacingBetweenSlices
-                    print("Aligning 2D Stack")
-                except:
-                    is2DStack = False
-                    print("Aligning 3D Stack")
 
-                if is2DStack:
-                    transform = calcTransform2DStack(None, self.dicomHeaderList, None, dicomInfo)
-                else:
-                    transform = calcTransform(None, self.dicomHeaderList, None, dicomInfo, False)
-                mask = transform(dataset*1000) > 990
-            else:
-                # we cannot align the datasets
-                mask = dataset.squeeze()
+            mask = align_dicom(dataset, dicomInfo)
 
             self.setSplash(True, 2, 3, "Importing masks")
             load_mask_validate(name, mask)
             self.setSplash(False, 0, 0, "")
             return
+        elif ext == 'multidicom':
+            # load multiple dicom masks and align them at the same time
+            accumulated_mask = None
+            current_mask_number = 1
+            dicom_info_ok = None
+            names = []
+            for subdir in sorted(os.listdir(path)):
+                if subdir.startswith('.'): continue
+                subdir_path = os.path.join(path, subdir)
+                if not os.path.isdir(subdir_path): continue
+                dataset, dicomInfo = load3dDicom(subdir_path) # load the next dataset
+                if dataset is None: continue
+                dataset[dataset > 0] = 1
+                dataset[dataset < 1] = 0
+                name = os.path.basename(subdir_path)
+                if accumulated_mask is None:
+                    accumulated_mask = np.copy(dataset.astype(np.uint8))
+                else:
+                    try:
+                        accumulated_mask += dataset.astype(np.uint8)*current_mask_number
+                    except:
+                        print('Incompatible mask')
+                        continue
+                names.append(name)
+                #print("Mask number", current_mask_number, "accumulated max", accumulated_mask.max())
+                current_mask_number += 1
+                dicom_info_ok = dicomInfo
+            if len(names) == 0:
+                self.alert('No available mask found!')
+                return
+
+            aligned_masks = align_dicom(accumulated_mask, dicom_info_ok)
+
+            self.setSplash(True, 2, 3, "Importing masks")
+            for index, name in enumerate(names):
+                mask = np.zeros_like(aligned_masks)
+                mask[aligned_masks == (index+1)] = 1
+                load_mask_validate(name, mask)
+            self.setSplash(False, 0, 0, "")
+            return
+
+
 
     ########################################################################################
     ###

@@ -103,25 +103,31 @@ class DatasetTransform:
         for transform in state['elastixTransform']:
             self.elastixTransform.append(sitk.ParameterMap(transform))
             
-    def transform(self, datasetIn, mode2d = False):
+    def transform(self, datasetIn, mode2d=False, maskMode=False):
         # the moving image (e.g. the mask) needs to have the slices flipped to be consistent
         if self.swapSlicesMoving:
             dataset = datasetIn[:,:,::-1]
         else:
             dataset = datasetIn
+
+        if maskMode:
+            interp_order = 0
+        else:
+            interp_order = 3
+
         #print "Rotating 1"
-        dataMovRotated = ndimage.rotate(dataset, self.rotationAngles[0], axes=(1,2))
+        dataMovRotated = ndimage.rotate(dataset, self.rotationAngles[0], axes=(1,2), order=interp_order)
         #print "Rotating 2"
-        dataMovRotated = ndimage.rotate(dataMovRotated, self.rotationAngles[1], axes=(0,2))
+        dataMovRotated = ndimage.rotate(dataMovRotated, self.rotationAngles[1], axes=(0,2), order=interp_order)
         #print "Rotating 3"
-        dataMovRotated = ndimage.rotate(dataMovRotated, self.rotationAngles[2], axes=(0,1))
+        dataMovRotated = ndimage.rotate(dataMovRotated, self.rotationAngles[2], axes=(0,1), order=interp_order)
         if not mode2d:
-            dataMovExtended = ndimage.zoom(dataMovRotated, self.zoom)
-            dataMovShifted = ndimage.shift(dataMovExtended, self.shift)
+            dataMovExtended = ndimage.zoom(dataMovRotated, self.zoom, order=interp_order)
+            dataMovShifted = ndimage.shift(dataMovExtended, self.shift, order=interp_order)
         else:
             #print("2D mode")
-            dataMovExtended = ndimage.zoom(dataMovRotated, (self.zoom[0], self.zoom[1], 1) )
-            dataMovShifted = ndimage.shift(dataMovExtended, (self.shift[0], self.shift[1], self.shift[2]/self.zoom[2]))
+            dataMovExtended = ndimage.zoom(dataMovRotated, (self.zoom[0], self.zoom[1], 1), order=interp_order )
+            dataMovShifted = ndimage.shift(dataMovExtended, (self.shift[0], self.shift[1], self.shift[2]/self.zoom[2]), order=interp_order)
             dataMovShifted = ndimage.zoom(dataMovShifted, (1, 1, self.zoom[2]), order = 0 )
         
         #dataMov2 = padorcut(dataMovShifted, self.endSize)
@@ -131,6 +137,9 @@ class DatasetTransform:
             transformixImageFilter = sitk.TransformixImageFilter()
             transformixImageFilter.SetLogToConsole(False)
             transformixImageFilter.SetLogToFile(False)
+            if maskMode:
+                for t in self.elastixTransform:
+                    t['ResampleInterpolator'] = ["FinalNearestNeighborInterpolator"]
             transformixImageFilter.SetTransformParameterMap(self.elastixTransform)
             transformixImageFilter.SetMovingImage(sitk.GetImageFromArray(dataMov2))
             transformixImageFilter.Execute()
@@ -144,9 +153,9 @@ class DatasetTransform:
         if self.swapSlicesFix:
             datasetOut = datasetOut[:,:,::-1]
         return datasetOut
-                
-    def __call__(self, datasetIn, mode2d = False):
-        return self.transform(datasetIn, mode2d)
+
+    def __call__(self, datasetIn, mode2d = False, maskMode = False):
+        return self.transform(datasetIn, mode2d, maskMode)
 
 
 #NSLICES_MOVING = 47
@@ -364,14 +373,15 @@ class DatasetTransform2D:
     def __init__(self):
         self.transformList = []
     
-    def transform(self, datasetIn):
+    def transform(self, datasetIn, maskMode = False):
         datasetOut = []
-        for datasetTransform in self.transformList:
-            datasetOut.append(datasetTransform(datasetIn, True))
+        for index, datasetTransform in enumerate(self.transformList):
+            print(f"Aligining slice {index} of {len(self.transformList)}")
+            datasetOut.append(datasetTransform(datasetIn, True, maskMode))
         return np.concatenate(datasetOut, axis = 2)
     
-    def __call__(self, datasetIn):
-        return self.transform(datasetIn)
+    def __call__(self, datasetIn, maskMode = False):
+        return self.transform(datasetIn, maskMode)
     
 def calcTransform2DStack(dataFix, dataFixInfo, dataMov, dataMovInfo):
     transform2D = DatasetTransform2D()

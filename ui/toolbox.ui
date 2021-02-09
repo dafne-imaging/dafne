@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>311</width>
-    <height>1048</height>
+    <height>1078</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -589,12 +589,19 @@
      <addaction name="actionSave_as_Dicom"/>
      <addaction name="actionSave_as_Nifti"/>
     </widget>
+    <widget class="QMenu" name="menuImport">
+     <property name="title">
+      <string>Import masks...</string>
+     </property>
+     <addaction name="actionImport_masks"/>
+     <addaction name="actionImport_multiple_masks"/>
+    </widget>
     <addaction name="actionLoad_data"/>
     <addaction name="separator"/>
     <addaction name="actionImport_ROIs"/>
     <addaction name="actionExport_ROIs"/>
     <addaction name="separator"/>
-    <addaction name="actionImport_masks"/>
+    <addaction name="menuImport"/>
     <addaction name="menuSave_masks"/>
     <addaction name="separator"/>
     <addaction name="actionImport_model"/>
@@ -640,7 +647,7 @@
   </action>
   <action name="actionImport_masks">
    <property name="text">
-    <string>Import masks...</string>
+    <string>Import single mask...</string>
    </property>
   </action>
   <action name="actionSave_as_Dicom">
@@ -706,6 +713,11 @@
   <action name="actionImport_model">
    <property name="text">
     <string>Import model...</string>
+   </property>
+  </action>
+  <action name="actionImport_multiple_masks">
+   <property name="text">
+    <string>Import multiple masks...</string>
    </property>
   </action>
  </widget>

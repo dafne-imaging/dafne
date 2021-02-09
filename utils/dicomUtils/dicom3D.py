@@ -53,6 +53,8 @@ def load3dDicom(path):
                 pass
         bar.next()
     bar.finish()
+    if len(threeDlist) == 0:
+        return (None, None)
     threeDData = np.stack(threeDlist, axis = 2)
             
     return (threeDData, info)
