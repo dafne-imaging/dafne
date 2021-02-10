@@ -243,6 +243,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.resetModelProvider()
         self.resetInterface()
+        self.slicesUsedForTraining = set()
 
         self.roiManager = None
 
@@ -304,9 +305,12 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.toolbox_window.roi_copy.connect(self.copyRoi)
         self.toolbox_window.roi_combine.connect(self.combineRoi)
+        self.toolbox_window.roi_remove_overlap.connect(self.roiRemoveOverlap)
 
         self.toolbox_window.statistics_calc.connect(self.saveStats)
         self.toolbox_window.radiomics_calc.connect(self.saveRadiomics)
+
+        self.toolbox_window.incremental_learn.connect(self.incrementalLearnStandalone)
 
         self.toolbox_window.mask_import.connect(self.loadMask)
 
@@ -564,6 +568,8 @@ class MuscleSegmentation(ImageShow, QObject):
         roi_names = self.roiManager.get_roi_names()
         current_roi_index = 0
 
+        slices_with_rois = set()
+
         for roiName in self.roiManager.get_roi_names():
             if setSplash:
                 self.setSplash(True, current_roi_index, len(roi_names), "Calculating maps...")
@@ -573,6 +579,8 @@ class MuscleSegmentation(ImageShow, QObject):
                 roi = np.zeros(imSize)
                 if self.roiManager.contains(roiName, imageIndex):
                     roi = self.roiManager.get_mask(roiName, imageIndex)
+
+                if roi.any(): slices_with_rois.add(imageIndex) # add the slice to the set if any voxel is nonzero
                 masklist.append(roi)
                 try:
                     originalSegmentation = self.originalSegmentationMasks[imageIndex][roiName]
@@ -596,6 +604,15 @@ class MuscleSegmentation(ImageShow, QObject):
 
             npMask = np.transpose(np.stack(masklist), [1, 2, 0])
             allMasks[roiName] = npMask
+
+        # cleanup empty slices and slices that were already used for training
+        for classification_name in dataForTraining:
+            print('Slices available for', classification_name, ':', list(dataForTraining[classification_name].keys()))
+            for imageIndex in list(dataForTraining[classification_name]): # get a list of keys to be able to delete from dict
+                if imageIndex not in slices_with_rois or imageIndex in self.slicesUsedForTraining:
+                    del dataForTraining[classification_name][imageIndex]
+                    del segForTraining[classification_name][imageIndex]
+            print('Slices after cleanup', list(dataForTraining[classification_name].keys()))
 
         diceScores = np.array(diceScores)
         #print(diceScores)
@@ -626,6 +643,19 @@ class MuscleSegmentation(ImageShow, QObject):
         self.updateMasksFromROIs()
         self.updateContourPainters()
         self.updateRoiList()
+
+    @pyqtSlot()
+    def roiRemoveOverlap(self):
+        curRoiName = self.getCurrentROIName()
+        currentMask = self.getCurrentMask()
+        currentNotMask = np.logical_not(currentMask)
+        for key_tuple, mask in self.roiManager.all_masks(image_number=self.curImage):
+            if key_tuple[0] == curRoiName: continue
+            self.roiManager.set_mask(key_tuple[0], key_tuple[1], np.logical_and(mask, currentNotMask))
+
+        self.updateMasksFromROIs()
+        self.redraw()
+
 
     #########################################################################################
     ###
@@ -1066,13 +1096,27 @@ class MuscleSegmentation(ImageShow, QObject):
             other_mask = np.zeros_like(self.otherMask)
 
         if self.maskImPlot is None:
+            original_xlim = self.axes.get_xlim()
+            original_ylim = self.axes.get_ylim()
             self.maskImPlot = self.axes.imshow(active_mask, cmap=self.mask_layer_colormap, alpha=GlobalConfig['MASK_LAYER_ALPHA'], vmin=0, vmax=1, zorder=100)
+            try:
+                self.axes.set_xlim(original_xlim)
+                self.axes.set_ylim(original_ylim)
+            except:
+                pass
 
         self.maskImPlot.set_data(active_mask.astype(np.uint8))
 
         if self.maskOtherImPlot is None:
+            original_xlim = self.axes.get_xlim()
+            original_ylim = self.axes.get_ylim()
             relativeAlphaROI = GlobalConfig['ROI_OTHER_COLOR'][3] / GlobalConfig['ROI_COLOR'][3]
             self.maskOtherImPlot = self.axes.imshow(other_mask, cmap=self.mask_layer_other_colormap, alpha=relativeAlphaROI*GlobalConfig['MASK_LAYER_ALPHA'], vmin=0, vmax=1, zorder=101)
+            try:
+                self.axes.set_xlim(original_xlim)
+                self.axes.set_ylim(original_ylim)
+            except:
+                pass
 
         self.maskOtherImPlot.set_data(other_mask.astype(np.uint8))
 
@@ -1163,6 +1207,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.drawContours()
             elif self.editMode == ToolboxWindow.EDITMODE_MASK:
                 self.drawMasks()
+
 
         #print("Redrawing")
         #print(self.axes.get_children())
@@ -1383,16 +1428,28 @@ class MuscleSegmentation(ImageShow, QObject):
         return np.transpose(np.stack(self.imList), [1,2,0])
 
     @pyqtSlot(str)
-    def saveROIPickle(self, roiPickleName=None):
+    def saveROIPickle(self, roiPickleName=None, async_write = False):
+
+        @separate_thread_decorator
+        def write_file(name, bytes_to_write):
+            with open(name, 'wb') as f:
+                f.write(bytes_to_write)
+
         showWarning = True
         if not roiPickleName:
             roiPickleName = self.getRoiFileName()
             showWarning = False # don't show a empty roi warning if autosaving
+            async_write = True
+
         print("Saving ROIs", roiPickleName)
         if self.roiManager and not self.roiManager.is_empty():  # make sure ROIs are not empty
             dumpObj = {'classifications': self.classifications,
                        'roiManager': self.roiManager }
-            pickle.dump(dumpObj, open(roiPickleName, 'wb'))
+            if async_write:
+                bytes_to_write = pickle.dumps(dumpObj)
+                write_file(roiPickleName, bytes_to_write) # write file asynchronously for a smoother experience in autosave
+            else:
+                pickle.dump(dumpObj, open(roiPickleName, 'wb'))
         else:
             if showWarning: self.alert('ROIs are empty - not saved')
 
@@ -1504,43 +1561,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         # perform incremental learning
         if GlobalConfig['DO_INCREMENTAL_LEARNING']:
-            for classification_name in dataForTraining:
-                if classification_name == 'None': continue
-                print(f'Performing incremental learning for {classification_name}')
-                try:
-                    model = self.dl_segmenters[classification_name]
-                except KeyError:
-                    model = self.model_provider.load_model(classification_name)
-                    self.dl_segmenters[classification_name] = model
-                training_data = []
-                training_outputs = []
-                for imageIndex in dataForTraining[classification_name]:
-                    training_data.append(dataForTraining[classification_name][imageIndex])
-                    training_outputs.append(segForTraining[classification_name][imageIndex])
-
-                try:
-                    #todo: adapt bs and minTrainImages if needed
-                    model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2]},
-                                                training_outputs, bs=5, minTrainImages=5)
-                    model.reset_timestamp()
-                except Exception as e:
-                    print("Error during incremental learning")
-                    traceback.print_exc()
-
-                # Uploading new model
-
-                # Only upload delta, to reduce model size -> only activate if rest of federated learning
-                # working properly
-                # all weights lower than threshold will be set to 0 for model compression
-                # threshold = 0.0001
-                # model = model.calc_delta(orig_model, threshold=threshold)
-                self.setSplash(True, 2, 4, "Sending the improved model to server...")
-
-                st = time.time()
-                if meanDiceScore is None:
-                    meanDiceScore = -1.0
-                self.model_provider.upload_model(classification_name, model, meanDiceScore)
-                print(f"took {time.time() - st:.2f}s")
+            self.incrementalLearn(dataForTraining, segForTraining, meanDiceScore, True)
 
         self.setSplash(True, 3, 4, "Saving file...")
 
@@ -1943,3 +1964,61 @@ class MuscleSegmentation(ImageShow, QObject):
         print("Segmentation/import time:", time.time() - t)
         self.setSplash(False, 3, 3)
         self.redraw()
+
+    @pyqtSlot()
+    @separate_thread_decorator
+    def incrementalLearnStandalone(self):
+        self.setSplash(True, 0, 4, "Calculating maps...")
+        allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
+        self.setSplash(True, 1, 4, "Incremental learning...")
+        # perform incremental learning
+        self.incrementalLearn(dataForTraining, segForTraining, meanDiceScore, True)
+        self.setSplash(False, 3, 4, "Saving file...")
+
+    def incrementalLearn(self, dataForTraining, segForTraining, meanDiceScore, setSplash=False):
+        performed = False
+        for classification_name in dataForTraining:
+            if classification_name == 'None': continue
+            print(f'Performing incremental learning for {classification_name}')
+            if len(dataForTraining[classification_name]) < GlobalConfig['IL_MIN_SLICES']:
+                print(f"Not enough slices for {classification_name}")
+                continue
+            performed = True
+            try:
+                model = self.dl_segmenters[classification_name]
+            except KeyError:
+                model = self.model_provider.load_model(classification_name)
+                self.dl_segmenters[classification_name] = model
+            training_data = []
+            training_outputs = []
+            for imageIndex in dataForTraining[classification_name]:
+                training_data.append(dataForTraining[classification_name][imageIndex])
+                training_outputs.append(segForTraining[classification_name][imageIndex])
+                self.slicesUsedForTraining.add(imageIndex) # add the slice to the set of already used ones
+
+            try:
+                # todo: adapt bs and minTrainImages if needed
+                model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2]},
+                                        training_outputs, bs=5, minTrainImages=GlobalConfig['IL_MIN_SLICES'])
+                model.reset_timestamp()
+            except Exception as e:
+                print("Error during incremental learning")
+                traceback.print_exc()
+
+            # Uploading new model
+
+            # Only upload delta, to reduce model size -> only activate if rest of federated learning
+            # working properly
+            # all weights lower than threshold will be set to 0 for model compression
+            # threshold = 0.0001
+            # model = model.calc_delta(orig_model, threshold=threshold)
+            if setSplash:
+                self.setSplash(True, 2, 4, "Sending the improved model to server...")
+
+            st = time.time()
+            if meanDiceScore is None:
+                meanDiceScore = -1.0
+            self.model_provider.upload_model(classification_name, model, meanDiceScore)
+            print(f"took {time.time() - st:.2f}s")
+        if not performed:
+            self.alert("Not enough images for incremental learning")

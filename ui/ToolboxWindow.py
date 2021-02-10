@@ -110,6 +110,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     roi_copy = pyqtSignal(str, str, bool)
     # signal to combine two ROIs. Parameters are roi1, roi2, operator, dest_roi
     roi_combine = pyqtSignal(str, str, str, str)
+    roi_remove_overlap = pyqtSignal()
 
     masks_export = pyqtSignal(str, str)
     mask_import = pyqtSignal(str)
@@ -118,6 +119,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     statistics_calc = pyqtSignal(str)
     radiomics_calc = pyqtSignal(str, bool, int, int)
+    incremental_learn = pyqtSignal()
 
     mask_grow = pyqtSignal()
     mask_shrink = pyqtSignal()
@@ -244,6 +246,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionPyRadiomics.triggered.connect(self.calculate_radiomics)
 
+        self.actionIncremental_Learn.triggered.connect(self.do_incremental_learn)
+
         self.actionImport_masks.triggered.connect(self.load_mask_clicked)
         self.actionImport_multiple_masks.triggered.connect(self.load_multi_mask_clicked)
 
@@ -251,9 +255,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionCopy_roi.triggered.connect(self.do_copy_roi)
         self.actionCombine_roi.triggered.connect(self.do_combine_roi)
+        self.actionRemove_overlap.triggered.connect(self.roi_remove_overlap.emit)
 
         self.actionCopy_roi.setEnabled(False)
         self.actionCombine_roi.setEnabled(False)
+        self.actionRemove_overlap.setEnabled(False)
 
         self.action_Upload_data.triggered.connect(self.do_upload_data)
 
@@ -278,6 +284,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.action_Upload_data.setEnabled(enabled)
         self.actionCalculate_statistics.setEnabled(enabled)
         self.actionPyRadiomics.setEnabled(enabled)
+        self.actionIncremental_Learn.setEnabled(enabled)
 
     @pyqtSlot()
     def reload_config(self):
@@ -470,8 +477,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         senderObj = self.sender()
         if not senderObj.isChecked(): # this is a signal to uncheck the button: reset to no state
             self.edit_state = self.NO_STATE
-            return
-        self.edit_state = self.state_buttons_dict[senderObj]
+        else:
+            self.edit_state = self.state_buttons_dict[senderObj]
         self.manage_state_buttons(self.edit_state)
 
     def manage_state_buttons(self, state):
@@ -518,9 +525,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         if not self.roi_combo.currentText():
             self.actionCopy_roi.setEnabled(False)
             self.actionCombine_roi.setEnabled(False)
+            self.actionRemove_overlap.setEnabled(False)
         else:
             self.actionCopy_roi.setEnabled(True)
             self.actionCombine_roi.setEnabled(True)
+            self.actionRemove_overlap.setEnabled(True)
 
     @pyqtSlot(str, int)
     def set_current_roi(self, current_roi_name, current_subroi_number=-1):
@@ -722,3 +731,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
                                                   filter='CSV File (*.csv);;All files (*.*)')
         if file_out:
             self.radiomics_calc.emit(file_out, radiomics_props[0], radiomics_props[1], radiomics_props[2])
+
+
+    @pyqtSlot()
+    @ask_confirm(f'This action will improve the model through incremental learning.\n'+
+                 f'At least {config.GlobalConfig["IL_MIN_SLICES"]} slices are required for the operation.\n'+
+                 f'It might take a few minutes. Continue?')
+    def do_incremental_learn(self):
+        self.incremental_learn.emit()

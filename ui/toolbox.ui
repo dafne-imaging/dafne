@@ -611,6 +611,8 @@
     <property name="title">
      <string>Tools</string>
     </property>
+    <addaction name="actionIncremental_Learn"/>
+    <addaction name="separator"/>
     <addaction name="actionCalculate_statistics"/>
     <addaction name="actionPyRadiomics"/>
     <addaction name="separator"/>
@@ -630,6 +632,7 @@
     </property>
     <addaction name="actionCopy_roi"/>
     <addaction name="actionCombine_roi"/>
+    <addaction name="actionRemove_overlap"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuTools"/>
@@ -725,6 +728,16 @@
   <action name="actionOpen_transform_calculator">
    <property name="text">
     <string>Open transform calculator</string>
+   </property>
+  </action>
+  <action name="actionIncremental_Learn">
+   <property name="text">
+    <string>Improve model...</string>
+   </property>
+  </action>
+  <action name="actionRemove_overlap">
+   <property name="text">
+    <string>Remove overlap</string>
    </property>
   </action>
  </widget>
