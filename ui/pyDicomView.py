@@ -77,6 +77,8 @@ class ImageShow:
         #self.leftMoveCB = None     
         #self.leftReleaseCB = None
         #self.refreshCB = None
+
+        self.oldMouseXY = (0, 0)
         
         if im is not None:
             if type(im) is np.ndarray:
@@ -126,7 +128,7 @@ class ImageShow:
         self.redraw()
         
     
-    def displayImage(self, im, cmap = None):
+    def displayImage(self, im, cmap = None, redraw = True):
         if cmap is None:
           if self.cmap is None:
             cmap = 'gray'
@@ -172,7 +174,7 @@ class ImageShow:
         else:
             self.isImageRGB = False
         
-        self.setCmap(cmap)
+        self.setCmap(cmap, False)
 
         if self.imPlot:
             if oldSize != self.image.shape: # if the image shape is different, force a new imPlot to be created
@@ -187,6 +189,9 @@ class ImageShow:
             self.imPlot = self.axes.imshow(self.image, interpolation = self.interpolation, vmin=ImageShow.contrastWindow[0], vmax=ImageShow.contrastWindow[1], cmap=self.cmap, zorder = -1)
         else:
             self.imPlot.set_data(self.image)
+
+        if redraw:
+            self.redraw()
             
         
     def redraw(self):
@@ -197,6 +202,7 @@ class ImageShow:
         self.fig.canvas.draw()
         
     def mouseScrollCB(self, event):
+        self.oldMouseXY = (event.x, event.y) # this will suppress the mouse move event
         step = -event.step if INVERT_SCROLL else event.step
         if self.curImage is None or (step > 0 and self.curImage == 0) or (step < 0 and self.curImage > len(self.imList)-1):
             return
@@ -209,8 +215,8 @@ class ImageShow:
             self.curImage = 0
         if self.curImage > len(self.imList)-1:
             self.curImage = len(self.imList) - 1
-        self.displayImage(self.imList[int(self.curImage)], self.cmap)
-        self.redraw()
+        self.displayImage(self.imList[int(self.curImage)], self.cmap, redraw=False)
+        self.redraw() # already called in displayImage
         try:
             self.fig.canvas.setFocus()
         except:
@@ -282,6 +288,9 @@ class ImageShow:
         
     # callback for mouse move
     def mouseMoveCB(self, event):
+        xy = (event.x, event.y)
+        if xy == self.oldMouseXY: return # reject mouse move events when the mouse doesn't move
+        self.oldMouseXY = xy
         if event.button == 1:
             try:
                 self.leftMoveCB(event)
@@ -316,7 +325,7 @@ class ImageShow:
             
             # set the contrast window
             ImageShow.contrastWindow = (contrastCenter - contrastExtent, contrastCenter + contrastExtent)
-            
+
         if not self.isImageRGB:
             self.imPlot.set_clim(ImageShow.contrastWindow)
             self.redraw()
@@ -329,12 +338,13 @@ class ImageShow:
         if maxVal <= 1: maxVal = np.max(im.flat)
         return (0, maxVal) # stretch contrast to remove outliers
     
-    def setCmap(self, cmap):
+    def setCmap(self, cmap, redraw=True):
         self.cmap = cmap;
         if self.imPlot is not None:
             self.imPlot.set_cmap(cmap)
-        
-        self.redraw()
+
+        if redraw:
+            self.redraw()
             
     def loadDicomFile(self, fname):
         print(fname)

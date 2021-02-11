@@ -40,6 +40,7 @@ class ContourPainter:
         self.recalculate_patches()
 
     def clear_patches(self, axes = None):
+        if not self.painted: return
         self.painted = False
         if axes:
             axes.patches = []
@@ -94,13 +95,20 @@ class ContourPainter:
         self.rois = []
 
     def draw(self, axes, clear_first=False):
+        # print("Calling Contourpainter draw")
         if clear_first:
             self.clear_patches()
-        if self.painted: return
         for knot in self._knots:
+            #if not self.painted:
             axes.add_patch(knot)
+            axes.draw_artist(knot)
+            self.painted = True
         for curve in self._curves:
+            #if not self.painted:
             axes.add_patch(curve)
-        self.painted = True
+            axes.draw_artist(curve)
+            self.painted = True
+        # print("Painted?", self.painted)
+
 
 

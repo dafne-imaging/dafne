@@ -145,7 +145,7 @@ class RegistrationManager:
                 callback_function(imIndex)
 
         print("Saving transforms")
-        self.pickleTransforms()
+        self.pickle_transforms()
 
     def clean_elastix_files(self):
         files_to_delete = ['TransformixPoints.txt',

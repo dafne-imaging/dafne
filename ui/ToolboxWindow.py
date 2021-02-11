@@ -28,7 +28,7 @@ from PyQt5.QtSvg import QSvgWidget
 from . import GenericInputDialog
 import config
 import platform
-import multiprocessing
+from utils.ThreadHelpers import separate_thread_decorator
 from . import BatchCalcTransforms
 
 #print("Toolbox Window Path", os.path.abspath(__file__))

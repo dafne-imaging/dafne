@@ -15,6 +15,7 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import inspect
 
 import matplotlib
 
@@ -113,8 +114,11 @@ class MuscleSegmentation(ImageShow, QObject):
     undo_possible = pyqtSignal(bool)
     redo_possible = pyqtSignal(bool)
     splash_signal = pyqtSignal(bool, int, int, str)
+    reblit_signal = pyqtSignal()
+    redraw_signal = pyqtSignal()
 
     def __init__(self, *args, **kwargs):
+        self.suppressRedraw = False
         ImageShow.__init__(self, *args, **kwargs)
         QObject.__init__(self)
         self.fig.canvas.mpl_connect('close_event', self.closeCB)
@@ -131,7 +135,6 @@ class MuscleSegmentation(ImageShow, QObject):
         self.dl_classifier = None
         self.dl_segmenters = {}
 
-
         # self.fig.canvas.setCursor(Qt.BlankCursor)
         self.app = None
 
@@ -143,6 +146,17 @@ class MuscleSegmentation(ImageShow, QObject):
         self.hideRois = False
         self.editMode = ToolboxWindow.EDITMODE_MASK
         self.resetInternalState()
+
+        self.fig.canvas.mpl_connect('resize_event', self.resizeCB)
+        self.reblit_signal.connect(self.do_reblit)
+        self.redraw_signal.connect(self.do_redraw)
+
+    def resizeCB(self, event):
+        self.resetBlitBg()
+        self.redraw()
+
+    def resetBlitBg(self):
+        self.blitBg = None
 
     def resetModelProvider(self):
         available_models = None
@@ -181,6 +195,9 @@ class MuscleSegmentation(ImageShow, QObject):
         self.resetModelProvider()
 
     def resetInterface(self):
+        self.blitBg = None
+        self.blitXlim = None
+        self.blitYlim = None
         try:
             self.brush_patch.remove()
         except:
@@ -223,9 +240,9 @@ class MuscleSegmentation(ImageShow, QObject):
 
         try:
             self.updateContourPainters()
-            self.redraw()
         except:
             pass
+        self.redraw()
 
     def resetInternalState(self):
         #load_config() # this was already loaded in dafne.py
@@ -326,7 +343,6 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.toolbox_window.model_import.connect(self.importModel)
 
-
     def setSplash(self, is_splash, current_value, maximum_value, text= ""):
         self.splash_signal.emit(is_splash, current_value, maximum_value, text)
 
@@ -341,21 +357,21 @@ class MuscleSegmentation(ImageShow, QObject):
             self.connectSignals()
 
     @pyqtSlot(str)
-    @separate_thread_decorator
     def changeEditMode(self, mode):
         print("Changing edit mode")
         self.setSplash(True, 0, 1)
         self.editMode = mode
         roi_name = self.getCurrentROIName()
-        self.updateRoiList()
-        self.toolbox_window.set_current_roi(roi_name)
-        if mode == ToolboxWindow.EDITMODE_MASK:
-            self.removeContours()
-            self.updateMasksFromROIs()
-        else:
-            self.removeMasks()
-            self.updateContourPainters()
-        self.redraw()
+        if roi_name:
+            self.updateRoiList()
+            self.toolbox_window.set_current_roi(roi_name)
+            if mode == ToolboxWindow.EDITMODE_MASK:
+                self.removeContours()
+                self.updateMasksFromROIs()
+            else:
+                self.removeMasks()
+                self.updateContourPainters()
+            self.redraw()
         self.setSplash(False, 1, 1)
 
     def setState(self, state):
@@ -377,7 +393,7 @@ class MuscleSegmentation(ImageShow, QObject):
             else:
                 if not self.roiManager.contains(roiName, imageN) or self.roiManager.get_roi_mask_pair(roiName,
                                                                                                       imageN).get_subroi_len() == 0:
-                    self.addSubRoi(roiName, imageN)
+                    self._addSubRoi_internal(roiName, imageN)
                 n_subrois = self.roiManager.get_roi_mask_pair(roiName, imageN).get_subroi_len()
             roiDict[roiName] = n_subrois  # dict: roiname -> n subrois per slice
         self.toolbox_window.set_rois_list(roiDict)
@@ -459,19 +475,19 @@ class MuscleSegmentation(ImageShow, QObject):
     def clearAllROIs(self):
         self.roiManager.clear()
         self.updateRoiList()
-        self.redraw()
+        self.reblit()
 
     def clearSubrois(self, name, sliceN):
         self.roiManager.clear(name, sliceN)
         self.updateRoiList()
-        self.redraw()
+        self.reblit()
 
     @pyqtSlot(str)
     @snapshotSaver
     def removeRoi(self, roi_name):
         self.roiManager.clear(roi_name)
         self.updateRoiList()
-        self.redraw()
+        self.reblit()
 
     @pyqtSlot(int)
     @snapshotSaver
@@ -479,7 +495,7 @@ class MuscleSegmentation(ImageShow, QObject):
         current_name, _ = self.toolbox_window.get_current_roi_subroi()
         self.roiManager.clear_subroi(current_name, int(self.curImage), subroi_number)
         self.updateRoiList()
-        self.redraw()
+        self.reblit()
 
     @pyqtSlot(str)
     @snapshotSaver
@@ -492,21 +508,24 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.set_current_roi(roiName, 0)
         self.updateMasksFromROIs()
         self.updateContourPainters()
-        self.redraw()
+        self.reblit()
 
-    @pyqtSlot()
-    #@snapshotSaver this generates too many calls; anyway we want to add the subroi to the history
-    # when something happens to it
-    def addSubRoi(self, roi_name=None, imageN=None):
+    def _addSubRoi_internal(self, roi_name=None, imageN=None):
         if not roi_name:
             roi_name, _ = self.toolbox_window.get_current_roi_subroi()
         if imageN is None:
             imageN = int(self.curImage)
         self.roiManager.add_subroi(roi_name, imageN)
+
+    @pyqtSlot()
+    #@snapshotSaver this generates too many calls; anyway we want to add the subroi to the history
+    # when something happens to it
+    def addSubRoi(self, roi_name=None, imageN=None):
+        self._addSubRoi_internal(roi_name, imageN)
         self.updateRoiList()
         self.toolbox_window.set_current_roi(roi_name, self.roiManager.get_roi_mask_pair(roi_name,
                                                                                         imageN).get_subroi_len() - 1)
-        self.redraw()
+        self.reblit()
 
     @pyqtSlot(str, int)
     def changeRoi(self, roi_name, subroi_index):
@@ -515,7 +534,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.activeMask = None
         self.otherMask = None
         self.updateContourPainters()
-        self.redraw()
+        self.reblit()
 
     def getCurrentROIName(self):
         """ Gets the name of the ROI selected in the toolbox """
@@ -654,7 +673,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.roiManager.set_mask(key_tuple[0], key_tuple[1], np.logical_and(mask, currentNotMask))
 
         self.updateMasksFromROIs()
-        self.redraw()
+        self.reblit()
 
 
     #########################################################################################
@@ -669,8 +688,7 @@ class MuscleSegmentation(ImageShow, QObject):
         # self.setCurrentROI(r.getSimplifiedSpline(GlobalConfig['SIMPLIFIED_ROI_POINTS']))
         # self.setCurrentROI(r.getSimplifiedSpline(spacing=GlobalConfig['SIMPLIFIED_ROI_SPACING']))
         self.setCurrentROI(r.getSimplifiedSpline3())
-        # self.redraw()
-        self.redraw()
+        self.reblit()
 
     @snapshotSaver
     def optimize(self):
@@ -691,8 +709,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         for index, knot in enumerate(r.knots):
             r.replaceKnot(index, newKnots[index])
-        # self.redraw()
-        self.redraw()
+        self.reblit()
 
     # optimizes a knot along an (approximatE) normal to the curve
     def optimizeKnot2(self, knot, prevKnot, nextKnot):
@@ -864,16 +881,15 @@ class MuscleSegmentation(ImageShow, QObject):
     # No @snapshotSaver: snapshot is saved in the calling function
     def addPoint(self, spline, event):
         self.currentPoint = spline.addKnot((event.xdata, event.ydata))
-        # self.redraw()
-        self.redraw()
+        self.reblit()
 
     # No @snapshotSaver: snapshot is saved in the calling function
     def movePoint(self, spline, event):
+        print("Move point")
         if self.currentPoint is None:
             return
         spline.replaceKnot(self.currentPoint, (event.xdata, event.ydata))
-        # self.redraw()
-        self.redraw()
+        self.reblit()
 
     @pyqtSlot()
     @snapshotSaver
@@ -884,7 +900,7 @@ class MuscleSegmentation(ImageShow, QObject):
         elif self.editMode == ToolboxWindow.EDITMODE_MASK:
             self.roiManager.clear_mask(self.getCurrentROIName(), self.curImage)
             self.activeMask = None
-        self.redraw()
+        self.reblit()
 
     @snapshotSaver
     def _currentMaskOperation(self, operation_function):
@@ -900,7 +916,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.updateMasksFromROIs()
         else: # only update the active mask
             self.activeMask = newMask.copy()
-        self.redraw()
+        self.reblit()
 
     @pyqtSlot()
     def maskGrow(self):
@@ -939,7 +955,7 @@ class MuscleSegmentation(ImageShow, QObject):
             plt.pause(.000001)
 
     @snapshotSaver
-    @separate_thread_decorator
+    #@separate_thread_decorator
     def propagate(self):
         if self.curImage >= len(self.imList) - 1: return
         if not self.registrationManager: return
@@ -951,6 +967,9 @@ class MuscleSegmentation(ImageShow, QObject):
 
         if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
             curROI = self.getCurrentROI()
+            if curROI is None:
+                self.setSplash(False, 0, 0)
+                return
             nextROI = self.getCurrentROI(+1)
             knotsOut = self.registrationManager.run_transformix_knots(curROI.knots,
                                                                       self.registrationManager.get_transform(int(self.curImage)))
@@ -968,6 +987,9 @@ class MuscleSegmentation(ImageShow, QObject):
                     nextROI.replaceKnot(i, newK)
         elif self.editMode == ToolboxWindow.EDITMODE_MASK:
             mask_in = self.getCurrentMask()
+            if mask_in is None:
+                self.setSplash(False, 0, 0)
+                return
             # Note: we are using the inverse transform, because the transforms are originally calculated to
             # transform points, which is the inverse as transforming images
             mask_out = self.registrationManager.run_transformix_mask(mask_in,
@@ -988,7 +1010,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.setSplash(False, 3, 3)
 
     @snapshotSaver
-    @separate_thread_decorator
+    #@separate_thread_decorator
     def propagateBack(self):
         if self.curImage < 1: return
         # fixedImage = self.image
@@ -998,6 +1020,9 @@ class MuscleSegmentation(ImageShow, QObject):
 
         if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
             curROI = self.getCurrentROI()
+            if curROI is None:
+                self.setSplash(False, 0, 0)
+                return
             nextROI = self.getCurrentROI(-1)
             knotsOut = self.registrationManager.run_transformix_knots(curROI.knots,
                                                                       self.registrationManager.get_inverse_transform(int(self.curImage)))
@@ -1014,6 +1039,9 @@ class MuscleSegmentation(ImageShow, QObject):
                     nextROI.replaceKnot(i, newK)
         elif self.editMode == ToolboxWindow.EDITMODE_MASK:
             mask_in = self.getCurrentMask()
+            if mask_in is None:
+                self.setSplash(False, 0, 0)
+                return
             # Note: we are using the inverse transform, because the transforms are originally calculated to
             # transform points, which is the inverse as transforming images
             mask_out = self.registrationManager.run_transformix_mask(mask_in,
@@ -1085,15 +1113,22 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def drawMasks(self):
         """ Plot the masks for the current figure """
+        # print("Draw masks", time.time())
+        # frame = inspect.getouterframes(inspect.currentframe(), 2)
+        # for info in frame:
+        #     print("Trace", info[3])
         if self.activeMask is None or self.otherMask is None:
             self.updateMasksFromROIs()
+
+        if self.activeMask is None or self.otherMask is None:
+            return
 
         if not self.hideRois:  # if we hide the ROIs, clear all the masks
             active_mask = self.activeMask
             other_mask = self.otherMask
         else:
-            active_mask = np.zeros_like(self.activeMask)
-            other_mask = np.zeros_like(self.otherMask)
+            active_mask = np.zeros_like(self.activeMask, dtype=np.uint8)
+            other_mask = np.zeros_like(self.otherMask, dtype=np.uint8)
 
         if self.maskImPlot is None:
             original_xlim = self.axes.get_xlim()
@@ -1104,8 +1139,10 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.axes.set_ylim(original_ylim)
             except:
                 pass
+            self.maskImPlot.set_animated(True)
 
         self.maskImPlot.set_data(active_mask.astype(np.uint8))
+        self.axes.draw_artist(self.maskImPlot)
 
         if self.maskOtherImPlot is None:
             original_xlim = self.axes.get_xlim()
@@ -1117,15 +1154,22 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.axes.set_ylim(original_ylim)
             except:
                 pass
+            self.maskOtherImPlot.set_animated(True)
 
         self.maskOtherImPlot.set_data(other_mask.astype(np.uint8))
+        self.axes.draw_artist(self.maskOtherImPlot)
 
     def updateContourPainters(self):
+        # frame = inspect.getouterframes(inspect.currentframe(), 2)
+        # for info in frame:
+        #     print("Trace", info[3])
+
+
         self.activeRoiPainter.clear_rois(self.axes)
         self.otherRoiPainter.clear_rois(self.axes)
         self.sameRoiPainter.clear_rois(self.axes)
-
         if not self.roiManager or self.editMode != ToolboxWindow.EDITMODE_CONTOUR: return
+
         current_name = self.getCurrentROIName()
         current_subroi = self.getCurrentSubroiNumber()
         slice_number = int(self.curImage)
@@ -1143,6 +1187,10 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def drawContours(self):
         """ Plot the contours for the current figure """
+        # frame = inspect.getouterframes(inspect.currentframe(), 2)
+        # for info in frame:
+        #     print("Trace", info[3])
+        #     print("Trace", info[3])add
         self.activeRoiPainter.recalculate_patches() # recalculate the position of the active ROI
         self.activeRoiPainter.draw(self.axes, False)
         self.otherRoiPainter.draw(self.axes, False)
@@ -1167,10 +1215,11 @@ class MuscleSegmentation(ImageShow, QObject):
         self.updateRoiList()
         self.redraw()
 
-    def displayImage(self, im, cmap=None):
+    def displayImage(self, im, cmap=None, redraw = True):
+        self.resetBlitBg()
         self.removeMasks()
         self.removeContours()
-        ImageShow.displayImage(self, im, cmap)
+        ImageShow.displayImage(self, im, cmap, redraw)
         self.updateRoiList()  # set the appropriate (sub)roi list for the current image
         self.activeMask = None
         self.otherMask = None
@@ -1182,6 +1231,64 @@ class MuscleSegmentation(ImageShow, QObject):
     ### UI Callbacks
     ###
     ##############################################################################################################
+
+    def reblit(self):
+        self.reblit_signal.emit()
+
+    @pyqtSlot()
+    def do_reblit(self):
+        if self.suppressRedraw: return
+        if self.blitBg is None or \
+                self.blitXlim != self.axes.get_xlim() or \
+                self.blitYlim != self.axes.get_ylim():
+            self.removeMasks()
+            self.removeContours()
+            self.redraw()
+            return
+        self.fig.canvas.restore_region(self.blitBg)
+        self.plotAnimators()
+        self.fig.canvas.blit(self.fig.bbox)
+        self.suppressRedraw = True # avoid nested calls
+        self.fig.canvas.flush_events()
+        self.suppressRedraw = False
+
+    def plotAnimators(self):
+        if self.brush_patch is not None:
+            self.axes.draw_artist(self.brush_patch)
+        if self.roiManager:
+            if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
+                self.drawContours()
+            elif self.editMode == ToolboxWindow.EDITMODE_MASK:
+                self.drawMasks()
+
+    def redraw(self):
+        self.redraw_signal.emit()
+
+    @pyqtSlot()
+    def do_redraw(self):
+        if self.suppressRedraw: return
+        try:
+            self.removeMasks()
+        except:
+            pass
+        try:
+            self.removeContours()
+        except:
+            pass
+        try:
+            self.brush_patch.remove()
+        except:
+            pass
+        self.fig.canvas.draw()
+        self.suppressRedraw = True # avoid nested calls
+        self.fig.canvas.flush_events()
+        #plt.pause(0.00001)
+        self.suppressRedraw = False
+        self.blitBg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
+        self.blitXlim = self.axes.get_xlim()
+        self.blitYlim = self.axes.get_ylim()
+        self.refreshCB()
+        self.reblit()
 
     @pyqtSlot()
     def refreshCB(self):
@@ -1202,11 +1309,8 @@ class MuscleSegmentation(ImageShow, QObject):
         #print("Refresh")
         #print(self.editMode)
 
-        if self.roiManager:
-            if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
-                self.drawContours()
-            elif self.editMode == ToolboxWindow.EDITMODE_MASK:
-                self.drawMasks()
+
+
 
 
         #print("Redrawing")
@@ -1237,7 +1341,7 @@ class MuscleSegmentation(ImageShow, QObject):
         if mouseX is None or mouseY is None or brush_color is None:
             try:
                 self.brush_patch.remove()
-                self.fig.canvas.draw()
+                #self.fig.canvas.draw()
             except:
                 pass
             self.brush_patch = None
@@ -1286,22 +1390,21 @@ class MuscleSegmentation(ImageShow, QObject):
             self.brush_patch.set_center(center)
             self.brush_patch.set_radius(brush_size)
 
+        self.brush_patch.set_animated(True)
         self.brush_patch.set_color(brush_color)
-        self.fig.canvas.draw()
+        #self.do_reblit()
         return True
 
-    def modifyMaskFromBrush(self, saveSnapshot=False):
+    def modifyMaskFromBrush(self):
         if not self.brush_patch: return
         if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:
-            if saveSnapshot: self.saveSnapshot()
             np.logical_or(self.activeMask, self.brush_patch.to_mask(self.activeMask.shape), out=self.activeMask)
         elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
-            if saveSnapshot: self.saveSnapshot()
             eraseMask = np.logical_not(self.brush_patch.to_mask(self.activeMask.shape))
             np.logical_and(self.activeMask, eraseMask, out=self.activeMask)
             if self.toolbox_window.get_erase_from_all_rois():
                 np.logical_and(self.otherMask, eraseMask, out=self.otherMask)
-        self.redraw()
+        #self.do_reblit()
 
     # override from ImageShow
     def mouseMoveCB(self, event):
@@ -1310,10 +1413,15 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.isCursorNormal() and
                 event.button != 2 and
                 event.button != 3):
+            xy = (event.x, event.y)
+            if xy == self.oldMouseXY: return  # reject mouse move events when the mouse doesn't move. From parent
+            self.oldMouseXY = xy
             moved_to_new_point = self.moveBrushPatch(event)
             if event.button == 1: # because we are overriding MoveCB, we won't call leftPressCB
                 if moved_to_new_point:
+                    #print("Moved to new point")
                     self.modifyMaskFromBrush()
+            self.reblit()
         else:
             if self.brush_patch:
                 try:
@@ -1332,12 +1440,12 @@ class MuscleSegmentation(ImageShow, QObject):
                 if self.translateDelta is None: return
                 newCenter = (event.xdata - self.translateDelta[0], event.ydata - self.translateDelta[1])
                 roi.moveCenterTo(newCenter)
-                self.redraw()
+                self.reblit()
             elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.ROTATE_STATE:
                 if self.rotationDelta is None: return
                 newAngle = roi.getOrientation( (event.xdata, event.ydata), center = self.rotationDelta[0])
                 roi.reorientByAngle(newAngle - self.rotationDelta[1])
-                self.redraw()
+                self.reblit()
 
     def leftPressCB(self, event):
         if not self.imPlot.contains(event):
@@ -1347,7 +1455,7 @@ class MuscleSegmentation(ImageShow, QObject):
         if self.getState() != 'MUSCLE': return
 
         if self.toolbox_window.get_edit_mode() == ToolboxWindow.EDITMODE_MASK:
-            self.modifyMaskFromBrush(saveSnapshot=True)
+            self.modifyMaskFromBrush()
         else:
             #print("Edit button state", self.toolbox_window.get_edit_button_state())
             roi = self.getCurrentROI()
@@ -1371,8 +1479,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 if knotIndex is not None:
                     self.saveSnapshot()
                     roi.removeKnot(knotIndex)
-                    # self.redraw()
-                    self.redraw()
+                    self.reblit()
             elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:
                 self.saveSnapshot()
                 if knotIndex is None:
@@ -1385,6 +1492,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.translateDelta = None
         self.rotationDelta = None
         if self.editMode == ToolboxWindow.EDITMODE_MASK:
+            self.saveSnapshot() # save state before modification
             self.roiManager.set_mask(self.getCurrentROIName(), self.curImage, self.activeMask)
             if self.toolbox_window.get_erase_from_all_rois():
                 for (key_tuple, mask) in self.roiManager.all_masks(image_number=self.curImage):
@@ -1504,8 +1612,10 @@ class MuscleSegmentation(ImageShow, QObject):
         self.updateRoiList()
         self.updateMasksFromROIs()
         self.updateContourPainters()
+        print("Contour updated")
         self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
         self.redraw()
+        print("Redraw done")
 
     @pyqtSlot(str, str)
     @pyqtSlot(str)
