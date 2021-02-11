@@ -518,7 +518,10 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.suppress_roi_change_emit = True
         self.all_rois = roi_dict
         self.roi_combo.clear()
-        for roi_name in self.all_rois:
+        for roi_name in list(self.all_rois):
+            if not roi_name:
+                del self.all_rois['roi_name'] # remove empty name
+                continue
             self.roi_combo.addItem(roi_name)
 
         # try to reset the previous selection

@@ -1834,6 +1834,17 @@ class MuscleSegmentation(ImageShow, QObject):
                         if firstDicom is None:
                             firstDicom = new_path
 
+            if containsDicom and containsDirs:
+                msgBox = QMessageBox()
+                msgBox.setText('Folder contains both dicom files and subfolders.\nWhat do you want to do?')
+                buttonDicom = msgBox.addButton('Load files as one ROI', QMessageBox.YesRole)
+                buttonDir = msgBox.addButton('Load subfolders as multiple ROIs', QMessageBox.NoRole)
+                msgBox.exec()
+                if msgBox.clickedButton() == buttonDicom:
+                    containsDirs = False
+                else:
+                    containsDicom = False
+
             if containsDicom:
                 path = new_path # "fake" the loading of the first image
                 _, ext = os.path.splitext(path)

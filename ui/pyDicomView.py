@@ -79,7 +79,8 @@ class ImageShow:
         #self.refreshCB = None
 
         self.oldMouseXY = (0, 0)
-        
+        self.startXY = None
+
         if im is not None:
             if type(im) is np.ndarray:
                 print("Display array")
@@ -467,9 +468,18 @@ class ImageShow:
                     if self.dicomHeaderList is None: self.dicomHeaderList = []
                     self.appendImage(basepath + os.path.sep + f)
             self.affine = create_affine(self.dicomHeaderList)
+
         if len(self.imList) > 0:
+            try:
+                self.imPlot.remove()
+            except:
+                pass
+            self.imPlot = None
             self.curImage = 0
             self.displayImage(int(0))
+            self.axes.set_xlim(-0.5, self.image.shape[1] - 0.5)
+            self.axes.set_ylim(self.image.shape[0] - 0.5, -0.5)
+
                 
                 
             
