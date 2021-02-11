@@ -219,6 +219,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.brushsize_slider.valueChanged.connect(self.brushsliderCB)
         self.brushsize_slider.setValue(5)
+        self.brushsliderCB(5)
 
         self.grow_button.clicked.connect(self.mask_grow.emit)
         self.shrink_button.clicked.connect(self.mask_shrink.emit)
@@ -487,7 +488,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
                 obj.setChecked(True)
             else:
                 obj.setChecked(False)
-        if self.get_edit_mode() == self.EDITMODE_MASK and self.edit_state == self.REMOVE_STATE:
+        if self.get_edit_mode() == self.EDITMODE_MASK and state == self.REMOVE_STATE:
             self.eraseFromAllROIs_checkbox.setVisible(True)
         else:
             self.eraseFromAllROIs_checkbox.setVisible(False)
