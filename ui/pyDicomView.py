@@ -480,9 +480,7 @@ class ImageShow:
             self.axes.set_xlim(-0.5, self.image.shape[1] - 0.5)
             self.axes.set_ylim(self.image.shape[0] - 0.5, -0.5)
 
-                
-                
-            
+
 # when called as a script, load all the images in the directory
 if __name__ == "__main__":
     # test file
