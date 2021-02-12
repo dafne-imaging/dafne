@@ -6,12 +6,12 @@ matplotlib
 pyqt5
 nibabel
 pydicom
-pypotrace
+#pypotrace
 dill
 progress
 keras
 appdirs
 requests
 scikit-image
-SimpleITK # including Elastix
-pyradiomics # optional requirement
+#SimpleITK # including Elastix
+#pyradiomics # optional requirement

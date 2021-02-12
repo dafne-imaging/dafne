@@ -520,7 +520,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.roi_combo.clear()
         for roi_name in list(self.all_rois):
             if not roi_name:
-                del self.all_rois['roi_name'] # remove empty name
+                del self.all_rois[roi_name] # remove empty name
                 continue
             self.roi_combo.addItem(roi_name)
 
