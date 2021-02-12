@@ -59,7 +59,7 @@ class CalcTransformWindow(QWidget, Ui_CalcTransformsUI):
             self.progressBar.setValue(0)
             self.progressBar.setEnabled(False)
             self.calculate_button.setEnabled(False)
-            QMessageBox.warning(self, 'Invalid DICOM dataset! Select a dicom file')
+            QMessageBox.warning(self, 'Warning', 'Invalid DICOM dataset! Select a dicom file')
             return
 
         data = list(np.transpose(self.data, [2, 0, 1]))
