@@ -58,6 +58,7 @@ defaults = {
     'MODEL_PROVIDER': ('Local', 'option', ['Local', 'Remote'], 'Model location'),
     'API_KEY': ('', 'string', 'Personal server access key'),
     'SPLIT_LATERALITY': (True, 'bool', 'Separate L/R in autosegment'),
+    'FORCE_MODEL_DOWNLOAD': (False, 'bool', 'Force download of models from server'),
     'IL_MIN_SLICES': (5, 'int_spin', 1, 50, 1, None),
     'DO_INCREMENTAL_LEARNING':  (True, 'bool', None),
     'ROI_CIRCLE_SIZE':  (2, 'int', 1, 200, 1, None),

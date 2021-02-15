@@ -2005,7 +2005,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.model_provider = modelProvider
         if GlobalConfig['USE_CLASSIFIER']:
             try:
-                self.dl_classifier = modelProvider.load_model('Classifier')
+                self.dl_classifier = modelProvider.load_model('Classifier', force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
             except:
                 self.dl_classifier = None
         else:
@@ -2064,7 +2064,10 @@ class MuscleSegmentation(ImageShow, QObject):
         try:
             segmenter = self.dl_segmenters[class_str]
         except KeyError:
-            segmenter = self.model_provider.load_model(class_str, lambda cur_val,max_val: self.setSplash(True, cur_val, max_val, 'Downloading Model...'))
+            segmenter = self.model_provider.load_model(class_str,
+                                                       lambda cur_val, max_val: self.setSplash(True, cur_val, max_val,
+                                                                                               'Downloading Model...'),
+                                                       force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
             if segmenter is None:
                 self.setSplash(False, 0, 3, "Loading model...")
                 self.alert(f"Error loading model {class_str}")
@@ -2108,7 +2111,7 @@ class MuscleSegmentation(ImageShow, QObject):
             try:
                 model = self.dl_segmenters[classification_name]
             except KeyError:
-                model = self.model_provider.load_model(classification_name)
+                model = self.model_provider.load_model(classification_name, force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
                 self.dl_segmenters[classification_name] = model
             training_data = []
             training_outputs = []
