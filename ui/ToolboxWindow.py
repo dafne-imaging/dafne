@@ -23,15 +23,17 @@ from ui.ToolboxUI import Ui_SegmentationToolbox
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt
 from PyQt5.QtGui import QMovie, QIcon, QPixmap
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog, QApplication, QDialog, \
-                            QVBoxLayout, QPushButton
+                            QVBoxLayout, QPushButton, QTableWidget, QTableWidgetItem
 from PyQt5.QtSvg import QSvgWidget
 from . import GenericInputDialog
 import config
 import platform
 from utils.ThreadHelpers import separate_thread_decorator
 from . import BatchCalcTransforms
+import webbrowser
+from .pyDicomView import INVERT_SCROLL
 
-#print("Toolbox Window Path", os.path.abspath(__file__))
+DOCUMENTATION_URL = 'https://www.dafne.network/documentation/'
 UI_PATH = os.path.dirname(os.path.abspath(__file__))
 
 SPLASH_ANIMATION_PATH = os.path.join(UI_PATH, "images", "dafne_anim.gif")
@@ -53,6 +55,17 @@ and that you are <b>relinquishing any right on this data</b>.
 This is <b>NOT NECESSARY</b> for the function of the program.
 """
 
+SHORTCUT_HELP = [
+    ('Previous Image', '[Left Arrow], [Up Arrow]'),
+    ('Next Image', '[Right Arrow], [Down Arrow]'),
+    ('Paint/Add/Move', '[Shift]'),
+    ('Erase/Delete', '[Ctrl], [Cmd]'),
+    ('Propagate forward', 'n'),
+    ('Propagate back', 'b'),
+    ('Reduce Brush Size', '-, y, z'),
+    ('Increase Brush Size', '+, x'),
+]
+
 class AboutDialog(QDialog):
     def __init__(self, *args, **kwargs):
         QDialog.__init__(self, *args, **kwargs)
@@ -66,6 +79,37 @@ class AboutDialog(QDialog):
         btn.clicked.connect(self.close)
         myLayout.addWidget(btn)
         self.resize(640,480)
+        self.show()
+
+class ShortcutDialog(QDialog):
+    def __init__(self, *args, **kwargs):
+        QDialog.__init__(self, *args, **kwargs)
+        myLayout = QVBoxLayout(self)
+        self.setLayout(myLayout)
+        self.setWindowTitle("Keyboard shortcuts")
+        self.setWindowModality(Qt.ApplicationModal)
+
+        self.tableWidget = QTableWidget()
+        self.tableWidget.setColumnCount(1)
+        self.tableWidget.setRowCount(len(SHORTCUT_HELP))
+        item_h = QTableWidgetItem()
+        item_h.setText("Keys")
+        self.tableWidget.setHorizontalHeaderItem(0, item_h)
+        for index, shortcut in enumerate(SHORTCUT_HELP):
+            item_l = QTableWidgetItem()
+            item_l.setText(shortcut[0])
+            item_r = QTableWidgetItem()
+            item_r.setText(shortcut[1])
+            self.tableWidget.setVerticalHeaderItem(index, item_l)
+            self.tableWidget.setItem(index, 0, item_r)
+
+        myLayout.addWidget(self.tableWidget)
+        self.tableWidget.resizeColumnsToContents()
+
+        btn = QPushButton("OK")
+        btn.clicked.connect(self.close)
+        myLayout.addWidget(btn)
+        self.resize(400, 400)
         self.show()
 
 
@@ -240,6 +284,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionSaveNPZ.triggered.connect(self.export_masks_npz)
 
         self.actionAbout.triggered.connect(self.about)
+        self.actionOpen_online_documentation.triggered.connect(lambda : webbrowser.open(DOCUMENTATION_URL))
+        self.actionHelp_shortcuts.triggered.connect(self.show_shortcuts)
 
         self.actionCalculate_statistics.triggered.connect(self.calculate_statistics)
         if not activate_radiomics:
@@ -370,6 +416,10 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.roi_combine.emit(values[0], values[1], values[2], output_name)
 
     @pyqtSlot()
+    def show_shortcuts(self):
+        ShortcutDialog(self)
+
+    @pyqtSlot()
     def about(self):
         AboutDialog(self)
 
@@ -391,6 +441,14 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.mainUIWidget.setVisible(True)
             self.menubar.setEnabled(True)
             QApplication.processEvents()
+
+    @pyqtSlot()
+    def reduce_brush_size(self):
+        self.brushsize_slider.setValue(max(self.brushsize_slider.value()-1, 1))
+
+    @pyqtSlot()
+    def increase_brush_size(self):
+        self.brushsize_slider.setValue(min(self.brushsize_slider.value() + 1, self.brushsize_slider.maximum()))
 
     @pyqtSlot(int)
     def brushsliderCB(self, value):

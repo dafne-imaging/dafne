@@ -624,6 +624,9 @@
     <property name="title">
      <string>Help</string>
     </property>
+    <addaction name="actionOpen_online_documentation"/>
+    <addaction name="actionHelp_shortcuts"/>
+    <addaction name="separator"/>
     <addaction name="actionAbout"/>
    </widget>
    <widget class="QMenu" name="menuROI">
@@ -738,6 +741,16 @@
   <action name="actionRemove_overlap">
    <property name="text">
     <string>Remove overlap</string>
+   </property>
+  </action>
+  <action name="actionOpen_online_documentation">
+   <property name="text">
+    <string>Online documentation...</string>
+   </property>
+  </action>
+  <action name="actionHelp_shortcuts">
+   <property name="text">
+    <string>Shortcuts...</string>
    </property>
   </action>
  </widget>

@@ -116,6 +116,8 @@ class MuscleSegmentation(ImageShow, QObject):
     splash_signal = pyqtSignal(bool, int, int, str)
     reblit_signal = pyqtSignal()
     redraw_signal = pyqtSignal()
+    reduce_brush_size = pyqtSignal()
+    increase_brush_size = pyqtSignal()
 
     def __init__(self, *args, **kwargs):
         self.suppressRedraw = False
@@ -342,6 +344,9 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.data_upload.connect(self.uploadData)
 
         self.toolbox_window.model_import.connect(self.importModel)
+
+        self.reduce_brush_size.connect(self.toolbox_window.reduce_brush_size)
+        self.increase_brush_size.connect(self.toolbox_window.increase_brush_size)
 
     def setSplash(self, is_splash, current_value, maximum_value, text= ""):
         self.splash_signal.emit(is_splash, current_value, maximum_value, text)
@@ -1408,6 +1413,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
     # override from ImageShow
     def mouseMoveCB(self, event):
+        self.fig.canvas.activateWindow()
         if (self.getState() == 'MUSCLE' and
                 self.toolbox_window.get_edit_mode() == ToolboxWindow.EDITMODE_MASK and
                 self.isCursorNormal() and
@@ -1493,7 +1499,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.rotationDelta = None
         if self.editMode == ToolboxWindow.EDITMODE_MASK:
             self.saveSnapshot() # save state before modification
-            self.roiManager.set_mask(self.getCurrentROIName(), self.curImage, self.activeMask)
+            if self.roiManager is not None:
+                self.roiManager.set_mask(self.getCurrentROIName(), self.curImage, self.activeMask)
             if self.toolbox_window.get_erase_from_all_rois():
                 for (key_tuple, mask) in self.roiManager.all_masks(image_number=self.curImage):
                     if key_tuple[0] == self.getCurrentROIName(): continue
@@ -1517,6 +1524,12 @@ class MuscleSegmentation(ImageShow, QObject):
             self.propagate()
         elif event.key == 'b':
             self.propagateBack()
+        elif event.key == '-' or event.key == 'y' or event.key == 'z':
+            self.reduce_brush_size.emit()
+            self.reblit()
+        elif event.key == '+' or event.key == 'x':
+            self.increase_brush_size.emit()
+            self.reblit()
         else:
             ImageShow.keyPressCB(self, event)
 

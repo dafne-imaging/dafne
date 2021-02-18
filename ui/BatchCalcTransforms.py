@@ -33,6 +33,7 @@ TRANSFORM_FILENAME = 'transforms.p'
 class CalcTransformWindow(QWidget, Ui_CalcTransformsUI):
 
     update_progress = pyqtSignal(int)
+    success = pyqtSignal()
 
     def __init__(self):
         QWidget.__init__(self)
@@ -43,6 +44,7 @@ class CalcTransformWindow(QWidget, Ui_CalcTransformsUI):
         self.update_progress.connect(self.set_progress)
         self.choose_Button.clicked.connect(self.load_data)
         self.calculate_button.clicked.connect(self.calculate)
+        self.success.connect(self.show_success_box)
 
     @pyqtSlot()
     def load_data(self):
@@ -66,7 +68,6 @@ class CalcTransformWindow(QWidget, Ui_CalcTransformsUI):
         self.progressBar.setMaximum(len(data))
         self.progressBar.setEnabled(True)
         self.transform_filename = os.path.join(containing_dir, TRANSFORM_FILENAME)
-
         self.registrationManager = RegistrationManager(data, self.transform_filename, os.getcwd(), GlobalConfig['TEMP_DIR'])
         self.location_Text.setText(containing_dir)
         self.calculate_button.setEnabled(True)
@@ -76,14 +77,19 @@ class CalcTransformWindow(QWidget, Ui_CalcTransformsUI):
         self.progressBar.setValue(value)
 
     @pyqtSlot()
+    def show_success_box(self):
+        QMessageBox.information(self, 'Done', 'Done!')
+
+    @pyqtSlot()
     @separate_thread_decorator
     def calculate(self):
         self.choose_Button.setEnabled(False)
         self.calculate_button.setEnabled(False)
         self.registrationManager.calc_transforms(lambda value: self.update_progress.emit(value))
-        QMessageBox.information(self, 'Done!')
         self.choose_Button.setEnabled(True)
         self.calculate_button.setEnabled(False)
+        self.update_progress.emit(0)
+        self.success.emit()
 
 
 def run():
