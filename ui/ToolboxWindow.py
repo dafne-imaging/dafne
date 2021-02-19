@@ -64,6 +64,7 @@ SHORTCUT_HELP = [
     ('Propagate back', 'b'),
     ('Reduce Brush Size', '-, y, z'),
     ('Increase Brush Size', '+, x'),
+    ('Remove ROI overlap', 'r'),
 ]
 
 class AboutDialog(QDialog):
@@ -105,6 +106,7 @@ class ShortcutDialog(QDialog):
 
         myLayout.addWidget(self.tableWidget)
         self.tableWidget.resizeColumnsToContents()
+        self.tableWidget.horizontalHeader().setStretchLastSection(True)
 
         btn = QPushButton("OK")
         btn.clicked.connect(self.close)

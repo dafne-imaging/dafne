@@ -669,6 +669,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.updateRoiList()
 
     @pyqtSlot()
+    @snapshotSaver
     def roiRemoveOverlap(self):
         curRoiName = self.getCurrentROIName()
         currentMask = self.getCurrentMask()
@@ -1530,6 +1531,8 @@ class MuscleSegmentation(ImageShow, QObject):
         elif event.key == '+' or event.key == 'x':
             self.increase_brush_size.emit()
             self.reblit()
+        elif event.key == 'r':
+            self.roiRemoveOverlap()
         else:
             ImageShow.keyPressCB(self, event)
 
