@@ -153,6 +153,11 @@ class MuscleSegmentation(ImageShow, QObject):
         self.reblit_signal.connect(self.do_reblit)
         self.redraw_signal.connect(self.do_redraw)
 
+        # disable keymapping from matplotlib - avoid pan and zoom
+        for key in list(plt.rcParams):
+            if 'keymap' in key and 'zoom' not in key and 'pan' not in key:
+                plt.rcParams[key] = []
+
     def resizeCB(self, event):
         self.resetBlitBg()
         self.redraw()
