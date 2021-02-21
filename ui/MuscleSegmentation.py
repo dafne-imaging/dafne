@@ -261,6 +261,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.roiChanged = {}
         self.history = deque(maxlen=GlobalConfig['HISTORY_LENGTH'])
+        self.historyHead = None
         self.currentHistoryPoint = 0
 
         self.registrationManager = None
@@ -419,28 +420,51 @@ class MuscleSegmentation(ImageShow, QObject):
     ###
     #############################################################################################
 
-    def saveSnapshot(self):
-        # clear history until the current point, so we can't redo anymore
-        # print("Saving snapshot")
-        while self.currentHistoryPoint > 0:
-            self.history.popleft()
-            self.currentHistoryPoint -= 1
-        self.history.appendleft(pickle.dumps(self.roiManager))
+    def saveSnapshot(self, save_head = False):
+        #print("Saving snapshot")
+        if self.roiManager is None:
+            try:
+                self.roiManager = ROIManager(self.imList[0].shape)
+            except:
+                return
+        current_point = pickle.dumps(self.roiManager)
+        if save_head:
+            #print("Saving head state")
+            self.historyHead = current_point
+        else:
+            # clear history until the current point, so we can't redo anymore
+            while self.currentHistoryPoint > 0:
+                self.history.popleft()
+                self.currentHistoryPoint -= 1
+            self.history.appendleft(current_point)
+            self.historyHead = None
+
         self.undo_possible.emit(self.canUndo())
         self.redo_possible.emit(self.canRedo())
 
     def canUndo(self):
-        return self.currentHistoryPoint < len(self.history) - 1
+        #print("Can undo history point", self.currentHistoryPoint, "len history", len(self.history))
+        return self.currentHistoryPoint < len(self.history)
 
     def canRedo(self):
-        return self.currentHistoryPoint > 0
+        return self.currentHistoryPoint > 0 or self.historyHead is not None
 
     def _changeHistory(self):
-        #print(self.currentHistoryPoint, len(self.history))
+        #print('Current history point', self.currentHistoryPoint, 'history len', len(self.history))
+        if self.currentHistoryPoint == 0 and self.historyHead is None:
+            print('Warning: invalid redo')
+            return
         roiName = self.getCurrentROIName()
         subRoiNumber = self.getCurrentSubroiNumber()
         self.clearAllROIs()
-        self.roiManager = pickle.loads(self.history[self.currentHistoryPoint])
+        if self.currentHistoryPoint == 0:
+            #print("loading head")
+            self.roiManager = pickle.loads(self.historyHead)
+            self.historyHead = None
+        else:
+            #print("loading", self.currentHistoryPoint-1)
+            self.roiManager = pickle.loads(self.history[self.currentHistoryPoint-1])
+
         self.updateRoiList()
         if self.roiManager.contains(roiName):
             if subRoiNumber < self.roiManager.get_roi_mask_pair(roiName, self.curImage).get_subroi_len():
@@ -457,7 +481,7 @@ class MuscleSegmentation(ImageShow, QObject):
     def undo(self):
         if not self.canUndo(): return
         if self.currentHistoryPoint == 0:
-            self.saveSnapshot()  # push current status into the history for redo
+            self.saveSnapshot(save_head=True)  # push current status into the history for redo
         self.currentHistoryPoint += 1
         self._changeHistory()
 
@@ -466,8 +490,6 @@ class MuscleSegmentation(ImageShow, QObject):
         if not self.canRedo(): return
         self.currentHistoryPoint -= 1
         self._changeHistory()
-        if self.currentHistoryPoint == 0:
-            self.history.popleft()  # remove current status from the history
 
     ############################################################################################################
     ###
@@ -1830,6 +1852,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.setSplash(False, 2, 2, "Finished")
 
     @pyqtSlot(str)
+    @snapshotSaver
     @separate_thread_decorator
     def loadMask(self, filename: str):
         dicom_ext = ['.dcm', '.ima']
@@ -1897,7 +1920,7 @@ class MuscleSegmentation(ImageShow, QObject):
             try:
                 # in a 3D dataset, the following is not defined
                 spacing = self.dicomHeaderList[0].SpacingBetweenSlices
-                print("Aligning 2D Stack")
+                print(f"Aligning 2D Stack (Spacing: {self.dicomHeaderList[0].SpacingBetweenSlices})")
                 return True
             except:
                 print("Aligning 3D Stack")
@@ -1905,9 +1928,13 @@ class MuscleSegmentation(ImageShow, QObject):
 
         def align_dicom(dataset, dicomInfo):
             # check if 1) we have dicom headers to align the dataset and 2) the datasets are not already aligned
-            if self.dicomHeaderList or not \
-                    (all(self.dicomHeaderList[0].ImageOrientationPatient == dicomInfo[0].ImageOrientationPatient) \
-                     and all(self.dicomHeaderList[0].ImagePositionPatient == dicomInfo[0].ImagePositionPatient)):
+            if self.dicomHeaderList and not \
+                    (self.dicomHeaderList[0].ImageOrientationPatient == dicomInfo[0].ImageOrientationPatient \
+                     and self.dicomHeaderList[0].ImagePositionPatient == dicomInfo[0].ImagePositionPatient):
+                print("Dataset Orientation", self.dicomHeaderList[0].ImageOrientationPatient)
+                print("Mask Orientation", dicomInfo[0].ImageOrientationPatient)
+                print("Dataset Position", self.dicomHeaderList[0].ImagePositionPatient)
+                print("Mask Position", dicomInfo[0].ImagePositionPatient)
                 # align datasets
                 # find out if the loaded dataset is 3D or 2D stack
                 self.setSplash(True, 1, 3, "Performing alignment")
