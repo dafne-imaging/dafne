@@ -53,7 +53,7 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.pickle')
 ## Only elements with a visualization label are shown in the normal interface.
 
 defaults = {
-    'SERVER_URL': ('https://www.dafne.network:5001/', 'string', None),
+    'SERVER_URL': ('https://www.dafne.network/api/', 'string', None),
     'USE_CLASSIFIER': (False, 'bool', None),
     'MODEL_PROVIDER': ('Local', 'option', ['Local', 'Remote'], 'Model location'),
     'API_KEY': ('', 'string', 'Personal server access key'),
