@@ -339,10 +339,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @pyqtSlot()
     def reload_config(self):
         # all config-dependent UI elements go here
-        self.action_Upload_data.setVisible(config.GlobalConfig['ENABLE_DATA_UPLOAD'])
         self.actionSave_as_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
         self.actionImport_model.setVisible(config.GlobalConfig['MODEL_PROVIDER'] == 'Local')
-        self.action_Upload_data.setVisible(config.GlobalConfig['MODEL_PROVIDER'] == 'Remote')
+        if config.GlobalConfig['ENABLE_DATA_UPLOAD'] and (config.GlobalConfig['MODEL_PROVIDER'] == 'Remote' or
+                                                          config.GlobalConfig['FORCE_LOCAL_DATA_UPLOAD']):
+            self.action_Upload_data.setVisible(True)
+        else:
+            self.action_Upload_data.setVisible(False)
 
     @pyqtSlot()
     def open_transform_calculator(self):
@@ -744,9 +747,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @pyqtSlot()
     def loadData_clicked(self):
         if config.GlobalConfig['ENABLE_NIFTI']:
-            filter = 'Image files (*.dcm *.ima *.nii *.nii.gz *.npy);;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;All files (*.*)'
+            filter = 'Image files (*.dcm *.ima *.nii *.nii.gz *.npy *.npz;;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;Data + Mask bundle (*npz);;All files (*.*)'
         else:
-            filter = 'Image files (*.dcm *.ima *.npy);;Dicom files (*.dcm *.ima);;Numpy files (*.npy);;All files (*.*)'
+            filter = 'Image files (*.dcm *.ima *.npy *.npz);;Dicom files (*.dcm *.ima);;Numpy files (*.npy);;Data + Mask bundle (*npz);;ll files (*.*)'
 
         dataFile, _ = QFileDialog.getOpenFileName(self, caption='Select dataset to import',
                                                   filter=filter)

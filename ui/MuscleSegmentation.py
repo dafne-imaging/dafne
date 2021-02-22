@@ -254,6 +254,7 @@ class MuscleSegmentation(ImageShow, QObject):
     def resetInternalState(self):
         #load_config() # this was already loaded in dafne.py
         self.imList = []
+        self.resolution = [1, 1, 1]
         self.curImage = 0
         self.classifications = []
         self.originalSegmentationMasks = {}
@@ -1665,7 +1666,43 @@ class MuscleSegmentation(ImageShow, QObject):
         self.imList = []
         self.resetInternalState()
         self.override_class = override_class
-        ImageShow.loadDirectory(self, path)
+        _, ext = os.path.splitext(path)
+        mask_dictionary = None
+        if ext.lower() == '.npz':
+            # data and mask bundle
+            bundle = np.load(path, allow_pickle=False)
+            if 'data' not in bundle:
+                self.alert('No data in bundle!')
+                return
+            if 'comment' in bundle:
+                self.alert('Loading bundle with comment:\n' + str(bundle['comment']))
+
+            self.basepath = os.path.dirname(path)
+            self.loadNumpyArray(bundle['data'])
+            if 'resolution' in bundle:
+                self.resolution = list(bundle['resolution'])
+                print('Resolution', self.resolution)
+
+            mask_dictionary = {}
+            for key in bundle:
+                if key.startswith('mask_'):
+                    mask_name = key[len('mask_'):]
+                    mask_dictionary[mask_name] = bundle[key]
+                    print('Found mask', mask_name)
+
+            # from the parent class
+            try:
+                self.imPlot.remove()
+            except:
+                pass
+            self.imPlot = None
+            self.curImage = 0
+            self.displayImage(int(0))
+            self.axes.set_xlim(-0.5, self.image.shape[1] - 0.5)
+            self.axes.set_ylim(self.image.shape[0] - 0.5, -0.5)
+        else:
+            ImageShow.loadDirectory(self, path)
+
         roi_bak_name = self.getRoiFileName() + '.' + datetime.now().strftime('%Y%m%d%H%M%S')
         try:
             shutil.copyfile(self.getRoiFileName(), roi_bak_name)
@@ -1684,6 +1721,8 @@ class MuscleSegmentation(ImageShow, QObject):
                                                 dicom= (self.dicomHeaderList is not None),
                                                 nifti= (self.affine is not None)
                                                 )
+        if mask_dictionary:
+            self.masksToRois(mask_dictionary, 0)
 
     def appendImage(self, im):
         ImageShow.appendImage(self, im)
