@@ -301,6 +301,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionImport_multiple_masks.triggered.connect(self.load_multi_mask_clicked)
 
         self.actionPreferences.triggered.connect(self.edit_preferences)
+        self.action_Restore_factory_settings.triggered.connect(self.clear_preferences)
 
         self.actionCopy_roi.triggered.connect(self.do_copy_roi)
         self.actionCombine_roi.triggered.connect(self.do_combine_roi)
@@ -377,6 +378,21 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         if config.show_config_dialog(self, config.GlobalConfig['ADVANCED_CONFIG']):
             config.save_config()
             self.config_changed.emit()
+
+    @pyqtSlot()
+    def clear_preferences(self):
+        accept, values = GenericInputDialog.show_dialog("Restore Factory Settings", [
+            GenericInputDialog.BooleanInput("Keep the API key", True)
+        ], parent=self, message="Warning! This will restore the default preferences!")
+        if not accept: return
+        if values[0]: # keep the API key
+            api_key = config.GlobalConfig['API_KEY']
+        config.delete_config()
+        if values[0]:
+            config.GlobalConfig['API_KEY'] = api_key
+            config.save_config()
+        self.config_changed.emit()
+
 
     def _make_roi_list_option_for_dialog(self, label):
         return GenericInputDialog.OptionInput(label,

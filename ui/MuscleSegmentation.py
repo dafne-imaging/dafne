@@ -918,7 +918,6 @@ class MuscleSegmentation(ImageShow, QObject):
 
     # No @snapshotSaver: snapshot is saved in the calling function
     def movePoint(self, spline, event):
-        print("Move point")
         if self.currentPoint is None:
             return
         spline.replaceKnot(self.currentPoint, (event.xdata, event.ydata))

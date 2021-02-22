@@ -102,9 +102,8 @@ os.makedirs(GlobalConfig['MODEL_PATH'], exist_ok=True)
 os.makedirs(GlobalConfig['TEMP_UPLOAD_DIR'], exist_ok=True)
 os.makedirs(GlobalConfig['TEMP_DIR'], exist_ok=True)
 
-def load_config():
-    global GlobalConfig
 
+def load_config():
     # load defaults
     for k, v in defaults.items():
         GlobalConfig[k] = v[0]
@@ -128,6 +127,11 @@ def load_config():
 def save_config():
     with open(CONFIG_FILE, 'wb') as f:
         pickle.dump(GlobalConfig, f)
+
+
+def delete_config():
+    os.remove(CONFIG_FILE)
+    load_config()
 
 
 def show_config_dialog(parent=None, show_all=False):

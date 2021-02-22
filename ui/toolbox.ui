@@ -619,6 +619,7 @@
     <addaction name="actionOpen_transform_calculator"/>
     <addaction name="separator"/>
     <addaction name="actionPreferences"/>
+    <addaction name="action_Restore_factory_settings"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -751,6 +752,11 @@
   <action name="actionHelp_shortcuts">
    <property name="text">
     <string>Shortcuts...</string>
+   </property>
+  </action>
+  <action name="action_Restore_factory_settings">
+   <property name="text">
+    <string>! Restore factory settings...</string>
    </property>
   </action>
  </widget>
