@@ -636,6 +636,7 @@
     </property>
     <addaction name="actionCopy_roi"/>
     <addaction name="actionCombine_roi"/>
+    <addaction name="actionMultiple_combine"/>
     <addaction name="actionRemove_overlap"/>
    </widget>
    <addaction name="menuFile"/>
@@ -757,6 +758,11 @@
   <action name="action_Restore_factory_settings">
    <property name="text">
     <string>! Restore factory settings...</string>
+   </property>
+  </action>
+  <action name="actionMultiple_combine">
+   <property name="text">
+    <string>Multiple combine...</string>
    </property>
   </action>
  </widget>

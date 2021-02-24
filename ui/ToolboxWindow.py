@@ -156,6 +156,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     roi_copy = pyqtSignal(str, str, bool)
     # signal to combine two ROIs. Parameters are roi1, roi2, operator, dest_roi
     roi_combine = pyqtSignal(str, str, str, str)
+    roi_multi_combine = pyqtSignal(list, str, str)
     roi_remove_overlap = pyqtSignal()
 
     masks_export = pyqtSignal(str, str)
@@ -305,10 +306,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionCopy_roi.triggered.connect(self.do_copy_roi)
         self.actionCombine_roi.triggered.connect(self.do_combine_roi)
+        self.actionMultiple_combine.triggered.connect(self.do_combine_multiple_roi)
         self.actionRemove_overlap.triggered.connect(self.roi_remove_overlap.emit)
 
         self.actionCopy_roi.setEnabled(False)
         self.actionCombine_roi.setEnabled(False)
+        self.actionMultiple_combine.setEnabled(False)
         self.actionRemove_overlap.setEnabled(False)
 
         self.action_Upload_data.triggered.connect(self.do_upload_data)
@@ -410,6 +413,35 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
                                                                             GenericInputDialog.TextLineInput('New name')], self)
         if accept:
             self.roi_copy.emit(values[0], values[2], values[1])
+
+    @pyqtSlot()
+    def do_combine_multiple_roi(self):
+        if not self.roi_combo.currentText(): return
+        roi_checkbox_list = []
+        for i in range(self.roi_combo.count()):
+            roi_name = self.roi_combo.itemText(i)
+            roi_checkbox_list.append(GenericInputDialog.BooleanInput(roi_name))
+
+        accept, rois = GenericInputDialog.show_dialog('ROIs', roi_checkbox_list, self)
+        if not accept: return
+
+        roi_list = [roi_name for roi_name, checked in rois.items() if checked]
+        #print("Selected ROIs", roi_list)
+        if len(roi_list) < 2:
+            self.alert('Select at least 2 ROIs')
+            return
+
+        operator_option = GenericInputDialog.OptionInput('Operation',
+                                                         ['Union', 'Subtraction', 'Intersection', 'Exclusion'])
+
+        accept, values = GenericInputDialog.show_dialog('Combine ROIs', [operator_option,
+                                                                         GenericInputDialog.TextLineInput('Output ROI')],
+                                                        self, message='<b>Combining:</b> ' + '; '.join(roi_list))
+
+        if not accept: return
+
+        output_name = values['Output ROI']
+        self.roi_multi_combine.emit(roi_list, values[0], output_name)
 
     @pyqtSlot()
     def do_combine_roi(self):
@@ -608,10 +640,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         if not self.roi_combo.currentText():
             self.actionCopy_roi.setEnabled(False)
             self.actionCombine_roi.setEnabled(False)
+            self.actionMultiple_combine.setEnabled(False)
             self.actionRemove_overlap.setEnabled(False)
         else:
             self.actionCopy_roi.setEnabled(True)
             self.actionCombine_roi.setEnabled(True)
+            self.actionMultiple_combine.setEnabled(True)
             self.actionRemove_overlap.setEnabled(True)
 
     @pyqtSlot(str, int)

@@ -331,6 +331,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.toolbox_window.roi_copy.connect(self.copyRoi)
         self.toolbox_window.roi_combine.connect(self.combineRoi)
+        self.toolbox_window.roi_multi_combine.connect(self.combineMultiRoi)
         self.toolbox_window.roi_remove_overlap.connect(self.roiRemoveOverlap)
 
         self.toolbox_window.statistics_calc.connect(self.saveStats)
@@ -684,9 +685,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.roiManager.rename_roi(originalName, newName)
         self.updateRoiList()
 
-    @pyqtSlot(str, str, str, str)
-    @snapshotSaver
-    def combineRoi(self, roi1, roi2, operator, dest_roi):
+    def _getCombineFunction(self, operator):
         if operator == 'Union':
             combine_fn = np.logical_or
         elif operator == 'Subtraction':
@@ -695,7 +694,22 @@ class MuscleSegmentation(ImageShow, QObject):
             combine_fn = np.logical_and
         elif operator == 'Exclusion':
             combine_fn = np.logical_xor
-        self.roiManager.generic_roi_combine(roi1, roi2, combine_fn, dest_roi)
+        return combine_fn
+
+    @pyqtSlot(str, str, str, str)
+    @snapshotSaver
+    def combineRoi(self, roi1, roi2, operator, dest_roi):
+        self.combineMultiRoi([roi1, roi2], operator, dest_roi)
+
+    @pyqtSlot(list, str, str)
+    @snapshotSaver
+    def combineMultiRoi(self, roi_list, operator, dest_roi):
+        combine_fn = self._getCombineFunction(operator)
+        if len(roi_list) < 2:
+            return
+        self.roiManager.generic_roi_combine(roi_list[0], roi_list[1], combine_fn, dest_roi)
+        for i in range(2, len(roi_list)):
+            self.roiManager.generic_roi_combine(dest_roi, roi_list[i], combine_fn, dest_roi)
         self.updateMasksFromROIs()
         self.updateContourPainters()
         self.updateRoiList()

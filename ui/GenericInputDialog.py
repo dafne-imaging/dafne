@@ -461,6 +461,7 @@ class GenericDialog(QDialog):
         if message:
             messageLabel = QLabel()
             messageLabel.setText(message)
+            messageLabel.setWordWrap(True)
             self.verticalLayout.addWidget(messageLabel)
 
 
