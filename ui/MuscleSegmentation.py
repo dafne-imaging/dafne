@@ -554,6 +554,10 @@ class MuscleSegmentation(ImageShow, QObject):
     #@snapshotSaver this generates too many calls; anyway we want to add the subroi to the history
     # when something happens to it
     def addSubRoi(self, roi_name=None, imageN=None):
+        if not roi_name:
+            roi_name, _ = self.toolbox_window.get_current_roi_subroi()
+        if imageN is None:
+            imageN = int(self.curImage)
         self._addSubRoi_internal(roi_name, imageN)
         self.updateRoiList()
         self.toolbox_window.set_current_roi(roi_name, self.roiManager.get_roi_mask_pair(roi_name,
