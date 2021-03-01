@@ -1,6 +1,20 @@
 # Dafne
 Deep Anatomical Federated Network is a program for the segmentation of medical images. It relies on a server to provide deep learning models to aid the segmentation, and incremental learning is used to improve the performance. See https://www.dafne.network/ for documentation and user information.
 
+## Windows binary installation
+Please install the Visual Studio Redistributable Package under windows: https://aka.ms/vs/16/release/vc_redist.x64.exe
+Then, run the provided installer
+
+## Mac binary installation
+Decompress the .zip file and run the `dafne` program from the unzipped folder.
+
+**Important note for Mac users:** if you download the zip file from github, the system will ask to enter security exceptions for every binary file included in the distribution, because the binaries are not signed. This is too much to do by hand. Either install Dafne from source, or temporarily disable the access control with the following procedure:
+1. Open a terminal window.
+2. Run the command `sudo spctl --master-disable` (it will ask for your password).
+3. Run Dafne once by executing the `dafne` file.
+4. Run the `calc_transforms` command as well.
+4. Re-enable the protection by running the following command in a terminal: `sudo spctl --master-enable`
+
 # Notes for developers
 
 Remember to `git push --recurse-submodules` if you change the dl folder!
