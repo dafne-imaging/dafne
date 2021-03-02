@@ -28,7 +28,7 @@ load_config()
 
 from .ToolboxWindow import ToolboxWindow
 from .pyDicomView import ImageShow
-from utils.mask_utils import calc_dice_score, save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks
+from utils.mask_utils import save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks
 import matplotlib.pyplot as plt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -56,6 +56,7 @@ import traceback
 
 from dl.LocalModelProvider import LocalModelProvider
 from dl.RemoteModelProvider import RemoteModelProvider
+from dl.misc import calc_dice_score
 
 from utils.RegistrationManager import RegistrationManager
 
@@ -645,7 +646,8 @@ class MuscleSegmentation(ImageShow, QObject):
                     originalSegmentation = None
 
                 if originalSegmentation is not None:
-                    diceScores.append(calc_dice_score(originalSegmentation, roi))
+                    nr_voxels = originalSegmentation.sum()
+                    diceScores.append([calc_dice_score(originalSegmentation, roi), nr_voxels])
                     #print(diceScores)
 
                 # TODO: maybe add this to the training according to the dice score?
@@ -673,8 +675,9 @@ class MuscleSegmentation(ImageShow, QObject):
 
         diceScores = np.array(diceScores)
         #print(diceScores)
-        print("Average Dice score", diceScores.mean())
-        return allMasks, dataForTraining, segForTraining, diceScores.mean()
+        dice_mean = np.average(diceScores[:, 0], weights=diceScores[:, 1])
+        print("Average Dice score", dice_mean)
+        return allMasks, dataForTraining, segForTraining, dice_mean
 
     @pyqtSlot(str, str, bool)
     @snapshotSaver
