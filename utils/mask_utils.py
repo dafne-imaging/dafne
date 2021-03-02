@@ -18,16 +18,6 @@ import os
 import numpy as np
 import nibabel as nib
 
-
-def calc_dice_score(mask1, mask2):
-    a = 2 * np.sum(np.logical_and(mask1, mask2))
-    b = np.sum(mask1) + np.sum(mask2)
-    if b == 0:
-        return 1
-    else:
-        return a/b
-
-
 def save_dicom_masks(base_path: str, mask_dict: dict, dicom_headers: list):
     for name, mask in mask_dict.items():
         dicom_path = os.path.join(base_path, name)
