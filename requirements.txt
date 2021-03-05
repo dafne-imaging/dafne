@@ -13,5 +13,5 @@ keras
 appdirs
 requests
 scikit-image
-#SimpleITK # including Elastix
-#pyradiomics # optional requirement
+SimpleITK-SimpleElastix # Own distribution including elastix
+pyradiomics # optional requirement

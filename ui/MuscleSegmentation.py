@@ -15,8 +15,6 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-import inspect
-
 import matplotlib
 
 matplotlib.use("Qt5Agg")
@@ -1359,12 +1357,12 @@ class MuscleSegmentation(ImageShow, QObject):
             self.saveROIPickle()
 
         if not self.app:
-            app = QApplication.instance()
+            self.app = QApplication.instance()
 
         if self.wacom:
-            app.setOverrideCursor(Qt.BlankCursor)
+            self.app.setOverrideCursor(Qt.BlankCursor)
         else:
-            app.setOverrideCursor(Qt.ArrowCursor)
+            self.app.setOverrideCursor(Qt.ArrowCursor)
 
         #print("Refresh")
         #print(self.editMode)
