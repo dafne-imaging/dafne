@@ -1688,6 +1688,7 @@ class MuscleSegmentation(ImageShow, QObject):
     @pyqtSlot(str, str)
     @pyqtSlot(str)
     def loadDirectory(self, path, override_class=None):
+        self.setSplash(True, 0, 1, "Loading dataset")
         self.imList = []
         self.resetInternalState()
         self.override_class = override_class
@@ -1740,6 +1741,8 @@ class MuscleSegmentation(ImageShow, QObject):
                                                        os.getcwd(),
                                                        GlobalConfig['TEMP_DIR'])
         #self.loadROIPickle()
+        self.updateRoiList()
+        self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
         self.redraw()
         self.toolbox_window.general_enable(True)
         self.toolbox_window.set_exports_enabled(numpy= True,
@@ -1747,7 +1750,9 @@ class MuscleSegmentation(ImageShow, QObject):
                                                 nifti= (self.affine is not None)
                                                 )
         if mask_dictionary:
+            self.setSplash(True, 1, 2, "Loading masks")
             self.masksToRois(mask_dictionary, 0)
+        self.setSplash(False, 1, 2, "Loading masks")
 
     def appendImage(self, im):
         ImageShow.appendImage(self, im)

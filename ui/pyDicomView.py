@@ -17,6 +17,8 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import matplotlib.pyplot as plt
+from PyQt5.QtWidgets import QInputDialog
+
 try:
     import pydicom as dicom
 except:
@@ -29,6 +31,11 @@ try:
 except:
     from dicomUtils.misc import create_affine
 import traceback
+
+try:
+    from utils.dicomUtils.multiframe import load_multi_dicom
+except:
+    from dicomUtils.multiframe import load_multi_dicom
 
 DEFAULT_INTERPOLATION = 'spline36'
 #DEFAULT_INTERPOLATION = 'none' # DEBUG
@@ -453,21 +460,51 @@ class ImageShow:
             self.basepath = os.path.dirname(path)
         else: # assume it's dicom
             self.transpose = [-2, 1, 3]  # the vertical direction is always flipped(?) between dicom and nii
-            if os.path.isdir(path):
-                basepath = path
-            else: # dicom file is passed. load the containing directory
+            load_dicom_dir = False
+            if os.path.isfile(path):
                 basepath = os.path.dirname(path)
-                self.fig.canvas.set_window_title(os.path.basename(basepath))
+                multi_dicom_dataset = load_multi_dicom(path)
+                basepath = os.path.dirname(path)
+                if multi_dicom_dataset is None:
+                    self.fig.canvas.set_window_title(os.path.basename(basepath))
+                    load_dicom_dir = True
+                else: # this is a multi dicom dataset
+                    # let the user choose which dataset to load
+                    dataset_key, accept = QInputDialog.getItem(self.fig.canvas,
+                                                       "Multi dicom",
+                                                       "Choose dataset to load",
+                                                       list(multi_dicom_dataset.keys()),
+                                                       editable=False)
+                    if not accept: return
+                    self.dicomHeaderList = multi_dicom_dataset[dataset_key][1]
+                    data = multi_dicom_dataset[dataset_key][0].astype(np.float32)
+                    self.loadNumpyArray(data)
+                    self.affine = create_affine(self.dicomHeaderList)
 
-            self.basename = ''
-            self.basepath = basepath
-            for f in sorted(os.listdir(basepath)):
-                if os.path.basename(f).startswith('.'): continue
-                fname, ext = os.path.splitext(f)
-                if ext.lower() in dicom_ext:
-                    if self.dicomHeaderList is None: self.dicomHeaderList = []
-                    self.appendImage(basepath + os.path.sep + f)
-            self.affine = create_affine(self.dicomHeaderList)
+                    try:
+                        slThickness = self.dicomHeaderList[0].SpacingBetweenSlices
+                    except:
+                        slThickness = self.dicomHeaderList[0].SliceThickness
+
+
+                    self.resolution = [float(self.dicomHeaderList[0].PixelSpacing[0]), float(self.dicomHeaderList[0].PixelSpacing[1]), float(slThickness)]
+                    self.fig.canvas.set_window_title(os.path.basename(path))
+                    load_dicom_dir = False
+
+            elif os.path.isdir(path):
+                basepath = path
+                load_dicom_dir = True
+
+            if load_dicom_dir:
+                self.basename = ''
+                self.basepath = basepath
+                for f in sorted(os.listdir(basepath)):
+                    if os.path.basename(f).startswith('.'): continue
+                    fname, ext = os.path.splitext(f)
+                    if ext.lower() in dicom_ext:
+                        if self.dicomHeaderList is None: self.dicomHeaderList = []
+                        self.appendImage(basepath + os.path.sep + f)
+                self.affine = create_affine(self.dicomHeaderList)
 
         if len(self.imList) > 0:
             try:

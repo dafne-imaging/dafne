@@ -42,6 +42,7 @@ class SquareBrush(Rectangle):
         mask[x0:x1, y0:y1] = 1
         return mask
 
+
 class PixelatedCircleBrush(Polygon):
 
     def __init__(self, center, radius, **kwargs):
@@ -53,7 +54,6 @@ class PixelatedCircleBrush(Polygon):
         Polygon.__init__(self, np.array([[0,0],[1,1]]), **kwargs)
         self.center = np.array(center).ravel()  # make sure it's a row vector
         self.set_radius(radius)
-
 
     def get_center(self):
         return self.center
@@ -69,6 +69,7 @@ class PixelatedCircleBrush(Polygon):
         if radius != self.radius:
             self.radius = radius
             self._recalculate_vertices()
+            self._recalculate_mask()
             self._recalculate_xy()
 
     def to_mask(self, shape):
@@ -83,26 +84,18 @@ class PixelatedCircleBrush(Polygon):
 
     def _recalculate_vertices(self):
         if self.radius == 0:
-            self.base_mask = np.ones((1,1), dtype=np.uint8)
             self.point_array = np.array([[0,0],[1,0],[1,1],[0,1]]) - 0.5
             return
 
+        radius = self.radius + 0.5
+
         # midpoint circle algorithm
-        x = self.radius
+        x = radius
         y = 0
-        P = 1 - self.radius
+        P = 1 - radius
 
-        self.base_mask = np.zeros( (self.radius*2+1, self.radius*2+1), dtype=np.uint8 )
-
-        def fill_mask_line(x,y):
-            r = self.radius
-            self.base_mask[r-x : r+x+1, r+y] = 1
-            self.base_mask[r - x:r + x + 1, r - y] = 1
-
-        fill_mask_line(x, y)
-        fill_mask_line(y, x)
-
-        octant_point_array = [(x, y)]
+        octant_point_array = [(x, y-0.5)]
+        print(x, y, P)
 
         while x > y:
 
@@ -114,15 +107,14 @@ class PixelatedCircleBrush(Polygon):
 
             # Mid-point outside the perimeter
             else:
-                octant_point_array.append((x, y))
+                octant_point_array.append((x, y-0.5))
+                print(x, y, P)
                 x -= 1
-                octant_point_array.append((x, y))
+                octant_point_array.append((x, y-0.5))
+                print(x, y, P)
                 P = P + 2 * y - 2 * x + 1
 
-            fill_mask_line(x,y)
-            fill_mask_line(y,x)
-
-            if (x < y):
+            if x < y:
                 break
 
         # assemble the octants
@@ -135,3 +127,42 @@ class PixelatedCircleBrush(Polygon):
         
         self.point_array = np.array(point_array)
 
+    def _recalculate_mask(self):
+        if self.radius == 0:
+            self.base_mask = np.ones((1, 1), dtype=np.uint8)
+            return
+
+        radius = self.radius
+
+        # midpoint circle algorithm
+        x = radius
+        y = 0
+        P = 1 - radius
+
+        self.base_mask = np.zeros((self.radius * 2 + 1, self.radius * 2 + 1), dtype=np.uint8)
+
+        def fill_mask_line(x, y):
+            r = radius
+            self.base_mask[int(r - x): int(r + x + 1), int(r + y)] = 1
+            self.base_mask[int(r - x):int(r + x + 1), int(r - y)] = 1
+
+        fill_mask_line(x, y)
+        fill_mask_line(y, x)
+
+        while x > y:
+            y += 1
+
+            # Mid-point inside or on the perimeter
+            if P <= 0:
+                P = P + 2 * y + 1
+
+            # Mid-point outside the perimeter
+            else:
+                x -= 1
+                P = P + 2 * y - 2 * x + 1
+
+            fill_mask_line(x, y)
+            fill_mask_line(y, x)
+
+            if (x < y):
+                break
