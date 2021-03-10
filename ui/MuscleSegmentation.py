@@ -17,6 +17,8 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import matplotlib
 
+from . import GenericInputDialog
+
 matplotlib.use("Qt5Agg")
 
 import os, time, math, sys
@@ -1191,7 +1193,9 @@ class MuscleSegmentation(ImageShow, QObject):
         if self.maskImPlot is None:
             original_xlim = self.axes.get_xlim()
             original_ylim = self.axes.get_ylim()
-            self.maskImPlot = self.axes.imshow(active_mask, cmap=self.mask_layer_colormap, alpha=GlobalConfig['MASK_LAYER_ALPHA'], vmin=0, vmax=1, zorder=100)
+            self.maskImPlot = self.axes.imshow(active_mask, cmap=self.mask_layer_colormap,
+                                               alpha=GlobalConfig['MASK_LAYER_ALPHA'],
+                                               vmin=0, vmax=1, zorder=100, aspect=self.resolution[1]/self.resolution[0])
             try:
                 self.axes.set_xlim(original_xlim)
                 self.axes.set_ylim(original_ylim)
@@ -1206,7 +1210,9 @@ class MuscleSegmentation(ImageShow, QObject):
             original_xlim = self.axes.get_xlim()
             original_ylim = self.axes.get_ylim()
             relativeAlphaROI = GlobalConfig['ROI_OTHER_COLOR'][3] / GlobalConfig['ROI_COLOR'][3]
-            self.maskOtherImPlot = self.axes.imshow(other_mask, cmap=self.mask_layer_other_colormap, alpha=relativeAlphaROI*GlobalConfig['MASK_LAYER_ALPHA'], vmin=0, vmax=1, zorder=101)
+            self.maskOtherImPlot = self.axes.imshow(other_mask, cmap=self.mask_layer_other_colormap,
+                                                    alpha=relativeAlphaROI*GlobalConfig['MASK_LAYER_ALPHA'],
+                                                    vmin=0, vmax=1, zorder=101, aspect=self.resolution[1]/self.resolution[0])
             try:
                 self.axes.set_xlim(original_xlim)
                 self.axes.set_ylim(original_ylim)
@@ -1692,6 +1698,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.imList = []
         self.resetInternalState()
         self.override_class = override_class
+        self.resolution_valid = False
+        self.resolution = [1, 1, 1]
         _, ext = os.path.splitext(path)
         mask_dictionary = None
         if ext.lower() == '.npz':
@@ -1707,6 +1715,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.loadNumpyArray(bundle['data'])
             if 'resolution' in bundle:
                 self.resolution = list(bundle['resolution'])
+                self.resolution_valid = True
                 print('Resolution', self.resolution)
 
             mask_dictionary = {}
@@ -1728,6 +1737,18 @@ class MuscleSegmentation(ImageShow, QObject):
             self.axes.set_ylim(self.image.shape[0] - 0.5, -0.5)
         else:
             ImageShow.loadDirectory(self, path)
+
+        # ask for resolution to be inserted
+        if not self.resolution_valid:
+            accepted, output = GenericInputDialog.show_dialog("Insert resolution", [
+                GenericInputDialog.FloatSpinInput("X (mm)", 1, 0, 99, 0.1),
+                GenericInputDialog.FloatSpinInput("Y (mm)", 1, 0, 99, 0.1),
+                GenericInputDialog.FloatSpinInput("Slice (mm)", 1, 0, 99, 0.1)
+            ], self.fig.canvas)
+            if accepted:
+                self.resolution = [output[0], output[1], output[2]]
+                self.resolution_valid = True
+                self.axes.set_aspect(aspect=self.resolution[1]/self.resolution[0])
 
         roi_bak_name = self.getRoiFileName() + '.' + datetime.now().strftime('%Y%m%d%H%M%S')
         try:

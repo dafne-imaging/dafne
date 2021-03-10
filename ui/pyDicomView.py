@@ -73,7 +73,8 @@ class ImageShow:
         self.basepath = ''
         self.basename = ''
 
-        self.resolution = [1,1,1]
+        self.resolution = [1, 1, 1]
+        self.resolution_valid = False
         self.affine = None
         self.transpose = None
 
@@ -130,7 +131,7 @@ class ImageShow:
         dispImage[dispImage < 0] = 0
         dispImage[dispImage > 1] = 1
         if self.imPlot is None:
-            self.imPlot = self.axes.imshow(dispImage, interpolation = self.interpolation)
+            self.imPlot = self.axes.imshow(dispImage, interpolation = self.interpolation, aspect=self.resolution[1]/self.resolution[0])
         else:
             self.imPlot.set_data(dispImage)
         self.redraw()
@@ -194,7 +195,10 @@ class ImageShow:
 
         # Create the image plot if there is none; otherwise update the data in the existing frame (faster)
         if self.imPlot is None:
-            self.imPlot = self.axes.imshow(self.image, interpolation = self.interpolation, vmin=ImageShow.contrastWindow[0], vmax=ImageShow.contrastWindow[1], cmap=self.cmap, zorder = -1)
+            self.imPlot = self.axes.imshow(self.image, interpolation = self.interpolation,
+                                           vmin=ImageShow.contrastWindow[0],
+                                           vmax=ImageShow.contrastWindow[1],
+                                           cmap=self.cmap, zorder = -1, aspect=self.resolution[1]/self.resolution[0])
         else:
             self.imPlot.set_data(self.image)
 
@@ -353,7 +357,27 @@ class ImageShow:
 
         if redraw:
             self.redraw()
-            
+
+
+    def getDicomResolution(self, ds):
+        resolution_valid = False
+        try:
+            slThickness = ds.SpacingBetweenSlices
+        except:
+            try:
+                slThickness = ds.SliceThickness
+            except:
+                slThickness = 1
+
+        try:
+            pixelSpacing = ds.PixelSpacing
+            resolution_valid = True
+        except:
+            pixelSpacing = [1, 1]
+
+        resolution = [float(pixelSpacing[0]), float(pixelSpacing[1]), float(slThickness)]
+        return resolution, resolution_valid
+
     def loadDicomFile(self, fname):
         print(fname)
         ds = dicom.read_file(fname)
@@ -364,15 +388,10 @@ class ImageShow:
             ds.decompress()
             pixelData = ds.pixel_array.astype(np.float32)
 
-        try:
-            slThickness = ds.SpacingBetweenSlices
-        except:
-            slThickness = ds.SliceThickness
-
         ds.PixelData = ""
         self.dicomHeaderList.append(ds)
 
-        self.resolution = [float(ds.PixelSpacing[0]), float(ds.PixelSpacing[1]), float(slThickness)]
+        self.resolution, self.resolution_valid = self.getDicomResolution(ds)
         return pixelData
         
     # append one image to the internal list
@@ -399,6 +418,8 @@ class ImageShow:
         self.dicomHeaderList = None
         self.affine = None
         self.transpose = None
+        self.resolution_valid = False
+        self.resolution = [1,1,1]
         dicom_ext = ['.dcm', '.ima']
         nii_ext = ['.nii', '.gz']
         npy_ext = ['.npy']
@@ -449,6 +470,7 @@ class ImageShow:
                 dataset *= 1000
             self.resolution = niimage.header.get_zooms()[0:3]
             self.resolution = [ self.resolution[self.transpose[ax]] for ax in range(3) ]
+            self.resolution_valid = True
             self.transpose = [(1 + self.transpose[ax]) * signs[ax] for ax in range(3)]
             for sl in range(dataset.shape[2]):
                 self.appendImage(dataset[:,:,sl])
@@ -479,15 +501,13 @@ class ImageShow:
                     self.dicomHeaderList = multi_dicom_dataset[dataset_key][1]
                     data = multi_dicom_dataset[dataset_key][0].astype(np.float32)
                     self.loadNumpyArray(data)
-                    self.affine = create_affine(self.dicomHeaderList)
-
                     try:
-                        slThickness = self.dicomHeaderList[0].SpacingBetweenSlices
+                        self.affine = create_affine(self.dicomHeaderList)
                     except:
-                        slThickness = self.dicomHeaderList[0].SliceThickness
+                        print("Warning: cannot create affine")
 
+                    self.resolution, self.resolution_valid = self.getDicomResolution(self.dicomHeaderList[0])
 
-                    self.resolution = [float(self.dicomHeaderList[0].PixelSpacing[0]), float(self.dicomHeaderList[0].PixelSpacing[1]), float(slThickness)]
                     self.fig.canvas.set_window_title(os.path.basename(path))
                     load_dicom_dir = False
 
@@ -504,7 +524,10 @@ class ImageShow:
                     if ext.lower() in dicom_ext:
                         if self.dicomHeaderList is None: self.dicomHeaderList = []
                         self.appendImage(basepath + os.path.sep + f)
-                self.affine = create_affine(self.dicomHeaderList)
+                try:
+                    self.affine = create_affine(self.dicomHeaderList)
+                except:
+                    print("Warning: Cannot create affine!")
 
         if len(self.imList) > 0:
             try:
