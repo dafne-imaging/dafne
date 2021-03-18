@@ -65,8 +65,14 @@ def save3dDicom(volume, info, path, newSeriesNumber = None, newSeriesDescription
     except:
         pass
     if newSeriesNumber is None:
-        newSeriesNumber = info[0].SeriesNumber
-        newSeriesUID = info[0].SeriesInstanceUID
+        try:
+            newSeriesNumber = info[0].SeriesNumber
+        except:
+            newSeriesNumber = 1
+        try:
+            newSeriesUID = info[0].SeriesInstanceUID
+        except:
+            newSeriesUID = UID.generate_uid()
     else:
         newSeriesUID = UID.generate_uid()
     
