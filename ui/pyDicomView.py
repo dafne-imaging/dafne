@@ -521,13 +521,14 @@ class ImageShow:
                 for f in sorted(os.listdir(basepath)):
                     if os.path.basename(f).startswith('.'): continue
                     fname, ext = os.path.splitext(f)
-                    if ext.lower() in dicom_ext:
-                        if self.dicomHeaderList is None: self.dicomHeaderList = []
-                        self.appendImage(basepath + os.path.sep + f)
+                    # if ext.lower() in dicom_ext: # remove check for dicom extension and try to load any file
+                    if self.dicomHeaderList is None: self.dicomHeaderList = []
+                    self.appendImage(basepath + os.path.sep + f)
                 try:
                     self.affine = create_affine(self.dicomHeaderList)
                 except:
                     print("Warning: Cannot create affine!")
+                    self.affine = np.eye(4)
 
         if len(self.imList) > 0:
             try:

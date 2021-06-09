@@ -360,7 +360,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @pyqtSlot()
     def do_import_model(self):
         modelFile, _ = QFileDialog.getOpenFileName(self, caption='Select model to import',
-                                                   filter='Model files (*.model);;All files (*.*)')
+                                                   filter='Model files (*.model);;All files ()')
         if modelFile:
             accept, values = GenericInputDialog.show_dialog('Model Import', [
                 GenericInputDialog.TextLineInput('Model name')
@@ -768,7 +768,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @pyqtSlot()
     def load_mask_clicked(self):
         maskFile, _ = QFileDialog.getOpenFileName(self, caption='Select mask to import',
-                                                  filter='Image files (*.dcm *.ima *.npy *.npz);;Dicom files (*.dcm *.ima);;Numpy files (*.npy *.npz);;All files (*.*)')
+                                                  filter='Image files (*.dcm *.ima *.npy *.npz);;Dicom files (*.dcm *.ima);;Numpy files (*.npy *.npz);;All files ()')
         if maskFile:
             self.mask_import.emit(maskFile)
 
@@ -781,9 +781,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @pyqtSlot()
     def loadData_clicked(self):
         if config.GlobalConfig['ENABLE_NIFTI']:
-            filter = 'Image files (*.dcm *.ima *.nii *.nii.gz *.npy *.npz;;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;Data + Mask bundle (*npz);;All files (*.*)'
+            filter = 'Image files (*.dcm *.ima *.nii *.nii.gz *.npy *.npz;;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;Data + Mask bundle (*npz);;All files ()'
         else:
-            filter = 'Image files (*.dcm *.ima *.npy *.npz);;Dicom files (*.dcm *.ima);;Numpy files (*.npy);;Data + Mask bundle (*npz);;ll files (*.*)'
+            filter = 'Image files (*.dcm *.ima *.npy *.npz);;Dicom files (*.dcm *.ima);;Numpy files (*.npy);;Data + Mask bundle (*npz);;All files ()'
 
         dataFile, _ = QFileDialog.getOpenFileName(self, caption='Select dataset to import',
                                                   filter=filter)
@@ -800,14 +800,14 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @pyqtSlot()
     def importROI_clicked(self):
         roiFile, _ = QFileDialog.getOpenFileName(self, caption='Select ROI file to import',
-                                                 filter='ROI Pickle files (*.p);;All files (*.*)')
+                                                 filter='ROI Pickle files (*.p);;All files ()')
         if roiFile:
             self.roi_import.emit(roiFile)
 
     @pyqtSlot()
     def exportROI_clicked(self):
         roiFile, _ = QFileDialog.getSaveFileName(self, caption='Select ROI file to export',
-                                                 filter='ROI Pickle files (*.p);;All files (*.*)')
+                                                 filter='ROI Pickle files (*.p);;All files ()')
         if roiFile:
             self.roi_export.emit(roiFile)
 
@@ -825,14 +825,14 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @pyqtSlot()
     def export_masks_npz(self):
         file_out, _ = QFileDialog.getSaveFileName(self, caption='Select npz file to export',
-                                                  filter='Numpy array archive (*.npz);;All files (*.*)')
+                                                  filter='Numpy array archive (*.npz);;All files ()')
         if file_out:
             self.masks_export.emit(file_out, 'npz')
 
     @pyqtSlot()
     def calculate_statistics(self):
         file_out, _ = QFileDialog.getSaveFileName(self, caption='Select csv file to save the statistics',
-                                                  filter='CSV File (*.csv);;All files (*.*)')
+                                                  filter='CSV File (*.csv);;All files ()')
         if file_out:
             self.statistics_calc.emit(file_out)
 
@@ -845,7 +845,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         if not accept: return
         file_out, _ = QFileDialog.getSaveFileName(self, caption='Select csv file to save the statistics',
-                                                  filter='CSV File (*.csv);;All files (*.*)')
+                                                  filter='CSV File (*.csv);;All files ()')
         if file_out:
             self.radiomics_calc.emit(file_out, radiomics_props[0], radiomics_props[1], radiomics_props[2])
 
