@@ -41,7 +41,8 @@ from utils.ROIManager import ROIManager
 import numpy as np
 import scipy.ndimage as ndimage
 from scipy.ndimage.morphology import binary_dilation, binary_erosion
-import pickle
+#import pickle
+import utils.compressed_pickle as pickle
 import os.path
 from collections import deque
 import functools
@@ -119,6 +120,7 @@ class MuscleSegmentation(ImageShow, QObject):
     redraw_signal = pyqtSignal()
     reduce_brush_size = pyqtSignal()
     increase_brush_size = pyqtSignal()
+    alert_signal = pyqtSignal(str)
 
     def __init__(self, *args, **kwargs):
         self.suppressRedraw = False
@@ -357,6 +359,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.reduce_brush_size.connect(self.toolbox_window.reduce_brush_size)
         self.increase_brush_size.connect(self.toolbox_window.increase_brush_size)
 
+        self.alert_signal.connect(self.toolbox_window.alert)
+
     def setSplash(self, is_splash, current_value, maximum_value, text= ""):
         self.splash_signal.emit(is_splash, current_value, maximum_value, text)
 
@@ -415,7 +419,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.updateMasksFromROIs()
 
     def alert(self, text):
-        self.toolbox_window.alert(text)
+        self.alert_signal.emit(text)
 
     #############################################################################################
     ###
@@ -1646,6 +1650,7 @@ class MuscleSegmentation(ImageShow, QObject):
             print('Warning: Unicode decode error')
             dumpObj = pickle.load(open(roiPickleName, 'rb'), encoding='latin1')
         except:
+            traceback.print_exc()
             self.alert("Unspecified error")
             return
 

@@ -564,6 +564,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         w = QMessageBox.warning(self, "Warning", text, QMessageBox.Ok | QMessageBox.Cancel)
         return w == QMessageBox.Ok
 
+    @pyqtSlot(str)
     def alert(self, text):
         QMessageBox.warning(self, "Warning", text, QMessageBox.Ok)
 
