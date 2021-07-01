@@ -13,19 +13,22 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from .dicomUtils.dicom3D import save3dDicom
 import os
 import numpy as np
-import nibabel as nib
+import dosma
 
-def save_dicom_masks(base_path: str, mask_dict: dict, dicom_headers: list):
+def save_dicom_masks(base_path: str, mask_dict: dict, affine, dicom_headers: list):
+    dicom_writer = dosma.DicomWriter(num_workers=4)
     for name, mask in mask_dict.items():
-        dicom_path = os.path.join(base_path, name)
+        n = name.strip()
+        if n == '': n = '_'
+        dicom_path = os.path.join(base_path, n)
         try:
             os.makedirs(dicom_path)
         except OSError:
             pass
-        save3dDicom(mask, dicom_headers, dicom_path)
+        medical_volume = dosma.core.MedicalVolume(mask.astype(np.uint16), affine, dicom_headers)
+        dicom_writer.save(medical_volume, dicom_path, fname_fmt='image%04d.dcm')
 
 
 def save_npy_masks(base_path, mask_dict):
@@ -38,15 +41,9 @@ def save_npz_masks(filename, mask_dict):
     np.savez_compressed(filename, **mask_dict)
 
 
-def save_nifti_masks(base_path, mask_dict, affine, transpose=None):
+def save_nifti_masks(base_path, mask_dict, affine):
+    nifti_writer = dosma.NiftiWriter()
     for name, mask in mask_dict.items():
         nifti_name = os.path.join(base_path, name + '.nii.gz')
-        if transpose is not None:
-            signs = np.sign(transpose)
-            transpose = np.abs(transpose) - 1
-            for ax in range(3):
-                if signs[ax] < 0:
-                    mask = np.flip(mask, axis=ax)
-            mask = np.transpose(mask, np.argsort(transpose)) #invert the original transposition
-        niimg = nib.Nifti2Image(mask, affine)
-        niimg.to_filename(nifti_name)
+        medical_volume = dosma.core.MedicalVolume(mask.astype(np.uint16), affine)
+        nifti_writer.save(medical_volume, nifti_name)

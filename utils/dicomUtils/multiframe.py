@@ -17,6 +17,7 @@
 
 import pydicom
 import numpy as np
+import copy
 
 
 def flatten_data(d, new_dataset=None):
@@ -24,6 +25,9 @@ def flatten_data(d, new_dataset=None):
         new_dataset = pydicom.Dataset()
         new_dataset.is_little_endian = d.is_little_endian
         new_dataset.is_implicit_VR = d.is_implicit_VR
+        new_dataset.file_meta = copy.deepcopy(d.file_meta)
+        # new_dataset.file_meta[(2,2)] = '1.2.840.10008.5.1.4.1.1.4'
+        new_dataset.ensure_file_meta()
     for element in d.iterall():
         if not isinstance(element.value, pydicom.sequence.Sequence):
             new_dataset.add(element)
@@ -33,13 +37,21 @@ def flatten_data(d, new_dataset=None):
 
 
 def convert_to_slices(data_in):
-    d = data_in.copy()
-    slice_data = d.pop((0x5200, 0x9230)).value
+    d = copy.copy(data_in)
+    slice_data = d[(0x5200, 0x9230)]
+    d.pop((0x5200, 0x9230))
+
     try:
-        pixel_data = d.pixel_array.transpose([1, 2, 0]).astype(np.float32)
-    except:
         d.decompress()
-        pixel_data = d.pixel_array.transpose([1, 2, 0]).astype(np.float32)
+    except:
+        pass
+
+    pixel_data = d.pixel_array.astype(np.float32)
+
+    if pixel_data.ndim > 2:
+        pixel_data = pixel_data.transpose([1, 2, 0])
+
+
     d.pop((0x7fe0, 0x0010))
     header_list = []
     for slice_header in slice_data:
@@ -78,8 +90,33 @@ def divide_slice_types(pixel_data, header_list):
     return frames_out
 
 
+def load_dcm_if_necessary(dicom_file):
+    if type(dicom_file) is str:
+        d = pydicom.dcmread(dicom_file)
+    else:
+        d = dicom_file
+    return d
+
+
+def is_enhanced_dicom(dicom_file):
+    d = load_dcm_if_necessary(dicom_file)
+    return d.file_meta[(2, 2)].value == '1.2.840.10008.5.1.4.1.1.4.1'
+
+
+def is_multi_dicom(dicom_file):
+    d = load_dcm_if_necessary(dicom_file)
+
+    try:
+        number_of_frames = int(d.NumberOfFrames)
+    except:
+        number_of_frames = 1
+
+    return number_of_frames > 1
+
+
 def load_multi_dicom(dicom_file):
-    d = pydicom.dcmread(dicom_file)
+    d = load_dcm_if_necessary(dicom_file)
+
     try:
         number_of_frames = int(d.NumberOfFrames)
     except:

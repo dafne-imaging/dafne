@@ -15,6 +15,7 @@
 
 from PyQt5.QtCore import QRunnable, pyqtSlot, QThreadPool
 from functools import wraps
+import traceback
 
 threadpool = QThreadPool()
 

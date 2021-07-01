@@ -97,10 +97,12 @@ except:
     def QString(s):
         return s
 
+
 def makeMaskLayerColormap(color):
     return matplotlib.colors.ListedColormap(np.array([
         [0, 0, 0, 0],
         [*color[:3],1]]))
+
 
 def snapshotSaver(func):
     @functools.wraps(func)
@@ -1292,7 +1294,10 @@ class MuscleSegmentation(ImageShow, QObject):
         self.activeMask = None
         self.otherMask = None
         self.updateContourPainters()
-        self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
+        try:
+            self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
+        except:
+            pass
 
     ##############################################################################################################
     ###
@@ -1374,16 +1379,6 @@ class MuscleSegmentation(ImageShow, QObject):
         else:
             self.app.setOverrideCursor(Qt.ArrowCursor)
 
-        #print("Refresh")
-        #print(self.editMode)
-
-
-
-
-
-        #print("Redrawing")
-        #print(self.axes.get_children())
-        #plt.draw() - already in redraw
 
     def closeCB(self, event):
         self.toolbox_window.close()
@@ -1755,6 +1750,10 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.resolution_valid = True
                 self.axes.set_aspect(aspect=self.resolution[1]/self.resolution[0])
 
+        # this is in case appendimage was never called
+        if len(self.classifications) == 0:
+            self.update_all_classifications()
+
         roi_bak_name = self.getRoiFileName() + '.' + datetime.now().strftime('%Y%m%d%H%M%S')
         try:
             shutil.copyfile(self.getRoiFileName(), roi_bak_name)
@@ -1768,7 +1767,10 @@ class MuscleSegmentation(ImageShow, QObject):
                                                        GlobalConfig['TEMP_DIR'])
         #self.loadROIPickle()
         self.updateRoiList()
-        self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
+        try:
+            self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
+        except:
+            pass
         self.redraw()
         self.toolbox_window.general_enable(True)
         self.toolbox_window.set_exports_enabled(numpy= True,
@@ -1779,6 +1781,22 @@ class MuscleSegmentation(ImageShow, QObject):
             self.setSplash(True, 1, 2, "Loading masks")
             self.masksToRois(mask_dictionary, 0)
         self.setSplash(False, 1, 2, "Loading masks")
+
+    def update_all_classifications(self):
+        self.classifications = []
+        for imIndex in range(len(self.imList)):
+            if self.override_class:
+                self.classifications.append(self.override_class)
+                continue
+            if not self.dl_classifier:
+                self.classifications.append('None')
+                continue
+            class_input = {'image': self.imList[imIndex], 'resolution': self.resolution[0:2]}
+            class_str = self.dl_classifier(class_input)
+            # class_str = 'Thigh' # DEBUG
+            print("Classification", class_str)
+            self.classifications.append(class_str)
+
 
     def appendImage(self, im):
         ImageShow.appendImage(self, im)
@@ -1813,9 +1831,9 @@ class MuscleSegmentation(ImageShow, QObject):
         self.setSplash(True, 3, 4, "Saving file...")
 
         if outputType == 'dicom':
-            save_dicom_masks(pathOut, allMasks, self.dicomHeaderList)
+            save_dicom_masks(pathOut, allMasks, self.affine, self.dicomHeaderList)
         elif outputType == 'nifti':
-            save_nifti_masks(pathOut, allMasks, self.affine, self.transpose)
+            save_nifti_masks(pathOut, allMasks, self.affine)
         elif outputType == 'npy':
             save_npy_masks(pathOut, allMasks)
         else: # assume the most generic outputType == 'npz':

@@ -59,6 +59,7 @@ def load3dDicom(path):
             
     return (threeDData, info)
 
+
 def save3dDicom(volume, info, path, newSeriesNumber = None, newSeriesDescription = None, newImageComment = None, startImageNumber = 1):
     try:
         os.mkdir(path)
@@ -113,7 +114,8 @@ def save3dDicom(volume, info, path, newSeriesNumber = None, newSeriesDescription
             dicom.write_file(fName, dicomFileData)
             bar.next()
         bar.finish()
-        
+
+
 # test
 if __name__ == '__main__':
     data, info = load3dDicom('.')    

@@ -17,6 +17,7 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import matplotlib.pyplot as plt
+import pydicom.filereader
 from PyQt5.QtWidgets import QInputDialog
 
 try:
@@ -33,14 +34,30 @@ except:
 import traceback
 
 try:
-    from utils.dicomUtils.multiframe import load_multi_dicom
+    from utils.dicomUtils.multiframe import load_multi_dicom, is_enhanced_dicom, is_multi_dicom, convert_to_slices
 except:
-    from dicomUtils.multiframe import load_multi_dicom
+    from dicomUtils.multiframe import load_multi_dicom, is_enhanced_dicom, is_multi_dicom, convert_to_slices
+
+import dosma
+from dosma.core.io.dicom_io import to_RAS_affine
 
 DEFAULT_INTERPOLATION = 'spline36'
 #DEFAULT_INTERPOLATION = 'none' # DEBUG
 INVERT_SCROLL = True
 DO_DEBUG = True
+
+
+class ImListProxy:
+
+    def __init__(self, medical_volume):
+        self.medical_volume = medical_volume
+
+    def __getitem__(self, item):
+        return self.medical_volume.volume[:, :, item].astype(np.float32)
+
+    def __len__(self):
+        return self.medical_volume.shape[2]
+
 
 class ImageShow:
     
@@ -76,7 +93,7 @@ class ImageShow:
         self.resolution = [1, 1, 1]
         self.resolution_valid = False
         self.affine = None
-        self.transpose = None
+        self.medical_volume = None
 
         self.interpolation = DEFAULT_INTERPOLATION
 
@@ -411,13 +428,29 @@ class ImageShow:
         for sl in range(data.shape[2]):
             self.appendImage(data[:,:,sl])
             
-            
+
+    def load_dosma_volume(self, medical_volume):
+        if np.max(medical_volume.volume) < 10:
+            medical_volume *= 100
+        while np.max(medical_volume.volume) > 10000:
+            print(np.max(medical_volume.volume))
+            medical_volume.volume /= 10
+        self.medical_volume = medical_volume
+        self.resolution = np.array(self.medical_volume.pixel_spacing)
+        self.resolution_valid = True
+        self.affine = self.medical_volume.affine
+        self.imList = ImListProxy(self.medical_volume)
+        if medical_volume.headers() is not None:
+            self.dicomHeaderList = list(medical_volume.headers().squeeze())
+        else:
+            self.dicomHeaderList = None
+
     # load a whole directory of dicom files
-    def loadDirectory(self, path, nii_orientation = 'tra'):
+    def loadDirectory(self, path):
         self.imList = []
         self.dicomHeaderList = None
+        self.medical_volume = None
         self.affine = None
-        self.transpose = None
         self.resolution_valid = False
         self.resolution = [1,1,1]
         dicom_ext = ['.dcm', '.ima']
@@ -429,106 +462,75 @@ class ImageShow:
         basename = os.path.basename(path)
 
         self.basename = basename
-        self.fig.canvas.set_window_title(basename)
+        self.fig.canvas.manager.set_window_title(basename)
 
-        if ext.lower() in nii_ext:
-            # load nii
-            import nibabel as nib
-            niimage = nib.load(path)
-            orig_affine = niimage.affine
-
-            orig_orient = np.abs(orig_affine[0:3,0:3]).argmax(axis=1)[0:3] # get the primary axis orientations
-            orig_signs = [1 if niimage.affine[i, orig_orient[i]] > 0 else -1 for i in range(len(niimage.shape))]
-            # nii orientations are RAS (Right-Anterior-Superior). Radiological orientations are LPS (Left-Posterior-Superior)
-            # orientations for correct display:
-            # Tra: A-R-S+
-            # Cor: S-R-A+
-            # Sag: S-A+R-
-            # orig_orient[0] -> axis corresponding to R, [1] == A, [2] == S
-            if nii_orientation == 'tra':
-                new_axes = [1, 0, 2]
-                new_signs = [1, -1, 1]
-            elif nii_orientation == 'cor':
-                new_axes = [2, 0, 1]
-                new_signs = [1, -1, 1]
-            elif nii_orientation == 'sag':
-                new_axes = [2, 1, 0]
-                new_signs = [1, +1, -1]
-
-            dataset = niimage.get_fdata()
-            self.transpose = [ orig_orient[new_axes[ax]] for ax in range(3)]
-            dataset = dataset.transpose([ orig_orient[new_axes[ax]] for ax in range(3)] )
-            signs = [1,1,1]
-            for ax in range(3):
-                signs[ax] = orig_signs[ax]*new_signs[ax]
-                if signs[ax] < 0:
-                    dataset = np.flip(dataset, axis=ax)
-
-            #orients = np.array([(i,1 if niimage.affine[i,i]>0 else -1) for i in range(len(niimage.shape))])
-            #dataset = niimage.as_reoriented(orients).get_fdata()
-            if np.max(dataset) < 1:
-                dataset *= 1000
-            self.resolution = niimage.header.get_zooms()[0:3]
-            self.resolution = [ self.resolution[self.transpose[ax]] for ax in range(3) ]
-            self.resolution_valid = True
-            self.transpose = [(1 + self.transpose[ax]) * signs[ax] for ax in range(3)]
-            for sl in range(dataset.shape[2]):
-                self.appendImage(dataset[:,:,sl])
-            self.basepath = os.path.dirname(path)
-
-        elif ext.lower() in npy_ext:
+        if ext.lower() in npy_ext:
             data = np.load(path).astype(np.float32)
             self.loadNumpyArray(data)
             self.basepath = os.path.dirname(path)
+        elif ext.lower() in nii_ext:
+            niiReader = dosma.NiftiReader()
+            medical_volume = niiReader.load(path)
+            desired_orientation, accept = QInputDialog.getItem(self.fig.canvas,
+                                                       "Nifti loader",
+                                                       "Select orientation",
+                                                       ['Axial', 'Sagittal', 'Coronal'],
+                                                       editable=False)
+            if not accept: return
+            if desired_orientation == 'Axial':
+                nifti_orient = ('AP', 'RL', 'IS')
+            elif desired_orientation == 'Sagittal':
+                nifti_orient = ('SI', 'PA', 'RL')
+            else:
+                nifti_orient = ('SI', 'RL', 'AP')
+
+            self.load_dosma_volume(medical_volume.reformat(nifti_orient))
+            self.basepath = os.path.dirname(path)
         else: # assume it's dicom
-            self.transpose = [-2, 1, 3]  # the vertical direction is always flipped(?) between dicom and nii
             load_dicom_dir = False
             if os.path.isfile(path):
                 basepath = os.path.dirname(path)
-                multi_dicom_dataset = load_multi_dicom(path)
-                basepath = os.path.dirname(path)
-                if multi_dicom_dataset is None:
-                    self.fig.canvas.set_window_title(os.path.basename(basepath))
-                    load_dicom_dir = True
-                else: # this is a multi dicom dataset
-                    # let the user choose which dataset to load
-                    dataset_key, accept = QInputDialog.getItem(self.fig.canvas,
-                                                       "Multi dicom",
-                                                       "Choose dataset to load",
-                                                       list(multi_dicom_dataset.keys()),
-                                                       editable=False)
-                    if not accept: return
-                    self.dicomHeaderList = multi_dicom_dataset[dataset_key][1]
-                    data = multi_dicom_dataset[dataset_key][0].astype(np.float32)
-                    self.loadNumpyArray(data)
-                    try:
-                        self.affine = create_affine(self.dicomHeaderList)
-                    except:
-                        print("Warning: cannot create affine")
+                dataset = pydicom.read_file(path)
+                if is_enhanced_dicom(dataset):
+                    if is_multi_dicom(dataset):
+                        multi_dicom_dataset = load_multi_dicom(dataset)
+                        # this is a multi dicom dataset
+                        # let the user choose which dataset to load
+                        dataset_key, accept = QInputDialog.getItem(self.fig.canvas,
+                                                                   "Multi dicom",
+                                                                   "Choose dataset to load",
+                                                                   list(multi_dicom_dataset.keys()),
+                                                                   editable=False)
+                        if not accept: return
+                        header_list = multi_dicom_dataset[dataset_key][1]
+                        data = multi_dicom_dataset[dataset_key][0].astype(np.float32)
+                    else:
+                        # enhanced dicom but not with multiple contrasts
+                        data, header_list = convert_to_slices(dataset)
 
-                    self.resolution, self.resolution_valid = self.getDicomResolution(self.dicomHeaderList[0])
+                    affine = to_RAS_affine(header_list)
+                    medical_volume = dosma.core.MedicalVolume(data, affine, header_list)
 
-                    self.fig.canvas.set_window_title(os.path.basename(path))
+                    self.fig.canvas.manager.set_window_title(os.path.basename(path))
                     load_dicom_dir = False
+                else:
+                    self.fig.canvas.manager.set_window_title(os.path.basename(basepath))
+                    load_dicom_dir = True
 
             elif os.path.isdir(path):
                 basepath = path
+                self.fig.canvas.manager.set_window_title(basepath)
                 load_dicom_dir = True
 
             if load_dicom_dir:
+                dr = dosma.DicomReader(num_workers=1)
+                #print("Loading", basepath)
+                medical_volume = dr.load(basepath)[0]
+                #print("Ok")
                 self.basename = ''
                 self.basepath = basepath
-                for f in sorted(os.listdir(basepath)):
-                    if os.path.basename(f).startswith('.'): continue
-                    fname, ext = os.path.splitext(f)
-                    # if ext.lower() in dicom_ext: # remove check for dicom extension and try to load any file
-                    if self.dicomHeaderList is None: self.dicomHeaderList = []
-                    self.appendImage(basepath + os.path.sep + f)
-                try:
-                    self.affine = create_affine(self.dicomHeaderList)
-                except:
-                    print("Warning: Cannot create affine!")
-                    self.affine = np.eye(4)
+
+            self.load_dosma_volume(medical_volume)
 
         if len(self.imList) > 0:
             try:
