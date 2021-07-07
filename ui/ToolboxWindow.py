@@ -768,13 +768,18 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot()
     def load_mask_clicked(self):
+        if config.GlobalConfig['ENABLE_NIFTI']:
+            filter = 'Image files (*.dcm *.ima *.nii *.nii.gz *.npy *.npz);;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy *.npz);;All files ()'
+        else:
+            filter = 'Image files (*.dcm *.ima *.npy *.npz);;Dicom files (*.dcm *.ima);;Numpy files (*.npy *.npz);;All files ()'
+
         maskFile, _ = QFileDialog.getOpenFileName(self, caption='Select mask to import',
-                                                  filter='Image files (*.dcm *.ima *.npy *.npz);;Dicom files (*.dcm *.ima);;Numpy files (*.npy *.npz);;All files ()')
+                                                  filter=filter)
         if maskFile:
             self.mask_import.emit(maskFile)
 
     def load_multi_mask_clicked(self):
-        maskDir = QFileDialog.getExistingDirectory(self, caption='Select folder containing other DICOM folders')
+        maskDir = QFileDialog.getExistingDirectory(self, caption='Select folder containing other DICOM folders or Nifti files')
 
         if maskDir:
             self.mask_import.emit(maskDir)
@@ -782,7 +787,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @pyqtSlot()
     def loadData_clicked(self):
         if config.GlobalConfig['ENABLE_NIFTI']:
-            filter = 'Image files (*.dcm *.ima *.nii *.nii.gz *.npy *.npz;;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;Data + Mask bundle (*npz);;All files ()'
+            filter = 'Image files (*.dcm *.ima *.nii *.nii.gz *.npy *.npz);;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;Data + Mask bundle (*npz);;All files ()'
         else:
             filter = 'Image files (*.dcm *.ima *.npy *.npz);;Dicom files (*.dcm *.ima);;Numpy files (*.npy);;Data + Mask bundle (*npz);;All files ()'
 

@@ -15,9 +15,21 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
+import pydicom
 import pydicom as dicom
 import numpy as np
+from PyQt5.QtWidgets import QInputDialog
+from dosma.core.io.dicom_io import to_RAS_affine
+from scipy.ndimage import map_coordinates
+import dosma
+from dosma.core import MedicalVolume
+import os
+
+from .multiframe import is_enhanced_dicom, is_multi_dicom, convert_to_slices, load_multi_dicom
+
+
+class ConversionError(Exception):
+    pass
 
 def loadDicomFile(fname):
     ds = dicom.read_file(fname)
@@ -68,3 +80,149 @@ def create_affine(sorted_dicoms):
          [0, 0, 0, 1]]
     )
     return affine
+
+
+def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
+    medical_volume = None
+    affine_valid = False
+    basepath = ''
+    title = ''
+
+    dicom_ext = ['.dcm', '.ima']
+    nii_ext = ['.nii', '.gz']
+    npy_ext = ['.npy']
+    path = os.path.abspath(path)
+    _, ext = os.path.splitext(path)
+
+    basename = os.path.basename(path)
+
+    if ext.lower() in npy_ext:
+        data = np.load(path).astype(np.float32)
+        medical_volume = MedicalVolume(data, np.eye(4))
+        affine_valid = False
+        basepath = os.path.dirname(path)
+        title = basepath
+
+    elif ext.lower() in nii_ext:
+        niiReader = dosma.NiftiReader()
+        medical_volume = niiReader.load(path)
+        if reorient_data:
+            desired_orientation, accept = QInputDialog.getItem(parent_qobject,
+                                                               "Nifti loader",
+                                                               "Select orientation",
+                                                               ['Axial', 'Sagittal', 'Coronal'],
+                                                               editable=False)
+            if not accept: return
+            if desired_orientation == 'Axial':
+                nifti_orient = ('AP', 'RL', 'IS')
+            elif desired_orientation == 'Sagittal':
+                nifti_orient = ('SI', 'PA', 'RL')
+            else:
+                nifti_orient = ('SI', 'RL', 'AP')
+
+            medical_volume.reformat(nifti_orient, inplace=True)
+
+        affine_valid = True
+        title = os.path.dirname(path)
+
+    else:  # assume it's dicom
+        load_dicom_dir = False
+        if os.path.isfile(path):
+            basepath = os.path.dirname(path)
+            dataset = pydicom.read_file(path)
+            if is_enhanced_dicom(dataset):
+                if is_multi_dicom(dataset):
+                    multi_dicom_dataset = load_multi_dicom(dataset)
+                    # this is a multi dicom dataset
+                    # let the user choose which dataset to load
+                    dataset_key, accept = QInputDialog.getItem(parent_qobject,
+                                                               "Multi dicom",
+                                                               "Choose dataset to load",
+                                                               list(multi_dicom_dataset.keys()),
+                                                               editable=False)
+                    if not accept: return
+                    header_list = multi_dicom_dataset[dataset_key][1]
+                    data = multi_dicom_dataset[dataset_key][0].astype(np.float32)
+                else:
+                    # enhanced dicom but not with multiple contrasts
+                    data, header_list = convert_to_slices(dataset)
+
+                affine = to_RAS_affine(header_list)
+                medical_volume = dosma.core.MedicalVolume(data, affine, header_list)
+                affine_valid = True
+                title = os.path.basename(path)
+                load_dicom_dir = False
+            else:
+                title = os.path.basename(basepath)
+                load_dicom_dir = True
+
+        elif os.path.isdir(path):
+            basepath = path
+            title = basepath
+            load_dicom_dir = True
+
+        if load_dicom_dir:
+            dr = dosma.DicomReader(num_workers=0)
+            medical_volume = dr.load(basepath)[0]
+            affine_valid = True
+
+    return medical_volume, affine_valid, title, basepath, basename
+
+
+def realign_medical_volume(source: MedicalVolume, destination: MedicalVolume, interpolation_order: int = 3):
+    """Realign this volume to the image space of another volume. Similar to ``reformat_as``,
+    except that it supports fine rotations, translations and shape changes, so that the affine
+    matrix and extent of the modified volume is identical to the one of the target.
+
+
+    Args:
+        source (MedicalVolume): The volume to realign
+        destination (MedicalVolume): The realigned volume will have the same extent and affine matrix of ``destination``.
+        interpolation_order (int, optional): spline interpolation order.
+
+    Returns:
+        MedicalVolume: The realigned volume.
+    """
+
+    target = destination.volume
+    print("Alignment target shape:", target.shape)
+
+    # disregard our own slice thickness for the moment
+    # calculate the difference from the center of each 3D "partition" and the real center of the 2D slice
+    z_offset = 0
+
+    # The following would be need to be used if the origin of the affine matrix was calculated on the middle of the
+    # slice with thickness == slice spacing. But centering the converted dataset on the real center of the slice
+    # seems to be the norm, hence the z_offset is 0
+    # z_offset = (other_thickness/other.pixel_spacing[2]/2 - 1/2) #(other_thickness - other.pixel_spacing[2])/2
+
+    shape_as_range = (np.arange(target.shape[0]),
+                      np.arange(target.shape[1]),
+                      np.arange(target.shape[2]) + z_offset)
+
+    coords = np.array(np.meshgrid(*shape_as_range, indexing='ij')).astype(float)
+
+    # Add additional dimension with 1 to each coordinate to make work with 4x4 affine matrix
+    addon = np.ones([1, coords.shape[1], coords.shape[2], coords.shape[3]])
+    coords = np.concatenate([coords, addon], axis=0)  # shape: [4, x, y, z]
+    coords = coords.reshape([4, -1])  # shape: [4, x*y*z]
+
+    # build affine which maps from target grid to source grid
+    aff_transf = np.linalg.inv(source.affine) @ destination.affine
+
+    # transform the coords from target grid to the space of source image
+    coords_src = aff_transf @ coords  # shape: [4, x*y*z]
+
+    # reshape to original spatial dimensions
+    coords_src = coords_src.reshape((4,) + target.shape)[:3, ...]  # shape: [3, x, y, z]
+
+    # Will create a image with the spatial size of coords_src (with is target.shape). Each
+    # coordinate contains a place in the source image from which the intensity is taken
+    # and filled into the new image. If the coordinate is not within the range of the source image then
+    # will be filled with 0.
+    src_transf_data = map_coordinates(source.volume, coords_src, order=interpolation_order)
+
+    mv = MedicalVolume(src_transf_data, destination.affine, destination.headers())
+
+    return mv
+

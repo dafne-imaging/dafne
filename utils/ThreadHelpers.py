@@ -29,7 +29,15 @@ class Runner(QRunnable):
 
     @pyqtSlot()
     def run(self):
+        try:
+            setattr(self.args[0], 'separate_thread_running', True)
+        except:
+            pass
         self.func(*self.args, **self.kwargs)
+        try:
+            setattr(self.args[0], 'separate_thread_running', False)
+        except:
+            pass
 
 def separate_thread_decorator(func):
     @wraps(func)

@@ -89,7 +89,7 @@ static_config = {
     'MODEL_PATH': os.path.join(app_dirs.user_data_dir, 'models'),
     'TEMP_UPLOAD_DIR': os.path.join(app_dirs.user_cache_dir, 'upload_temp'),
     'TEMP_DIR': os.path.join(app_dirs.user_cache_dir, 'temp'),
-    'ENABLE_NIFTI': False
+    'ENABLE_NIFTI': True
 }
 
 ## Initialization

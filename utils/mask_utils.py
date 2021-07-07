@@ -17,6 +17,7 @@ import os
 import numpy as np
 import dosma
 
+
 def save_dicom_masks(base_path: str, mask_dict: dict, affine, dicom_headers: list):
     dicom_writer = dosma.DicomWriter(num_workers=4)
     for name, mask in mask_dict.items():

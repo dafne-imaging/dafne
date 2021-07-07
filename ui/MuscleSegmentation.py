@@ -17,6 +17,7 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import matplotlib
 
+from utils.dicomUtils.misc import realign_medical_volume, dosma_volume_from_path
 from . import GenericInputDialog
 
 matplotlib.use("Qt5Agg")
@@ -157,6 +158,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.fig.canvas.mpl_connect('resize_event', self.resizeCB)
         self.reblit_signal.connect(self.do_reblit)
         self.redraw_signal.connect(self.do_redraw)
+
+        self.separate_thread_running = False
 
         # disable keymapping from matplotlib - avoid pan and zoom
         for key in list(plt.rcParams):
@@ -1367,7 +1370,8 @@ class MuscleSegmentation(ImageShow, QObject):
     def refreshCB(self):
         # check if ROIs should be autosaved
         now = datetime.now()
-        if (now - self.lastsave).total_seconds() > GlobalConfig['AUTOSAVE_INTERVAL']:
+        if (now - self.lastsave).total_seconds() > GlobalConfig['AUTOSAVE_INTERVAL'] and \
+                not self.separate_thread_running: # avoid autosave while another thread is running
             self.lastsave = now
             self.saveROIPickle()
 
@@ -1699,6 +1703,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.resetInternalState()
         self.override_class = override_class
         self.resolution_valid = False
+        self.affine = None
         self.resolution = [1, 1, 1]
         _, ext = os.path.splitext(path)
         mask_dictionary = None
@@ -1977,18 +1982,23 @@ class MuscleSegmentation(ImageShow, QObject):
         if os.path.isdir(path):
             containsDirs = False
             containsDicom = False
+            nii_list = []
+            dir_list = []
             firstDicom = None
             for element in os.listdir(path):
                 if element.startswith('.'): continue
                 new_path = os.path.join(path, element)
                 if os.path.isdir(new_path):
                     containsDirs = True
+                    dir_list.append(new_path)
                 else: # check if the folder contains dicoms
                     _, ext2 = os.path.splitext(new_path)
                     if ext2.lower() in dicom_ext:
                         containsDicom = True
                         if firstDicom is None:
                             firstDicom = new_path
+                    elif ext2.lower() in nii_ext:
+                        nii_list.append(new_path)
 
             if containsDicom and containsDirs:
                 msgBox = QMessageBox()
@@ -2017,47 +2027,35 @@ class MuscleSegmentation(ImageShow, QObject):
             self.alert(text)
 
         def load_mask_validate(name, mask):
+            if name.lower().endswith('.nii'):
+                name = name[:-4]
             if mask.shape[0] != self.image.shape[0] or mask.shape[1] != self.image.shape[1]:
+                print("Mask shape", mask.shape, "self image shape", self.image.shape)
                 fail("Mask size mismatch")
                 return
             if mask.ndim > 2:
                 is3D = True
                 if mask.shape[2] != len(self.imList):
+                    print("Mask shape", mask.shape, "self length", len(self.imList))
                     fail("Mask size mismatch")
                     return
             mask = mask > 0
             self.masksToRois({name: mask}, int(self.curImage)) # this is OK for 2D and 3D
 
-        def is_local_stack_2d():
-            try:
-                # in a 3D dataset, the following is not defined
-                spacing = self.dicomHeaderList[0].SpacingBetweenSlices
-                print(f"Aligning 2D Stack (Spacing: {self.dicomHeaderList[0].SpacingBetweenSlices})")
-                return True
-            except:
-                print("Aligning 3D Stack")
-                return False
-
-        def align_dicom(dataset, dicomInfo):
+        def align_masks(medical_volume):
             # check if 1) we have dicom headers to align the dataset and 2) the datasets are not already aligned
-            if self.dicomHeaderList and not \
-                    (self.dicomHeaderList[0].ImageOrientationPatient == dicomInfo[0].ImageOrientationPatient \
-                     and self.dicomHeaderList[0].ImagePositionPatient == dicomInfo[0].ImagePositionPatient):
-                print("Dataset Orientation", self.dicomHeaderList[0].ImageOrientationPatient)
-                print("Mask Orientation", dicomInfo[0].ImageOrientationPatient)
-                print("Dataset Position", self.dicomHeaderList[0].ImagePositionPatient)
-                print("Mask Position", dicomInfo[0].ImagePositionPatient)
-                # align datasets
-                # find out if the loaded dataset is 3D or 2D stack
+            if self.affine is not None and not \
+                    np.all(np.isclose(self.affine, medical_volume.affine, rtol=1e-3)):
+                print("Aligning masks")
                 self.setSplash(True, 1, 3, "Performing alignment")
-                if is_local_stack_2d():
-                    transform = calcTransform2DStack(None, self.dicomHeaderList, None, dicomInfo)
-                else:
-                    transform = calcTransform(None, self.dicomHeaderList, None, dicomInfo, False)
-                mask = transform(dataset, maskMode=True)
+
+                realigned_volume = realign_medical_volume(medical_volume, self.medical_volume, interpolation_order=0)
+
+                mask = realigned_volume.volume
             else:
                 # we cannot align the datasets
-                mask = dataset.squeeze()
+                print("Skipping alignment")
+                mask = medical_volume.volume
             return mask
 
         ext = ext.lower()
@@ -2079,51 +2077,62 @@ class MuscleSegmentation(ImageShow, QObject):
             self.setSplash(False, 0, 0, "")
             return
         elif ext in nii_ext:
-            fail("Nii masks not supported for loading")
-        elif ext in dicom_ext:
-            # load dicom masks
-            path = os.path.dirname(path)
-            dataset, dicomInfo = load3dDicom(path)
-            name = os.path.basename(path)
+            mask_medical_volume, *_ = dosma_volume_from_path(path, reorient_data=False)
+            name, _ = os.path.splitext(os.path.basename(path))
 
-            mask = align_dicom(dataset, dicomInfo)
+            mask = align_masks(mask_medical_volume)
 
             self.setSplash(True, 2, 3, "Importing masks")
             load_mask_validate(name, mask)
             self.setSplash(False, 0, 0, "")
             return
-        elif ext == 'multidicom':
+        elif ext in dicom_ext:
+            # load dicom masks
+            path = os.path.dirname(path)
+            mask_medical_volume, *_ = dosma_volume_from_path(path, reorient_data=False)
+            name = os.path.basename(path)
+
+            mask = align_masks(mask_medical_volume)
+
+            self.setSplash(True, 2, 3, "Importing masks")
+            load_mask_validate(name, mask)
+            self.setSplash(False, 0, 0, "")
+            return
+        elif ext == 'multidicom' or len(nii_list) > 0:
+            if ext == 'multidicom':
+                path_list = dir_list
+            else:
+                path_list = nii_list
             # load multiple dicom masks and align them at the same time
             accumulated_mask = None
             current_mask_number = 1
             dicom_info_ok = None
             names = []
-            for subdir in sorted(os.listdir(path)):
-                if subdir.startswith('.'): continue
-                subdir_path = os.path.join(path, subdir)
-                if not os.path.isdir(subdir_path): continue
-                dataset, dicomInfo = load3dDicom(subdir_path) # load the next dataset
-                if dataset is None: continue
+            for data_path in path_list:
+                if data_path.startswith('.'): continue
+                try:
+                    mask_medical_volume, *_ = dosma_volume_from_path(data_path, reorient_data=False)
+                except:
+                    continue
+                dataset = mask_medical_volume.volume
                 dataset[dataset > 0] = 1
                 dataset[dataset < 1] = 0
-                name = os.path.basename(subdir_path)
+                name, _ = os.path.splitext(os.path.basename(data_path))
                 if accumulated_mask is None:
-                    accumulated_mask = np.copy(dataset.astype(np.uint8))
+                    accumulated_mask = mask_medical_volume
                 else:
                     try:
-                        accumulated_mask += dataset.astype(np.uint8)*current_mask_number
+                        accumulated_mask.volume += dataset*current_mask_number
                     except:
                         print('Incompatible mask')
                         continue
                 names.append(name)
-                #print("Mask number", current_mask_number, "accumulated max", accumulated_mask.max())
                 current_mask_number += 1
-                dicom_info_ok = dicomInfo
             if len(names) == 0:
                 self.alert('No available mask found!')
                 return
 
-            aligned_masks = align_dicom(accumulated_mask, dicom_info_ok)
+            aligned_masks = align_masks(accumulated_mask).astype(np.uint8)
 
             self.setSplash(True, 2, 3, "Importing masks")
             for index, name in enumerate(names):
