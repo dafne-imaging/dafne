@@ -54,6 +54,7 @@ class CalcTransformWindow(QWidget, Ui_CalcTransformsUI):
                                                   filter=filter)
 
         path = os.path.abspath(dataFile)
+        print(path)
         _, ext = os.path.splitext(path)
         dataset_name = os.path.basename(path)
 
@@ -70,6 +71,7 @@ class CalcTransformWindow(QWidget, Ui_CalcTransformsUI):
             self.data = medical_volume.volume
         except:
             pass
+        print("Basepath", basepath)
 
         if self.data is None:
             self.progressBar.setValue(0)

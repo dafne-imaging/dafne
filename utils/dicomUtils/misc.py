@@ -123,7 +123,8 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
             medical_volume.reformat(nifti_orient, inplace=True)
 
         affine_valid = True
-        title = os.path.dirname(path)
+        title = os.path.basename(path)
+        basepath = os.path.dirname(path)
 
     else:  # assume it's dicom
         load_dicom_dir = False
