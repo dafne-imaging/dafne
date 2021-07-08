@@ -20,18 +20,15 @@ from PyQt5.QtWidgets import QWidget, QMainWindow, QFileDialog, QMessageBox, QApp
 from PyQt5.QtCore import pyqtSlot, pyqtSignal
 from .CalcTransformsUI import Ui_CalcTransformsUI
 import os
-import sys
 import numpy as np
 from utils.RegistrationManager import RegistrationManager
-from utils.dicomUtils.dicom3D import load3dDicom
+from utils.dicomUtils.misc import dosma_volume_from_path
 from utils.ThreadHelpers import separate_thread_decorator
 from config import GlobalConfig
 import sys
 
-TRANSFORM_FILENAME = 'transforms.p'
 
 class CalcTransformWindow(QWidget, Ui_CalcTransformsUI):
-
     update_progress = pyqtSignal(int)
     success = pyqtSignal()
 
@@ -39,37 +36,57 @@ class CalcTransformWindow(QWidget, Ui_CalcTransformsUI):
         QWidget.__init__(self)
         self.setupUi(self)
         self.setWindowTitle("Dicom transform calculator")
-        self.transform_filename = None
         self.registrationManager = None
         self.update_progress.connect(self.set_progress)
         self.choose_Button.clicked.connect(self.load_data)
         self.calculate_button.clicked.connect(self.calculate)
         self.success.connect(self.show_success_box)
+        self.data = None
 
     @pyqtSlot()
     def load_data(self):
-        filter = 'Dicom files (*.dcm *.ima);;All files (*.*)'
+        if GlobalConfig['ENABLE_NIFTI']:
+            filter = 'Image files (*.dcm *.ima *.nii *.nii.gz);; Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;All files (*.*)'
+        else:
+            filter = 'Dicom files (*.dcm *.ima);;All files (*.*)'
 
         dataFile, _ = QFileDialog.getOpenFileName(self, caption='Select dataset to import',
                                                   filter=filter)
 
         path = os.path.abspath(dataFile)
-        containing_dir = os.path.dirname(path)
+        _, ext = os.path.splitext(path)
+        dataset_name = os.path.basename(path)
 
-        self.data, _ = load3dDicom(containing_dir)
+        containing_dir = os.path.dirname(path)
+        
+        if ext.lower() not in ['.nii', '.gz']:
+            path = containing_dir
+            
+        
+        medical_volume = None
+        basename = ''
+        try:
+            medical_volume, affine_valid, title, basepath, basename = dosma_volume_from_path(path, self)
+            self.data = medical_volume.volume
+        except:
+            pass
+
         if self.data is None:
             self.progressBar.setValue(0)
             self.progressBar.setEnabled(False)
             self.calculate_button.setEnabled(False)
-            QMessageBox.warning(self, 'Warning', 'Invalid DICOM dataset! Select a dicom file')
+            QMessageBox.warning(self, 'Warning', 'Invalid dataset!')
             return
 
+        self.data = medical_volume.volume
         data = list(np.transpose(self.data, [2, 0, 1]))
+
         self.progressBar.setMaximum(len(data))
         self.progressBar.setEnabled(True)
-        self.transform_filename = os.path.join(containing_dir, TRANSFORM_FILENAME)
-        self.registrationManager = RegistrationManager(data, self.transform_filename, os.getcwd(), GlobalConfig['TEMP_DIR'])
-        self.location_Text.setText(containing_dir)
+        self.registrationManager = RegistrationManager(data, None, os.getcwd(),
+                                                       GlobalConfig['TEMP_DIR'])
+        self.registrationManager.set_standard_transforms_name(basepath, basename)
+        self.location_Text.setText(containing_dir if not basename else basename)
         self.calculate_button.setEnabled(True)
 
     @pyqtSlot(int)

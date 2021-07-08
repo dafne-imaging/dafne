@@ -154,9 +154,11 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
                 load_dicom_dir = False
             else:
                 title = os.path.basename(basepath)
+                basename = ''
                 load_dicom_dir = True
 
         elif os.path.isdir(path):
+            basename = ''
             basepath = path
             title = basepath
             load_dicom_dir = True

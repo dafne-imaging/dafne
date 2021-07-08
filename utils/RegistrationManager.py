@@ -20,6 +20,9 @@ import SimpleITK as sitk
 import pickle, os, re
 import numpy as np
 
+TRANSFORMS_NAME = 'transforms.p'
+
+
 class RegistrationManager:
 
     def __init__(self, image_list, transforms_filename=None, current_dir=None, temp_dir=None):
@@ -30,8 +33,18 @@ class RegistrationManager:
 
         self.transforms = {}
         self.invtransforms = {}
-        self.unpickle_transforms()
+        if self.transforms_filename:
+            self.unpickle_transforms()
         self.transforms_changed = False
+
+    def set_standard_transforms_name(self, path, basename):
+        if basename:
+            self.transforms_filename = basename + '.' + TRANSFORMS_NAME
+        else:
+            self.transforms_filename = TRANSFORMS_NAME
+
+        self.transforms_filename = os.path.join(path, self.transforms_filename)
+        self.unpickle_transforms()
 
     def move_to_temp_dir(self):
         if not self.temp_dir or not self.current_dir: return
@@ -44,6 +57,7 @@ class RegistrationManager:
     def pickle_transforms(self):
         if not self.transforms_filename: return
         if not self.transforms_changed: return
+        print("Pickling transforms", self.transforms_filename)
         pickle_obj = {}
         transform_dict = {}
         for k, transformList in self.transforms.items():
@@ -85,7 +99,7 @@ class RegistrationManager:
                 cur_transform_list.append(sitk.ParameterMap(transform))
             self.invtransforms[k] = tuple(cur_transform_list)
 
-        print("Transforms",list(self.transforms.keys()))
+        print("Transforms", list(self.transforms.keys()))
         print("Inv Transforms", list(self.invtransforms.keys()))
 
     def get_inverse_transform(self, imIndex):
@@ -133,7 +147,7 @@ class RegistrationManager:
         self.move_to_work_dir()
         return pMap
 
-    def calc_transforms(self, callback_function = None):
+    def calc_transforms(self, callback_function=None):
         for imIndex in range(len(self.image_list)):
             print("Calculating image:", imIndex)
             # the transform was already calculated

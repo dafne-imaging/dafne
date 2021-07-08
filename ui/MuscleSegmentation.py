@@ -48,8 +48,6 @@ import os.path
 from collections import deque
 import functools
 import csv
-from utils.dicomUtils.dicom3D import load3dDicom
-from utils.dicomUtils.alignDatasets import calcTransform, calcTransform2DStack
 
 from utils.ThreadHelpers import separate_thread_decorator
 
@@ -1767,9 +1765,10 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.roiManager = ROIManager(self.imList[0].shape)
         self.registrationManager = RegistrationManager(self.imList,
-                                                       os.path.join(self.basepath, 'transforms.p'),
+                                                       None,
                                                        os.getcwd(),
                                                        GlobalConfig['TEMP_DIR'])
+        self.registrationManager.set_standard_transforms_name(self.basepath, self.basename)
         #self.loadROIPickle()
         self.updateRoiList()
         try:
@@ -2044,8 +2043,9 @@ class MuscleSegmentation(ImageShow, QObject):
 
         def align_masks(medical_volume):
             # check if 1) we have dicom headers to align the dataset and 2) the datasets are not already aligned
-            if self.affine is not None and not \
-                    np.all(np.isclose(self.affine, medical_volume.affine, rtol=1e-3)):
+            if (self.affine is not None and
+                    (not np.all(np.isclose(self.affine, medical_volume.affine, rtol=1e-3)) or
+                     not np.all(medical_volume.shape == self.medical_volume.shape))):
                 print("Aligning masks")
                 self.setSplash(True, 1, 3, "Performing alignment")
 
