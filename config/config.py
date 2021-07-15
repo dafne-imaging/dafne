@@ -80,6 +80,7 @@ defaults = {
     'AUTOSAVE_INTERVAL':  (30, 'int_slider', 1, 1000, 1, 'Interval for autosave (s)'),
     'HISTORY_LENGTH':  (20, 'int_slider', 1, 1000, 1, None),
     'FORCE_LOCAL_DATA_UPLOAD': (False, 'bool', None),
+    'DELETE_OLD_MODELS': (True, 'bool', None),
     'ADVANCED_CONFIG': (False, 'bool', 'Show advanced configuration'),
 }
 

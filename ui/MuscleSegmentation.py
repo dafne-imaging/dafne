@@ -2229,23 +2229,28 @@ class MuscleSegmentation(ImageShow, QObject):
         if class_str == 'None':
             self.alert('Segmentation with "None" model is impossible!')
             return
+
+        model_str = class_str.split(',')[0].strip() # get the base model string in case of multiple variants.
+                                                    # variants are identified by "Model, Variant"
+
         self.setSplash(True, 0, 3, "Loading model...")
         try:
-            segmenter = self.dl_segmenters[class_str]
+            segmenter = self.dl_segmenters[model_str]
         except KeyError:
-            segmenter = self.model_provider.load_model(class_str,
+            segmenter = self.model_provider.load_model(model_str,
                                                        lambda cur_val, max_val: self.setSplash(True, cur_val, max_val,
                                                                                                'Downloading Model...'),
                                                        force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
             if segmenter is None:
                 self.setSplash(False, 0, 3, "Loading model...")
-                self.alert(f"Error loading model {class_str}")
+                self.alert(f"Error loading model {model_str}")
                 return
             self.dl_segmenters[class_str] = segmenter
 
         self.setSplash(True, 1, 3, "Running segmentation...")
         t = time.time()
-        inputData = {'image': self.imList[imIndex], 'resolution': self.resolution[0:2], 'split_laterality': GlobalConfig['SPLIT_LATERALITY']}
+        inputData = {'image': self.imList[imIndex], 'resolution': self.resolution[0:2],
+                     'split_laterality': GlobalConfig['SPLIT_LATERALITY'], 'classification': class_str}
         print("Segmenting image...")
         masks_out = segmenter(inputData)
         self.originalSegmentationMasks[imIndex] = masks_out # save original segmentation for statistics
