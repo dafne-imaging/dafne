@@ -231,12 +231,52 @@ def coscia_apply(modelObj: DynamicDLModel, data: dict):
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
     MODEL_SIZE_SPLIT = (250, 250)
+
+    classification = data.get('classification', '')
+
+    single_side = False
+    swap = False
+
+    # Note: this is anatomical right, which means it's image left! It's the image right that is swapped
+    if classification.lower().strip().endswith('Right'):
+        single_side = True
+        swap = False
+    elif classification.lower().strip().endswith('Left'):
+        single_side = True
+        swap = True
+
+    # otherwise: double sided
+
     netc = modelObj.model
     resolution = np.array(data['resolution'])
     zoomFactor = resolution/MODEL_RESOLUTION
     img = data['image']
     originalShape = img.shape
     img = zoom(img, zoomFactor) # resample the image to the model resolution
+
+    if single_side:
+        img = padorcut(img, MODEL_SIZE_SPLIT)
+        if swap:
+            img = img[::1,::-1]
+
+        segmentation = netc.predict(np.expand_dims(np.stack([img, np.zeros(MODEL_SIZE_SPLIT)], axis=-1), axis=0))
+        label = np.argmax(np.squeeze(segmentation[0, :, :, :13]), axis=2)
+        if swap:
+            label = label[::1,::-1]
+
+        labelsMask = zoom(label, 1 / zoomFactor, order=0)
+        labelsMask = padorcut(labelsMask, originalShape).astype(np.int8)
+
+        outputLabels = {}
+
+        suffix = ''
+        if data['split_laterality']:
+            suffix = '_R' if swap else '_L'
+        for labelValue, labelName in LABELS_DICT.items():
+            outputLabels[labelName + suffix] = (labelsMask == labelValue).astype(np.int8)  # left in the image is right in the anatomy
+        return outputLabels
+
+    # two sides
     img = padorcut(img, MODEL_SIZE)
     imgbc=biascorrection.biascorrection_image(img)
     a1,a2,a3,a4,b1,b2=split_mirror(imgbc)
