@@ -2185,10 +2185,28 @@ class MuscleSegmentation(ImageShow, QObject):
             classList.remove('Classifier')
         except ValueError: # Classifier doesn't exist. It doesn't matter
             pass
+
+        new_class_list = []
+        for c in classList:
+            if self.model_provider is None:
+                new_class_list.append(c)
+            else:
+                model_details = self.model_provider.model_details(c)
+                try:
+                    variants = model_details['variants']
+                except:
+                    new_class_list.append(c)
+                    continue
+                for variant in variants:
+                    if variant.strip() == '':
+                        new_class_list.append(c)
+                    else:
+                        new_class_list.append(f'{c}, {variant}')
+
         for i, classification in enumerate(self.classifications[:]):
-            if classification not in classList:
+            if classification not in new_class_list:
                 self.classifications[i] = 'None'
-        self.toolbox_window.set_available_classes(classList)
+        self.toolbox_window.set_available_classes(new_class_list)
         try:
             self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
         except IndexError:
