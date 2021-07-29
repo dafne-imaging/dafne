@@ -15,9 +15,11 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import shutil
 
 from dl.DynamicDLModel import DynamicDLModel
 import numpy as np # this is assumed to be available in every context
+import sys
 
 def coscia_unet():
     
@@ -238,10 +240,10 @@ def coscia_apply(modelObj: DynamicDLModel, data: dict):
     swap = False
 
     # Note: this is anatomical right, which means it's image left! It's the image right that is swapped
-    if classification.lower().strip().endswith('Right'):
+    if classification.lower().strip().endswith('right'):
         single_side = True
         swap = False
-    elif classification.lower().strip().endswith('Left'):
+    elif classification.lower().strip().endswith('left'):
         single_side = True
         swap = True
 
@@ -271,7 +273,7 @@ def coscia_apply(modelObj: DynamicDLModel, data: dict):
 
         suffix = ''
         if data['split_laterality']:
-            suffix = '_R' if swap else '_L'
+            suffix = '_L' if swap else '_R'
         for labelValue, labelName in LABELS_DICT.items():
             outputLabels[labelName + suffix] = (labelsMask == labelValue).astype(np.int8)  # left in the image is right in the anatomy
         return outputLabels
@@ -339,7 +341,24 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
     t = time.time()
     print('Image preprocess')
 
-    image_list, mask_list = pretrain.common_input_process_split(inverse_labels, MODEL_RESOLUTION, MODEL_SIZE, MODEL_SIZE_SPLIT, trainingData,
+    classification = trainingData.get('classification', '')
+
+    single_side = False
+    swap = False
+
+    # Note: this is anatomical right, which means it's image left! It's the image right that is swapped
+    if classification.lower().strip().endswith('right'):
+        single_side = True
+        swap = False
+    elif classification.lower().strip().endswith('left'):
+        single_side = True
+        swap = True
+
+    if single_side:
+        image_list, mask_list = pretrain.common_input_process_single(inverse_labels, MODEL_RESOLUTION, MODEL_SIZE, MODEL_SIZE_SPLIT, trainingData,
+                                                          trainingOutputs, swap)
+    else:
+        image_list, mask_list = pretrain.common_input_process_split(inverse_labels, MODEL_RESOLUTION, MODEL_SIZE, MODEL_SIZE_SPLIT, trainingData,
                                                           trainingOutputs)
 
     print('Done. Elapsed', time.time()-t)
@@ -377,16 +396,29 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
     history = netc.fit(x=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check],verbose=1)
     print('Done. Elapsed', time.time() - t)
 
-model = coscia_unet()
-model.load_weights('weights/weights_coscia_split.hdf5')
-weights = model.get_weights()
 
-modelObject = DynamicDLModel('210e2a21-1984-4e6f-8675-bf57bbabef2f',
+if len(sys.argv) > 1:
+    # convert an existing model
+    print("Converting model", sys.argv[1])
+    old_model_path = sys.argv[1]
+    old_model = DynamicDLModel.Load(open(old_model_path, 'rb'))
+    shutil.move(old_model_path, old_model_path + '.bak')
+    weights = old_model.get_weights()
+    timestamp = old_model.timestamp_id
+    model_id = old_model.model_id
+else:
+    model_id = '210e2a21-1984-4e6f-8675-bf57bbabef2f'
+    timestamp = 1610001000
+    model = coscia_unet()
+    model.load_weights('weights/weights_coscia_split.hdf5')
+    weights = model.get_weights()
+
+modelObject = DynamicDLModel(model_id,
                              coscia_unet,
                              coscia_apply,
                              incremental_learn_function=thigh_incremental_mem,
                              weights=weights,
-                             timestamp_id=1610001000
+                             timestamp_id=timestamp
                              )
 
 filename = f'models/Thigh_{modelObject.timestamp_id}.model'
