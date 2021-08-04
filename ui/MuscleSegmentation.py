@@ -2300,11 +2300,13 @@ class MuscleSegmentation(ImageShow, QObject):
                 print(f"Not enough slices for {classification_name}")
                 continue
             performed = True
+            model_str = classification_name.split(',')[0].strip()  # get the base model string in case of multiple variants.
+                                                        # variants are identified by "Model, Variant"
             try:
-                model = self.dl_segmenters[classification_name]
+                model = self.dl_segmenters[model_str]
             except KeyError:
-                model = self.model_provider.load_model(classification_name, force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
-                self.dl_segmenters[classification_name] = model
+                model = self.model_provider.load_model(model_str, force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
+                self.dl_segmenters[model_str] = model
             training_data = []
             training_outputs = []
             for imageIndex in dataForTraining[classification_name]:
@@ -2314,7 +2316,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
             try:
                 # todo: adapt bs and minTrainImages if needed
-                model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2]},
+                model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2], 'classification': classification_name},
                                         training_outputs, bs=5, minTrainImages=GlobalConfig['IL_MIN_SLICES'])
                 model.reset_timestamp()
             except Exception as e:
@@ -2334,7 +2336,7 @@ class MuscleSegmentation(ImageShow, QObject):
             st = time.time()
             if meanDiceScore is None:
                 meanDiceScore = -1.0
-            self.model_provider.upload_model(classification_name, model, meanDiceScore)
+            self.model_provider.upload_model(model_str, model, meanDiceScore)
             print(f"took {time.time() - st:.2f}s")
         if not performed:
             self.alert("Not enough images for incremental learning")

@@ -15,6 +15,8 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import shutil
+import sys
 
 from dl.DynamicDLModel import DynamicDLModel
 import numpy as np # this is assumed to be available in every context
@@ -230,12 +232,53 @@ def gamba_apply(modelObj: DynamicDLModel, data: dict):
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
     MODEL_SIZE_SPLIT = (216, 216)
+
+    classification = data.get('classification', '')
+
+    single_side = False
+    swap = False
+
+    # Note: this is anatomical right, which means it's image left! It's the image right that is swapped
+    if classification.lower().strip().endswith('right'):
+        single_side = True
+        swap = False
+    elif classification.lower().strip().endswith('left'):
+        single_side = True
+        swap = True
+
+    # otherwise: double sided
+
     netc = modelObj.model
     resolution = np.array(data['resolution'])
-    zoomFactor = resolution/MODEL_RESOLUTION
+    zoomFactor = resolution / MODEL_RESOLUTION
     img = data['image']
     originalShape = img.shape
-    img = zoom(img, zoomFactor) # resample the image to the model resolution
+    img = zoom(img, zoomFactor)  # resample the image to the model resolution
+
+    if single_side:
+        img = padorcut(img, MODEL_SIZE_SPLIT)
+        if swap:
+            img = img[::1, ::-1]
+
+        segmentation = netc.predict(np.expand_dims(np.stack([img, np.zeros(MODEL_SIZE_SPLIT)], axis=-1), axis=0))
+        label = np.argmax(np.squeeze(segmentation[0, :, :, :13]), axis=2)
+        if swap:
+            label = label[::1, ::-1]
+
+        labelsMask = zoom(label, 1 / zoomFactor, order=0)
+        labelsMask = padorcut(labelsMask, originalShape).astype(np.int8)
+
+        outputLabels = {}
+
+        suffix = ''
+        if data['split_laterality']:
+            suffix = '_L' if swap else '_R'
+        for labelValue, labelName in LABELS_DICT.items():
+            outputLabels[labelName + suffix] = (labelsMask == labelValue).astype(
+                np.int8)  # left in the image is right in the anatomy
+        return outputLabels
+
+    # two sides
     img = padorcut(img, MODEL_SIZE)
     imgbc=biascorrection.biascorrection_image(img)
     a1,a2,a3,a4,b1,b2=split_mirror(imgbc)
@@ -282,7 +325,7 @@ def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOu
     except:
         import numpy as np
 
-    from dl.labels.leg import inverse_labels as INVERSE_LABEL_DICT
+    from dl.labels.leg import inverse_labels
 
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
@@ -296,9 +339,27 @@ def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOu
 
     t = time.time()
     print('Image preprocess')
+    classification = trainingData.get('classification', '')
 
-    image_list, mask_list = pretrain.common_input_process_split(INVERSE_LABEL_DICT, MODEL_RESOLUTION, MODEL_SIZE, MODEL_SIZE_SPLIT, trainingData,
-                                                          trainingOutputs)
+    single_side = False
+    swap = False
+
+    # Note: this is anatomical right, which means it's image left! It's the image right that is swapped
+    if classification.lower().strip().endswith('right'):
+        single_side = True
+        swap = False
+    elif classification.lower().strip().endswith('left'):
+        single_side = True
+        swap = True
+
+    if single_side:
+        image_list, mask_list = pretrain.common_input_process_single(inverse_labels, MODEL_RESOLUTION, MODEL_SIZE,
+                                                                     MODEL_SIZE_SPLIT, trainingData,
+                                                                     trainingOutputs, swap)
+    else:
+        image_list, mask_list = pretrain.common_input_process_split(inverse_labels, MODEL_RESOLUTION, MODEL_SIZE,
+                                                                    MODEL_SIZE_SPLIT, trainingData,
+                                                                    trainingOutputs)
 
     print('Done. Elapsed', time.time() - t)
     nImages = len(image_list)
@@ -335,19 +396,33 @@ def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOu
     history = netc.fit(x=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check], verbose=1)
     print('Done. Elapsed', time.time() - t)
 
-model = gamba_unet()
-model.load_weights('weights/weights_gamba_split.hdf5')
-weights = model.get_weights()
 
-modelObject = DynamicDLModel('ba333b4d-90e7-4108-aca5-9216f408d91e',
+if len(sys.argv) > 1:
+    # convert an existing model
+    print("Converting model", sys.argv[1])
+    old_model_path = sys.argv[1]
+    filename = old_model_path
+    old_model = DynamicDLModel.Load(open(old_model_path, 'rb'))
+    shutil.move(old_model_path, old_model_path + '.bak')
+    weights = old_model.get_weights()
+    timestamp = old_model.timestamp_id
+    model_id = old_model.model_id
+else:
+    model_id = 'ba333b4d-90e7-4108-aca5-9216f408d91e'
+    timestamp = 1610001000
+    model = gamba_unet()
+    model.load_weights('weights/weights_gamba_split.hdf5')
+    weights = model.get_weights()
+    filename = f'models/Leg_{timestamp}.model'
+
+modelObject = DynamicDLModel(model_id,
                              gamba_unet,
                              gamba_apply,
                              incremental_learn_function=leg_incremental_mem,
                              weights=weights,
-                             timestamp_id=1610001000
+                             timestamp_id=timestamp
                              )
 
-filename = f'models/Leg_{modelObject.timestamp_id}.model'
 with open(filename, 'wb') as f:
     modelObject.dump(f)
 

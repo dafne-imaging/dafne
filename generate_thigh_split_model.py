@@ -401,6 +401,7 @@ if len(sys.argv) > 1:
     # convert an existing model
     print("Converting model", sys.argv[1])
     old_model_path = sys.argv[1]
+    filename = old_model_path
     old_model = DynamicDLModel.Load(open(old_model_path, 'rb'))
     shutil.move(old_model_path, old_model_path + '.bak')
     weights = old_model.get_weights()
@@ -412,6 +413,7 @@ else:
     model = coscia_unet()
     model.load_weights('weights/weights_coscia_split.hdf5')
     weights = model.get_weights()
+    filename = f'models/Thigh_{timestamp}.model'
 
 modelObject = DynamicDLModel(model_id,
                              coscia_unet,
@@ -421,7 +423,7 @@ modelObject = DynamicDLModel(model_id,
                              timestamp_id=timestamp
                              )
 
-filename = f'models/Thigh_{modelObject.timestamp_id}.model'
+
 with open(filename, 'wb') as f:
     modelObject.dump(f)
 
