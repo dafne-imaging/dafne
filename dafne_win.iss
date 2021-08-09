@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Dafne"
-#define MyAppVersion "1.0-beta5"
+#define MyAppVersion "1.1-alpha"
 #define MyAppPublisher "Dafne-imaging"
 #define MyAppURL "https://www.dafne.network/"
 #define MyAppExeName "dafne.exe"

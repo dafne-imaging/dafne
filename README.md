@@ -36,6 +36,8 @@ The input of the apply function is:
 dict({
     'image': np.array (2D image)
     'resolution': sequence with two elements (image resolution in mm)
+    'split_laterality': True/False (indicates whether the ROIs should be split in L/R if applicable)
+    'classification': str - The classification tag of the image (optional, to identify model variants)
 })
 ```
 
@@ -53,6 +55,7 @@ The input of the incremental learn functions are:
 ```
 training data: dict({
     'resolution': sequence (see above)
+    'classification': str (see above)
     'image_list': list([
         - np.array (2D image)
         - np.array (2D image)
@@ -72,7 +75,7 @@ Every entry in the training outputs list corresponds to an entry in the image_li
 So `len(training_data['image_list']) == len(training_outputs)`.
 
 # Acknowledgments
-Code for converting dicom to nifti is based on https://github.com/icometrix/dicom2nifti, copyright Icometrix, MIT License.
+Input/Output is based on [DOSMA](https://github.com/ad12/DOSMA) - GPLv3 license
 
 This repository contains a precompiled version of [potrace](http://potrace.sourceforge.net/) and [pypotrace](https://github.com/flupke/pypotrace), with parts of [AGG](http://agg.sourceforge.net/antigrain.com/index.html) - Licensed under GPL.
 
