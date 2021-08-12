@@ -436,7 +436,11 @@ class ImageShow:
         self.affine = self.medical_volume.affine
         self.imList = ImListProxy(self.medical_volume)
         if medical_volume.headers() is not None:
-            self.dicomHeaderList = list(medical_volume.headers().squeeze())
+            header_obj = medical_volume.headers().squeeze()
+            if header_obj.shape == ():
+                self.dicomHeaderList = [header_obj.item()]
+            else:
+                self.dicomHeaderList = list(header_obj)
         else:
             self.dicomHeaderList = None
 
