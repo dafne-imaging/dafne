@@ -778,6 +778,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         if maskFile:
             self.mask_import.emit(maskFile)
 
+    @pyqtSlot()
     def load_multi_mask_clicked(self):
         maskDir = QFileDialog.getExistingDirectory(self, caption='Select folder containing other DICOM folders or Nifti files')
 
