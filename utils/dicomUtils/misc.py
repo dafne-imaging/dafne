@@ -130,7 +130,7 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
         load_dicom_dir = False
         if os.path.isfile(path):
             basepath = os.path.dirname(path)
-            dataset = pydicom.read_file(path)
+            dataset = pydicom.read_file(path, force=True)
             if is_enhanced_dicom(dataset):
                 if is_multi_dicom(dataset):
                     multi_dicom_dataset = load_multi_dicom(dataset)
@@ -165,9 +165,37 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
             load_dicom_dir = True
 
         if load_dicom_dir:
-            dr = dosma.DicomReader(num_workers=0)
-            medical_volume = dr.load(basepath)[0]
-            affine_valid = True
+            try:
+                dr = dosma.DicomReader(num_workers=0)
+                medical_volume = dr.load(basepath)[0]
+                affine_valid = True
+            except:
+                # Error reading with DOSMA. use standard dicom
+                l = os.listdir(basepath)
+                threeDlist = []
+                header_list = []
+                for f in sorted(l):
+                    if os.path.basename(f).startswith('.'): continue
+                    dFile = dicom.read_file(os.path.join(basepath, f), force=True)
+                    dFile.ensure_file_meta()
+                    if 'TransferSyntaxUID' not in dFile.file_meta:
+                        dFile.file_meta.TransferSyntaxUID = '1.2.840.10008.1.2.1'
+
+                    try:
+                        dFile.decompress()
+                    except ValueError:
+                        dFile.NumberOfFrames = 1
+                        dFile.decompress()
+
+                    pixelIma = dFile.pixel_array
+
+                    threeDlist.append(np.copy(pixelIma.astype('float32')))
+                    dFile.PixelData = ""
+                    header_list.append(dFile)
+                data = np.stack(threeDlist, axis=2)
+                affine = to_RAS_affine(header_list)
+                medical_volume = dosma.core.MedicalVolume(data, affine, header_list)
+                affine_valid = True
 
     return medical_volume, affine_valid, title, basepath, basename
 
