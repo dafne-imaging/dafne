@@ -67,8 +67,6 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
             self.signal_alert("Model not found")
             sys.exit(-1)
 
-        self.model_provider.log('Test')
-
         print("Connection established")
 
     def signal_progress(self, value, maximum, msg=''):
@@ -147,8 +145,9 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
         if len(self.im_list) > 0:
             self.curImage = 0
 
-    @separate_thread_decorator
+    #@separate_thread_decorator
     def load_directory(self, path):
+        self.data_choose_Button.setEnabled(False)
         self.signal_progress(0, 1, "Loading data")
         self.im_list = []
         self.mask_list = {}
@@ -203,10 +202,14 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
             self.mask_choose_Button.setEnabled(False)
         self.signal_progress(0, 1)
 
+        self.data_choose_Button.setEnabled(True)
+
         if self.mask_location_Text.text() != '':
             self.evaluate_Button.setEnabled(True)
         else:
             self.evaluate_Button.setEnabled(False)
+
+        print('im_list len', len(self.im_list))
 
     def masksToRois(self, mask_dictionary):
         pass
@@ -220,6 +223,8 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
 
     @separate_thread_decorator
     def mask_import(self, filename):
+        self.mask_choose_Button.setEnabled(False)
+        self.data_choose_Button.setEnabled(False)
         dicom_ext = ['.dcm', '.ima']
         nii_ext = ['.nii', '.gz']
         npy_ext = ['.npy']
@@ -292,8 +297,7 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
             self.signal_progress(1, 2, "Loading masks")
             load_mask_validate(name, mask)
             self.signal_progress(0,1)
-            return
-        if ext in npz_ext:
+        elif ext in npz_ext:
             mask_dict = np.load(path)
             n_masks = len(mask_dict)
             cur_mask = 0
@@ -301,7 +305,6 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
                 self.signal_progress(cur_mask, n_masks, "Loading masks")
                 load_mask_validate(name, mask)
             self.signal_progress(0,1)
-            return
         elif ext in nii_ext:
             mask_medical_volume, *_ = dosma_volume_from_path(path, reorient_data=False)
             name, _ = os.path.splitext(os.path.basename(path))
@@ -311,7 +314,6 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
             self.signal_progress(2, 3, "Loading masks")
             load_mask_validate(name, mask)
             self.signal_progress(0, 1)
-            return
         elif ext == 'multidicom' or len(nii_list) > 0:
             if ext == 'multidicom':
                 path_list = dir_list
@@ -319,10 +321,13 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
                 path_list = nii_list
             # load multiple dicom masks and align them at the same time
             accumulated_mask = None
-            current_mask_number = 1
+            current_mask_number = 0
+            total_masks = len(path_list)
             dicom_info_ok = None
             names = []
             for data_path in path_list:
+                self.signal_progress(current_mask_number, total_masks, "Loading masks")
+                current_mask_number += 1
                 if data_path.startswith('.'): continue
                 try:
                     mask_medical_volume, *_ = dosma_volume_from_path(data_path, reorient_data=False)
@@ -342,6 +347,13 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
             self.evaluate_Button.setEnabled(True)
         else:
             self.evaluate_Button.setEnabled(False)
+
+        self.mask_choose_Button.setEnabled(True)
+        self.data_choose_Button.setEnabled(True)
+        self.signal_progress(0, 2)
+        print("Masks:")
+        for key in self.mask_list:
+            print(key, ", ".join(self.mask_list[key].keys()))
 
 
     # convert a single slice to ROIs

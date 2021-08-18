@@ -453,7 +453,10 @@ class ImageShow:
         self.resolution_valid = False
         self.resolution = [1, 1, 1]
 
-        medical_volume, affine_valid, title, basepath, basename = dosma_volume_from_path(path, self.fig.canvas)
+        try:
+            medical_volume, affine_valid, title, basepath, basename = dosma_volume_from_path(path, self.fig.canvas)
+        except TypeError:
+            return
 
         self.load_dosma_volume(medical_volume)
         self.resolution_valid = affine_valid

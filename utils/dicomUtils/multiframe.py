@@ -26,7 +26,10 @@ def flatten_data(d, new_dataset=None):
         new_dataset.is_little_endian = d.is_little_endian
         new_dataset.is_implicit_VR = d.is_implicit_VR
         new_dataset.file_meta = copy.deepcopy(d.file_meta)
-        # new_dataset.file_meta[(2,2)] = '1.2.840.10008.5.1.4.1.1.4'
+        try:
+            new_dataset.file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.4'
+        except:
+            print("Cannot set new file meta")
         new_dataset.ensure_file_meta()
     for element in d.iterall():
         if not isinstance(element.value, pydicom.sequence.Sequence):
@@ -57,6 +60,7 @@ def convert_to_slices(data_in):
     for slice_header in slice_data:
         new_slice_header = flatten_data(d)
         flatten_data(slice_header, new_slice_header)
+        new_slice_header.NumberOfFrames = 1
         header_list.append(new_slice_header)
     return pixel_data, header_list
 
@@ -100,7 +104,10 @@ def load_dcm_if_necessary(dicom_file):
 
 def is_enhanced_dicom(dicom_file):
     d = load_dcm_if_necessary(dicom_file)
-    return d.file_meta[(2, 2)].value == '1.2.840.10008.5.1.4.1.1.4.1'
+    try:
+        return d.file_meta.MediaStorageSOPClassUID == '1.2.840.10008.5.1.4.1.1.4.1'
+    except:
+        return False
 
 
 def is_multi_dicom(dicom_file):
