@@ -53,6 +53,7 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
         config.load_config()
         print("Timestamp interval", TIMESTAMP_INTERVAL)
         print("Logging enabled", UPLOAD_STATS)
+        self.timestamps_to_download = []
         self.init_model_provider()
 
     def init_model_provider(self):
@@ -69,6 +70,11 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
         if CLASSIFICATION not in available_models:
             self.signal_alert("Model not found")
             sys.exit(-1)
+
+        model_info = self.model_provider.model_details(CLASSIFICATION)
+        timestamps = model_info['timestamps']
+        self.timestamps_to_download = [timestamp for timestamp in timestamps if TIMESTAMP_INTERVAL[0] <= int(timestamp) <= TIMESTAMP_INTERVAL[1]]
+
 
         #self.model_provider.log("Testing")
 
@@ -381,7 +387,7 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
     def start_calculation(self):
         n_slices = len(self.mask_list)
         n_rois = len(next(iter(self.mask_list.values()))) # get the number of rois from an arbitrary slice
-        accept = QMessageBox.question(self, "Run validation?", f'Running validation with {n_rois} ROIs over {n_slices} slices. Continue?', QMessageBox.Yes | QMessageBox.No)
+        accept = QMessageBox.question(self, "Run validation?", f'Running validation for model {CLASSIFICATION} on {len(self.timestamps_to_download)} models\nwith {n_rois} ROIs over {n_slices} slices. Continue?', QMessageBox.Yes | QMessageBox.No)
         if accept == QMessageBox.No:
             return
         comment, ok = QInputDialog.getText(self, "Add comment", "Add an identifier for this dataset")
@@ -402,17 +408,12 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
                     split_laterality = True
 
         print("Split laterality:", split_laterality)
+        print("Models to download", self.timestamps_to_download)
 
-        model_info = self.model_provider.model_details(CLASSIFICATION)
-        timestamps = model_info['timestamps']
-        timestamps_to_download = [timestamp for timestamp in timestamps if TIMESTAMP_INTERVAL[0] <= int(timestamp) <= TIMESTAMP_INTERVAL[1]]
-
-        print("Models to download", timestamps_to_download)
-
-        n_models = len(timestamps_to_download)
+        n_models = len(self.timestamps_to_download)
         current_model_n = 0
 
-        for timestamp in timestamps_to_download:
+        for timestamp in self.timestamps_to_download:
             self.signal_overall_progress(current_model_n, n_models)
 
             model = self.model_provider.load_model(CLASSIFICATION,
@@ -438,7 +439,7 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
                         dice = calc_dice_score(mask, output_masks[mask_name])
                         n_voxels.append(n_vox)
                         dice_scores.append(dice)
-                        print('Slice', slice, 'Mask', mask_name, 'N', n_vox, 'Dice', dice)
+                        #print('Slice', slice, 'Mask', mask_name, 'N', n_vox, 'Dice', dice)
                 current_slice += 1
 
             dice_scores = np.array(dice_scores)
