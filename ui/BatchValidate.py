@@ -15,6 +15,7 @@ from ui.ValidateUI import Ui_ValidateUI
 from ui.pyDicomView import ImListProxy
 from utils.ThreadHelpers import separate_thread_decorator
 from utils.dicomUtils.misc import dosma_volume_from_path
+import tensorflow as tf
 
 CLASSIFICATION = 'Leg'
 TIMESTAMP_INTERVAL = (1625471255, 1625471255) #(1625471255, 1626096769)
@@ -66,6 +67,8 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
         if CLASSIFICATION not in available_models:
             self.signal_alert("Model not found")
             sys.exit(-1)
+
+        #self.model_provider.log("Testing")
 
         print("Connection established")
 
@@ -374,9 +377,15 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
 
     @pyqtSlot()
     def start_calculation(self):
+        n_slices = len(self.mask_list)
+        n_rois = len(next(iter(self.mask_list.values()))) # get the number of rois from an arbitrary slice
+        accept = QMessageBox.question(self, "Run validation?", f'Running validation with {n_rois} ROIs over {n_slices} slices. Continue?', QMessageBox.Yes | QMessageBox.No)
+        if accept == QMessageBox.No:
+            return
         comment, ok = QInputDialog.getText(self, "Add comment", "Add an identifier for this dataset")
         if not ok:
             return
+        self.setEnabled(False)
         self.calculate(comment)
 
     @separate_thread_decorator
@@ -445,8 +454,16 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
 
             current_model_n += 1
 
+            # free memory
+            del model
+            try:
+                tf.keras.backend.clear_session() # this should clear the memory leaks by tensorflow
+            except:
+                print("Error cleaning keras session")
+
         self.signal_overall_progress(0,1)
         self.signal_progress(0,1,'Finished')
+        self.setEnabled(True)
 
 
 def run():
