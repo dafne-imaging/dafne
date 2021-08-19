@@ -1,5 +1,6 @@
 #  Copyright (c) 2021 Dafne-Imaging Team
 import os
+import utils.compressed_pickle as pickle
 import sys
 import traceback
 
@@ -13,6 +14,7 @@ from dl.misc import calc_dice_score
 from ui import GenericInputDialog
 from ui.ValidateUI import Ui_ValidateUI
 from ui.pyDicomView import ImListProxy
+from utils.ROIManager import ROIManager
 from utils.ThreadHelpers import separate_thread_decorator
 from utils.dicomUtils.misc import dosma_volume_from_path
 import tensorflow as tf
@@ -37,6 +39,7 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
         self.alert_signal.connect(self.alert)
         self.data_choose_Button.clicked.connect(self.choose_data)
         self.mask_choose_Button.clicked.connect(self.choose_mask_dir)
+        self.roi_choose_Button.clicked.connect(self.do_load_roi)
         self.resolution = [1,1,1]
         self.resolution_valid = False
         self.medical_volume = None
@@ -117,6 +120,7 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
             self.im_list = []
             self.mask_list = {}
             self.mask_choose_Button.setEnabled(False)
+            self.roi_choose_Button.setEnabled(False)
             self.data_location_Text.setText("")
             self.mask_location_Text.setText("")
             self.load_directory(dataFile)
@@ -198,19 +202,21 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
                 GenericInputDialog.FloatSpinInput("X (mm)", 1, 0, 99, 0.1),
                 GenericInputDialog.FloatSpinInput("Y (mm)", 1, 0, 99, 0.1),
                 GenericInputDialog.FloatSpinInput("Slice (mm)", 1, 0, 99, 0.1)
-            ], self.fig.canvas)
+            ], self)
             if accepted:
                 self.resolution = [output[0], output[1], output[2]]
                 self.resolution_valid = True
 
         self.data_location_Text.setText(self.basepath)
         self.mask_choose_Button.setEnabled(True)
+        self.roi_choose_Button.setEnabled(True)
 
         if mask_dictionary:
             self.setSplash(True, 1, 2, "Loading masks")
             self.mask_location_Text.setText(self.basename)
             self.masksToRois(mask_dictionary, 0)
             self.mask_choose_Button.setEnabled(False)
+            self.roi_choose_Button.setEnabled(False)
         self.signal_progress(0, 1)
 
         self.data_choose_Button.setEnabled(True)
@@ -222,8 +228,77 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
 
         print('im_list len', len(self.im_list))
 
-    def masksToRois(self, mask_dictionary):
-        pass
+    @pyqtSlot()
+    def do_load_roi(self):
+        roiPickleName, _ = QFileDialog.getOpenFileName(self, caption='Select ROI file',
+                                                       filter="Pickle files (*.p)")
+
+        if roiPickleName is None:
+            return
+
+        self.mask_location_Text.setText(roiPickleName)
+        self.loadROIPickle(roiPickleName)
+
+    @separate_thread_decorator
+    def loadROIPickle(self, roiPickleName):
+        self.mask_choose_Button.setEnabled(False)
+        self.roi_choose_Button.setEnabled(False)
+        self.data_choose_Button.setEnabled(False)
+        self.mask_list = {}
+
+        print("Loading ROIs", roiPickleName)
+        try:
+            dumpObj = pickle.load(open(roiPickleName, 'rb'))
+        except UnicodeDecodeError:
+            print('Warning: Unicode decode error')
+            dumpObj = pickle.load(open(roiPickleName, 'rb'), encoding='latin1')
+        except:
+            traceback.print_exc()
+            self.signal_alert("Unspecified error")
+            return
+
+        roiManager = None
+
+        if type(dumpObj) == ROIManager:
+            roiManager = dumpObj
+        elif type(dumpObj) == dict:
+            try:
+                classifications = dumpObj['classifications']
+                roiManager = dumpObj['roiManager']
+            except KeyError:
+                self.signal_alert("Unrecognized saved ROI type")
+                return
+
+        try:
+            # print(self.allROIs)
+            assert type(roiManager) == ROIManager
+        except:
+            self.signal_alert("Unrecognized saved ROI type")
+            return
+
+        if roiManager.mask_size[0] != self.im_list[0].shape[0] or \
+                roiManager.mask_size[1] != self.im_list[0].shape[1]:
+            self.signal_alert("ROI for wrong dataset")
+            return
+
+        # convert all rois to masks
+        for key_tuple, mask in roiManager.all_masks():
+            if mask.any():
+                image_n = key_tuple[1]
+                roi_name = key_tuple[0]
+                if image_n not in self.mask_list:
+                    self.mask_list[image_n] = {}
+                self.mask_list[image_n][roi_name] = mask
+
+        self.evaluate_Button.setEnabled(True)
+        self.mask_choose_Button.setEnabled(True)
+        self.roi_choose_Button.setEnabled(True)
+        self.data_choose_Button.setEnabled(True)
+        self.signal_progress(0, 2)
+        print("Masks:")
+        for key in self.mask_list:
+            print(key, ", ".join(self.mask_list[key].keys()))
+
 
     @pyqtSlot()
     def choose_mask_dir(self):
@@ -235,6 +310,7 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
     @separate_thread_decorator
     def mask_import(self, filename):
         self.mask_choose_Button.setEnabled(False)
+        self.roi_choose_Button.setEnabled(False)
         self.data_choose_Button.setEnabled(False)
         dicom_ext = ['.dcm', '.ima']
         nii_ext = ['.nii', '.gz']
@@ -360,6 +436,7 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
             self.evaluate_Button.setEnabled(False)
 
         self.mask_choose_Button.setEnabled(True)
+        self.roi_choose_Button.setEnabled(True)
         self.data_choose_Button.setEnabled(True)
         self.signal_progress(0, 2)
         print("Masks:")

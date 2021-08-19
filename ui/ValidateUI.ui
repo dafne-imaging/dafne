@@ -46,7 +46,7 @@
     </layout>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,0,0">
+    <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,0,0,0">
      <item>
       <widget class="QLabel" name="label_2">
        <property name="sizePolicy">
@@ -73,7 +73,17 @@
         <bool>false</bool>
        </property>
        <property name="text">
-        <string>Choose...</string>
+        <string>Choose folder...</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="roi_choose_Button">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="text">
+        <string>Choose ROI...</string>
        </property>
       </widget>
      </item>
