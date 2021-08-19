@@ -18,7 +18,7 @@ from utils.dicomUtils.misc import dosma_volume_from_path
 import tensorflow as tf
 
 CLASSIFICATION = 'Leg'
-TIMESTAMP_INTERVAL = (1625471255, 1625471255) #(1625471255, 1626096769)
+TIMESTAMP_INTERVAL = (1625471255, 1626096769)
 UPLOAD_STATS = True
 
 
@@ -51,6 +51,8 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
         self.data = None
         self.model_provider = None
         config.load_config()
+        print("Timestamp interval", TIMESTAMP_INTERVAL)
+        print("Logging enabled", UPLOAD_STATS)
         self.init_model_provider()
 
     def init_model_provider(self):
