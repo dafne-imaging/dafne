@@ -428,7 +428,7 @@ class ImageShow:
         if np.max(medical_volume.volume) < 10:
             medical_volume *= 100
         while np.max(medical_volume.volume) > 10000:
-            print(np.max(medical_volume.volume))
+            #print(np.max(medical_volume.volume))
             medical_volume.volume /= 10
         self.medical_volume = medical_volume
         self.resolution = np.array(self.medical_volume.pixel_spacing)

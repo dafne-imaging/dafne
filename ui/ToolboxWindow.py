@@ -128,6 +128,8 @@ def ask_confirm(text):
 
 
 class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
+
+    reblit = pyqtSignal()
     do_autosegment = pyqtSignal(int, int)
     contour_optimize = pyqtSignal()
     contour_simplify = pyqtSignal()
@@ -282,9 +284,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionLoad_data.triggered.connect(self.loadData_clicked)
 
         self.actionSave_as_Dicom.triggered.connect(lambda: self.export_masks_dir('dicom'))
+        self.actionSave_as_Compact_Dicom.triggered.connect(lambda: self.export_masks_dir('compact_dicom'))
         self.actionSaveNPY.triggered.connect(lambda: self.export_masks_dir('npy'))
         self.actionSave_as_Nifti.triggered.connect(lambda: self.export_masks_dir('nifti'))
         self.actionSaveNPZ.triggered.connect(self.export_masks_npz)
+        self.actionSave_as_Compact_Nifti.triggered.connect(self.export_masks_compact_nifti)
 
         self.actionAbout.triggered.connect(self.about)
         self.actionOpen_online_documentation.triggered.connect(lambda : webbrowser.open(DOCUMENTATION_URL))
@@ -323,9 +327,17 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.reload_config()
         self.config_changed.connect(self.reload_config)
 
+        self.opacitySlider.setValue(config.GlobalConfig['MASK_LAYER_ALPHA']*100)
+        self.opacitySlider.valueChanged.connect(self.set_opacity_config)
+
         self.general_enable(False)
 
         self.resize(self.mainUIWidget.sizeHint())
+
+    @pyqtSlot(int)
+    def set_opacity_config(self, value):
+        config.GlobalConfig['MASK_LAYER_ALPHA'] = float(value) / 100
+        self.reblit.emit()
 
     @pyqtSlot()
     def general_enable(self, enabled = True):
@@ -834,6 +846,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
                                                   filter='Numpy array archive (*.npz);;All files ()')
         if file_out:
             self.masks_export.emit(file_out, 'npz')
+
+    @pyqtSlot()
+    def export_masks_compact_nifti(self):
+        file_out, _ = QFileDialog.getSaveFileName(self, caption='Select Nifti file to export',
+                                                  filter='Nifti files (*.nii *.nii.gz);;All files ()')
+        if file_out:
+            self.masks_export.emit(file_out, 'compact_nifti')
 
     @pyqtSlot()
     def calculate_statistics(self):

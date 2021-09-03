@@ -455,6 +455,27 @@
             </item>
            </layout>
           </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_12">
+            <item>
+             <widget class="QLabel" name="opacityLabel">
+              <property name="text">
+               <string>Opacity</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSlider" name="opacitySlider">
+              <property name="maximum">
+               <number>100</number>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
          </layout>
         </widget>
        </item>
@@ -585,9 +606,17 @@
       <addaction name="actionSaveNPZ"/>
       <addaction name="actionSaveNPY"/>
      </widget>
+     <widget class="QMenu" name="menuSave_as_compact">
+      <property name="title">
+       <string>Save as compact...</string>
+      </property>
+      <addaction name="actionSave_as_Compact_Dicom"/>
+      <addaction name="actionSave_as_Compact_Nifti"/>
+     </widget>
      <addaction name="menuSave_as_Numpy"/>
      <addaction name="actionSave_as_Dicom"/>
      <addaction name="actionSave_as_Nifti"/>
+     <addaction name="menuSave_as_compact"/>
     </widget>
     <widget class="QMenu" name="menuImport">
      <property name="title">
@@ -763,6 +792,16 @@
   <action name="actionMultiple_combine">
    <property name="text">
     <string>Multiple combine...</string>
+   </property>
+  </action>
+  <action name="actionSave_as_Compact_Dicom">
+   <property name="text">
+    <string>Dicom...</string>
+   </property>
+  </action>
+  <action name="actionSave_as_Compact_Nifti">
+   <property name="text">
+    <string>Nifti...</string>
    </property>
   </action>
  </widget>

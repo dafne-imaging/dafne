@@ -29,7 +29,8 @@ load_config()
 
 from .ToolboxWindow import ToolboxWindow
 from .pyDicomView import ImageShow
-from utils.mask_utils import save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks
+from utils.mask_utils import save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks, \
+    save_single_dicom_dataset, save_single_nifti
 from dl.misc import calc_dice_score
 import matplotlib.pyplot as plt
 from PyQt5.QtGui import *
@@ -363,6 +364,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.increase_brush_size.connect(self.toolbox_window.increase_brush_size)
 
         self.alert_signal.connect(self.toolbox_window.alert)
+
+        self.toolbox_window.reblit.connect(self.do_reblit)
 
     def setSplash(self, is_splash, current_value, maximum_value, text= ""):
         self.splash_signal.emit(is_splash, current_value, maximum_value, text)
@@ -1211,6 +1214,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.maskImPlot.set_animated(True)
 
         self.maskImPlot.set_data(active_mask.astype(np.uint8))
+        self.maskImPlot.set_alpha(GlobalConfig['MASK_LAYER_ALPHA'])
         self.axes.draw_artist(self.maskImPlot)
 
         if self.maskOtherImPlot is None:
@@ -1228,6 +1232,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.maskOtherImPlot.set_animated(True)
 
         self.maskOtherImPlot.set_data(other_mask.astype(np.uint8))
+        self.maskOtherImPlot.set_alpha(GlobalConfig['MASK_LAYER_ALPHA'])
         self.axes.draw_artist(self.maskOtherImPlot)
 
     def updateContourPainters(self):
@@ -1515,7 +1520,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def leftPressCB(self, event):
         if not self.imPlot.contains(event):
-            print("Event outside")
+            #print("Event outside")
             return
 
         if self.getState() != 'MUSCLE': return
@@ -1819,7 +1824,7 @@ class MuscleSegmentation(ImageShow, QObject):
     @pyqtSlot(str, str)
     @separate_thread_decorator
     def saveResults(self, pathOut: str, outputType: str):
-        # outputType is 'dicom', 'npy', 'npz', 'nifti'
+        # outputType is 'dicom', 'npy', 'npz', 'nifti', 'compact_dicom', 'compact_nifti'
         print("Saving results...")
 
         self.setSplash(True, 0, 4, "Calculating maps...")
@@ -1840,6 +1845,10 @@ class MuscleSegmentation(ImageShow, QObject):
             save_nifti_masks(pathOut, allMasks, self.affine)
         elif outputType == 'npy':
             save_npy_masks(pathOut, allMasks)
+        elif outputType == 'compact_dicom':
+            save_single_dicom_dataset(pathOut, allMasks, self.affine, self.dicomHeaderList)
+        elif outputType == 'compact_nifti':
+            save_single_nifti(pathOut, allMasks, self.affine)
         else: # assume the most generic outputType == 'npz':
             save_npz_masks(pathOut, allMasks)
 
@@ -2058,6 +2067,22 @@ class MuscleSegmentation(ImageShow, QObject):
                 mask = medical_volume.volume
             return mask
 
+        def load_accumulated_mask(names, accumulated_mask):
+            for index, name in enumerate(names):
+                mask = np.zeros_like(accumulated_mask)
+                mask[aligned_masks == (index + 1)] = 1
+                load_mask_validate(name, mask)
+
+        def read_names_from_legend(legend_file):
+            name_list = []
+            with open(legend_file, newline='') as csv_file:
+                reader = csv.reader(csv_file)
+                header = next(reader)
+                for row in reader:
+                    name_list.append(row[1])
+            return name_list
+
+
         ext = ext.lower()
 
         if ext in npy_ext:
@@ -2083,7 +2108,16 @@ class MuscleSegmentation(ImageShow, QObject):
             mask = align_masks(mask_medical_volume)
 
             self.setSplash(True, 2, 3, "Importing masks")
-            load_mask_validate(name, mask)
+            if mask.max() > 1: # dataset with multiple labels
+                # try loading the legend
+                legend_name = path + '.csv'
+                try:
+                    names = read_names_from_legend(legend_name)
+                except FileNotFoundError:
+                    fail('No legend file found')
+                load_accumulated_mask(names, mask)
+            else:
+                load_mask_validate(name, mask)
             self.setSplash(False, 0, 0, "")
             return
         elif ext in dicom_ext:
@@ -2093,9 +2127,17 @@ class MuscleSegmentation(ImageShow, QObject):
             name = os.path.basename(path)
 
             mask = align_masks(mask_medical_volume)
-
             self.setSplash(True, 2, 3, "Importing masks")
-            load_mask_validate(name, mask)
+            if mask.max() > 1: # dataset with multiple labels
+                # try loading the legend
+                legend_name = os.path.join(path, 'legend.csv')
+                try:
+                    names = read_names_from_legend(legend_name)
+                except FileNotFoundError:
+                    fail('No legend file found')
+                load_accumulated_mask(names, mask)
+            else:
+                load_mask_validate(name, mask)
             self.setSplash(False, 0, 0, "")
             return
         elif ext == 'multidicom' or len(nii_list) > 0:
@@ -2135,10 +2177,7 @@ class MuscleSegmentation(ImageShow, QObject):
             aligned_masks = align_masks(accumulated_mask).astype(np.uint8)
 
             self.setSplash(True, 2, 3, "Importing masks")
-            for index, name in enumerate(names):
-                mask = np.zeros_like(aligned_masks)
-                mask[aligned_masks == (index+1)] = 1
-                load_mask_validate(name, mask)
+            load_accumulated_mask(names, aligned_masks)
             self.setSplash(False, 0, 0, "")
             return
 

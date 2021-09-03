@@ -19,7 +19,7 @@ import dosma
 
 
 def save_dicom_masks(base_path: str, mask_dict: dict, affine, dicom_headers: list):
-    dicom_writer = dosma.DicomWriter(num_workers=4)
+    dicom_writer = dosma.DicomWriter(num_workers=0)
     for name, mask in mask_dict.items():
         n = name.strip()
         if n == '': n = '_'
@@ -48,3 +48,42 @@ def save_nifti_masks(base_path, mask_dict, affine):
         nifti_name = os.path.join(base_path, name + '.nii.gz')
         medical_volume = dosma.core.MedicalVolume(mask.astype(np.uint16), affine)
         nifti_writer.save(medical_volume, nifti_name)
+
+
+def make_accumulated_mask(mask_dict):
+    accumulated_mask = None
+    current_value = 1
+    name_list = []
+    for name, mask in mask_dict.items():
+        name_list.append(name)
+        if accumulated_mask is None:
+            accumulated_mask = 1*(mask>0)
+        else:
+            accumulated_mask += current_value * (mask>0)
+        current_value += 1
+    return accumulated_mask, name_list
+
+
+def write_legend(filename, name_list):
+    with open(filename, 'w') as f:
+        f.write('Value,Label')
+        for index, name in enumerate(name_list):
+            f.write(f'{index+1},{name}')
+
+
+def save_single_nifti(filename, mask_dict, affine):
+    nifti_writer = dosma.NiftiWriter()
+    accumulated_mask, name_list = make_accumulated_mask(mask_dict)
+    legend_name = filename + '.csv'
+    medical_volume = dosma.core.MedicalVolume(accumulated_mask.astype(np.uint16), affine)
+    nifti_writer.save(medical_volume, filename)
+    write_legend(legend_name, name_list)
+
+
+def save_single_dicom_dataset(base_path, mask_dict, affine, dicom_headers: list):
+    dicom_writer = dosma.DicomWriter(num_workers=0)
+    accumulated_mask, name_list = make_accumulated_mask(mask_dict)
+    medical_volume = dosma.core.MedicalVolume(accumulated_mask.astype(np.uint16), affine, dicom_headers)
+    dicom_writer.save(medical_volume, base_path, fname_fmt='image%04d.dcm')
+    legend_name = os.path.join(base_path, 'legend.csv')
+    write_legend(legend_name, name_list)
