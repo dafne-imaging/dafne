@@ -66,9 +66,9 @@ def make_accumulated_mask(mask_dict):
 
 def write_legend(filename, name_list):
     with open(filename, 'w') as f:
-        f.write('Value,Label')
+        f.write('Value,Label\n')
         for index, name in enumerate(name_list):
-            f.write(f'{index+1},{name}')
+            f.write(f'{index+1},{name}\n')
 
 
 def save_single_nifti(filename, mask_dict, affine):
@@ -84,6 +84,10 @@ def save_single_dicom_dataset(base_path, mask_dict, affine, dicom_headers: list)
     dicom_writer = dosma.DicomWriter(num_workers=0)
     accumulated_mask, name_list = make_accumulated_mask(mask_dict)
     medical_volume = dosma.core.MedicalVolume(accumulated_mask.astype(np.uint16), affine, dicom_headers)
+    try:
+        os.makedirs(base_path)
+    except OSError:
+        pass
     dicom_writer.save(medical_volume, base_path, fname_fmt='image%04d.dcm')
     legend_name = os.path.join(base_path, 'legend.csv')
     write_legend(legend_name, name_list)

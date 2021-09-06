@@ -1345,7 +1345,9 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @pyqtSlot()
     def do_redraw(self):
+        #print("Redrawing...")
         if self.suppressRedraw: return
+        #print("Yes")
         try:
             self.removeMasks()
         except:
@@ -2070,7 +2072,7 @@ class MuscleSegmentation(ImageShow, QObject):
         def load_accumulated_mask(names, accumulated_mask):
             for index, name in enumerate(names):
                 mask = np.zeros_like(accumulated_mask)
-                mask[aligned_masks == (index + 1)] = 1
+                mask[accumulated_mask == (index + 1)] = 1
                 load_mask_validate(name, mask)
 
         def read_names_from_legend(legend_file):

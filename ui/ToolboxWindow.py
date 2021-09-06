@@ -355,6 +355,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def reload_config(self):
         # all config-dependent UI elements go here
         self.actionSave_as_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
+        self.actionSave_as_Compact_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
         self.actionImport_model.setVisible(config.GlobalConfig['MODEL_PROVIDER'] == 'Local')
         if config.GlobalConfig['ENABLE_DATA_UPLOAD'] and (config.GlobalConfig['MODEL_PROVIDER'] == 'Remote' or
                                                           config.GlobalConfig['FORCE_LOCAL_DATA_UPLOAD']):
@@ -831,8 +832,10 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     def set_exports_enabled(self, numpy=True, dicom=True, nifti=True):
         self.actionSave_as_Dicom.setEnabled(dicom)
+        self.actionSave_as_Compact_Dicom.setEnabled(dicom)
         self.menuSave_as_Numpy.setEnabled(numpy)
         self.actionSave_as_Nifti.setEnabled(nifti)
+        self.actionSave_as_Compact_Nifti.setEnabled(nifti)
 
     @pyqtSlot(str)
     def export_masks_dir(self, output_type):
