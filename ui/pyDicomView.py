@@ -224,8 +224,8 @@ class ImageShow:
 
     def mouseScrollCB(self, event):
         self.oldMouseXY = (event.x, event.y)  # this will suppress the mouse move event
-        if abs(event.step) > 100:
-            step = int(event.step/120) # new versions of matplotlib use steps of 120
+        if abs(event.step) > 10:
+            step = np.sign(event.step) # new versions of matplotlib use steps of eight of degree and can generate very large numbers
         else:
             step = event.step
         step = -step if INVERT_SCROLL else step
