@@ -123,6 +123,8 @@ class MuscleSegmentation(ImageShow, QObject):
     reduce_brush_size = pyqtSignal()
     increase_brush_size = pyqtSignal()
     alert_signal = pyqtSignal(str)
+    undo_signal = pyqtSignal()
+    redo_signal = pyqtSignal()
 
     def __init__(self, *args, **kwargs):
         self.suppressRedraw = False
@@ -157,6 +159,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.fig.canvas.mpl_connect('resize_event', self.resizeCB)
         self.reblit_signal.connect(self.do_reblit)
         self.redraw_signal.connect(self.do_redraw)
+        self.undo_signal.connect(self.undo)
+        self.redo_signal.connect(self.redo)
 
         self.separate_thread_running = False
 
@@ -164,6 +168,12 @@ class MuscleSegmentation(ImageShow, QObject):
         for key in list(plt.rcParams):
             if 'keymap' in key and 'zoom' not in key and 'pan' not in key:
                 plt.rcParams[key] = []
+
+    def get_app(self):
+        if not self.app:
+            self.app = QApplication.instance()
+        return self.app
+
 
     def resizeCB(self, event):
         self.resetBlitBg()
@@ -1380,13 +1390,10 @@ class MuscleSegmentation(ImageShow, QObject):
             self.lastsave = now
             self.saveROIPickle()
 
-        if not self.app:
-            self.app = QApplication.instance()
-
         if self.wacom:
-            self.app.setOverrideCursor(Qt.BlankCursor)
+            self.get_app().setOverrideCursor(Qt.BlankCursor)
         else:
-            self.app.setOverrideCursor(Qt.ArrowCursor)
+            self.get_app().setOverrideCursor(Qt.ArrowCursor)
 
 
     def closeCB(self, event):
@@ -1581,12 +1588,50 @@ class MuscleSegmentation(ImageShow, QObject):
         self.hideRois = False
         self.redraw()
 
+    def mouseScrollCB(self, event):
+        modifier_status, *_ = self.get_key_modifiers(event)
+        if modifier_status['ctrl']:
+            if event.step < 0:
+                self.reduce_brush_size.emit()
+                self.reblit()
+            elif event.step > 0:
+                self.increase_brush_size.emit()
+                self.reblit()
+            return
+        ImageShow.mouseScrollCB(self, event)
+
+    @staticmethod
+    def get_key_modifiers(event):
+        modifiers = event.guiEvent.modifiers()
+        try:
+            pressed_key_without_modifiers = event.key.split('+')[-1]  # this gets the nonmodifier key if the pressed key is ctrl+z for example
+        except:
+            pressed_key_without_modifiers = ''
+        is_key_modifier_only = (pressed_key_without_modifiers in ['shift', 'control', 'ctrl', 'cmd', 'super', 'alt'])
+        out_modifiers = {'ctrl': (modifiers & (Qt.ControlModifier | Qt.MetaModifier)) != Qt.NoModifier,
+                         'shift': (modifiers & Qt.ShiftModifier) == Qt.ShiftModifier,
+                         'alt': (modifiers & Qt.AltModifier) == Qt.AltModifier,
+                         'none': (modifiers == Qt.NoModifier)}
+        return out_modifiers, is_key_modifier_only, pressed_key_without_modifiers
+
+
     def keyPressCB(self, event):
-        # print(event.key)
-        if 'shift' in event.key:
-            self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.ADD_STATE)
-        elif 'control' in event.key or 'cmd' in event.key or 'super' in event.key or 'ctrl' in event.key:
-            self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.REMOVE_STATE)
+        modifier_status, is_key_modifier_only, pressed_key_without_modifiers = self.get_key_modifiers(event)
+
+        if is_key_modifier_only:
+            if modifier_status['shift']:
+                self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.ADD_STATE)
+            elif modifier_status['ctrl']:
+                self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.REMOVE_STATE)
+            return
+
+        if modifier_status['ctrl']:
+            if pressed_key_without_modifiers == 'z':
+                self.undo_signal.emit()
+            elif pressed_key_without_modifiers == 'y':
+                self.redo_signal.emit()
+            return
+
         if event.key == 'n':
             self.propagate()
         elif event.key == 'b':
@@ -1603,10 +1648,15 @@ class MuscleSegmentation(ImageShow, QObject):
             ImageShow.keyPressCB(self, event)
 
     def keyReleaseCB(self, event):
-        if 'shift' in event.key or 'control' in event.key or 'cmd' in event.key or 'super' in event.key or 'ctrl' in event.key:
+        modifier_status, is_key_modifier_only, pressed_key_without_modifiers = self.get_key_modifiers(event)
+
+        if modifier_status['shift']:
+            self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.ADD_STATE)
+        elif modifier_status['ctrl']:
+            self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.REMOVE_STATE)
+        else:
             self.toolbox_window.restore_edit_button_state()
 
-        # plt.show()
 
     ################################################################################################################
     ###

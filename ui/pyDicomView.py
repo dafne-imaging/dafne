@@ -260,7 +260,8 @@ class ImageShow:
             event.step = 1 if INVERT_SCROLL else -1
         elif event.key == 'left' or event.key == 'up':
             event.step = -1 if INVERT_SCROLL else 1
-        self.mouseScrollCB(event)
+        if event.step != 0:
+            self.mouseScrollCB(event)
 
     def isCursorNormal(self):
         try:

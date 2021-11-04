@@ -59,12 +59,14 @@ SHORTCUT_HELP = [
     ('Previous Image', '[Left Arrow], [Up Arrow]'),
     ('Next Image', '[Right Arrow], [Down Arrow]'),
     ('Paint/Add/Move', '[Shift]'),
-    ('Erase/Delete', '[Ctrl], [Cmd]'),
+    ('Erase/Delete', '[Ctrl/Cmd]'),
     ('Propagate forward', 'n'),
     ('Propagate back', 'b'),
-    ('Reduce Brush Size', '-, y, z'),
-    ('Increase Brush Size', '+, x'),
+    ('Reduce Brush Size', '-, y, z, [Ctrl/Cmd]+[Scroll down]'),
+    ('Increase Brush Size', '+, x, [Ctrl/Cmd]+[Scroll up]'),
     ('Remove ROI overlap', 'r'),
+    ('Undo', '[Ctrl/Cmd]+z'),
+    ('Redo', '[Ctrl/Cmd]+y')
 ]
 
 class AboutDialog(QDialog):
