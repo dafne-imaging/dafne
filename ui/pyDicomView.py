@@ -40,7 +40,7 @@ from dosma.core.io.dicom_io import to_RAS_affine
 DEFAULT_INTERPOLATION = 'spline36'
 # DEFAULT_INTERPOLATION = 'none' # DEBUG
 INVERT_SCROLL = True
-DO_DEBUG = True
+DO_DEBUG = False
 
 
 class ImListProxy:
@@ -215,6 +215,9 @@ class ImageShow:
         if redraw:
             self.redraw()
 
+    def refreshCB(self):
+        pass
+
     def redraw(self):
         try:
             self.refreshCB()
@@ -267,6 +270,9 @@ class ImageShow:
             isCursorNormal = True
         return isCursorNormal
 
+    def leftPressCB(self, event):
+        pass
+
     def btnPressCB(self, event):
         if not self.isCursorNormal():
             # print("Zooming or panning. Not processing clicks")
@@ -286,6 +292,9 @@ class ImageShow:
                 self.rightPressCB(event)
 
     def rightPressCB(self, event):
+        pass
+
+    def leftReleaseCB(self, event):
         pass
 
     def btnReleaseCB(self, event):
@@ -311,6 +320,9 @@ class ImageShow:
         else:
             # if image is RGB, we need to redraw it completely. Maybe it will be too slow?
             self.displayImageRGB()
+
+    def leftMoveCB(self, event):
+        pass
 
     # callback for mouse move
     def mouseMoveCB(self, event):
