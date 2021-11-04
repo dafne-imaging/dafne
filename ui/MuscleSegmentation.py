@@ -1344,7 +1344,6 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def plotAnimators(self):
         if self.brush_patch is not None:
-            print('Plotting brush patch', time.time())
             self.axes.draw_artist(self.brush_patch)
         if self.roiManager:
             if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
