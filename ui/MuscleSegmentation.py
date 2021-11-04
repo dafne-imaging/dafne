@@ -372,6 +372,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.reduce_brush_size.connect(self.toolbox_window.reduce_brush_size)
         self.increase_brush_size.connect(self.toolbox_window.increase_brush_size)
+        self.toolbox_window.brush_changed.connect(self.updateBrush)
 
         self.alert_signal.connect(self.toolbox_window.alert)
 
@@ -1343,6 +1344,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def plotAnimators(self):
         if self.brush_patch is not None:
+            print('Plotting brush patch', time.time())
             self.axes.draw_artist(self.brush_patch)
         if self.roiManager:
             if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
@@ -1404,46 +1406,70 @@ class MuscleSegmentation(ImageShow, QObject):
         self.saveROIPickle()
         sys.exit(0)
 
-    def moveBrushPatch(self, event):
+    @pyqtSlot()
+    def updateBrush(self):
+        self.moveBrushPatch(None, True)
+        self.reblit()
+
+    def moveBrushPatch(self, event = None, force_update = False):
         """
             moves the brush. Returns True if the brush was moved to a new position
         """
-        brush_type, brush_size = self.toolbox_window.get_brush()
-        mouseX = event.xdata
-        mouseY = event.ydata
-        if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:
-            brush_color = GlobalConfig['BRUSH_PAINT_COLOR']
-        elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
-            brush_color = GlobalConfig['BRUSH_ERASE_COLOR']
-        else:
-            brush_color = None
-        if mouseX is None or mouseY is None or brush_color is None:
+        def remove_brush():
             try:
                 self.brush_patch.remove()
                 #self.fig.canvas.draw()
             except:
                 pass
             self.brush_patch = None
-            return False
+
+        if not self.getCurrentROIName() or self.editMode != ToolboxWindow.EDITMODE_MASK:
+            remove_brush()
+            return
+
+        brush_type, brush_size = self.toolbox_window.get_brush()
 
         try:
-            oldX = self.moveBrushPatch_oldX  # static variables
-            oldY = self.moveBrushPatch_oldY
-        except:
-            oldX = -1
-            oldY = -1
+            mouseX = event.xdata
+            mouseY = event.ydata
+        except AttributeError: # event is None
+            mouseX = None
+            mouseY = None
 
-        mouseX = np.round(mouseX)
-        mouseY = np.round(mouseY)
-
-        if oldX == mouseX and oldY == mouseY:
+        if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:
+            brush_color = GlobalConfig['BRUSH_PAINT_COLOR']
+        elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
+            brush_color = GlobalConfig['BRUSH_ERASE_COLOR']
+        else:
+            brush_color = None
+        if (event is not None and (mouseX is None or mouseY is None)) or brush_color is None:
+            remove_brush()
             return False
 
-        self.moveBrushPatch_oldX = mouseX
-        self.moveBrushPatch_oldY = mouseY
+        if event is not None:
+            try:
+                oldX = self.moveBrushPatch_oldX  # static variables
+                oldY = self.moveBrushPatch_oldY
+            except:
+                oldX = -1
+                oldY = -1
+
+            mouseX = np.round(mouseX)
+            mouseY = np.round(mouseY)
+            self.moveBrushPatch_oldX = mouseX
+            self.moveBrushPatch_oldY = mouseY
+
+            if oldX == mouseX and oldY == mouseY and not force_update:
+                return False # only return here if we are not forcing an update
 
         if brush_type == ToolboxWindow.BRUSH_SQUARE:
-            xy = (math.floor(mouseX - brush_size / 2) + 0.5, math.floor(mouseY - brush_size / 2) + 0.5)
+            if event is not None:
+                xy = (math.floor(mouseX - brush_size / 2) + 0.5, math.floor(mouseY - brush_size / 2) + 0.5)
+            else:
+                try:
+                    xy = self.brush_patch.get_xy()
+                except:
+                    xy = (0.0,0.0)
             if type(self.brush_patch) != SquareBrush:
                 try:
                     self.brush_patch.remove()
@@ -1457,7 +1483,14 @@ class MuscleSegmentation(ImageShow, QObject):
             self.brush_patch.set_width(brush_size)
 
         elif brush_type == ToolboxWindow.BRUSH_CIRCLE:
-            center = (math.floor(mouseX), math.floor(mouseY))
+            if event is not None:
+                center = (math.floor(mouseX), math.floor(mouseY))
+            else:
+                try:
+                    center = self.brush_patch.get_center()
+                except:
+                    center = (0.0,0.0)
+
             if type(self.brush_patch) != PixelatedCircleBrush:
                 try:
                     self.brush_patch.remove()
@@ -1593,10 +1626,8 @@ class MuscleSegmentation(ImageShow, QObject):
         if modifier_status['ctrl']:
             if event.step < 0:
                 self.reduce_brush_size.emit()
-                self.reblit()
             elif event.step > 0:
                 self.increase_brush_size.emit()
-                self.reblit()
             return
         ImageShow.mouseScrollCB(self, event)
 
@@ -1638,10 +1669,8 @@ class MuscleSegmentation(ImageShow, QObject):
             self.propagateBack()
         elif event.key == '-' or event.key == 'y' or event.key == 'z':
             self.reduce_brush_size.emit()
-            self.reblit()
         elif event.key == '+' or event.key == 'x':
             self.increase_brush_size.emit()
-            self.reblit()
         elif event.key == 'r':
             self.roiRemoveOverlap()
         else:

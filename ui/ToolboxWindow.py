@@ -175,6 +175,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     mask_grow = pyqtSignal()
     mask_shrink = pyqtSignal()
 
+    brush_changed = pyqtSignal()
+
     config_changed = pyqtSignal()
 
     data_upload = pyqtSignal(str)
@@ -513,15 +515,18 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @pyqtSlot()
     def reduce_brush_size(self):
         self.brushsize_slider.setValue(max(self.brushsize_slider.value()-1, 1))
+        self.brush_changed.emit()
 
     @pyqtSlot()
     def increase_brush_size(self):
         self.brushsize_slider.setValue(min(self.brushsize_slider.value() + 1, self.brushsize_slider.maximum()))
+        self.brush_changed.emit()
 
     @pyqtSlot(int)
     def brushsliderCB(self, value):
         #self.brushsize_label.setText(str(value*2+1))
         self.brushsize_label.setText(str(value))
+        self.brush_changed.emit()
 
     def get_brush(self):
         brush_size = int(self.brushsize_label.text())
@@ -624,11 +629,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def restore_edit_button_state(self):
         self.manage_state_buttons(self.edit_state)
         self.temp_edit_state = None
+        self.brush_changed.emit()
 
     @pyqtSlot(int)
     def set_temp_edit_button_state(self, temp_state):
         self.temp_edit_state = temp_state
         self.manage_state_buttons(temp_state)
+        self.brush_changed.emit()
 
     def get_edit_button_state(self):
         if self.temp_edit_state is not None: return self.temp_edit_state
