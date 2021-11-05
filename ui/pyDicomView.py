@@ -40,7 +40,7 @@ from dosma.core.io.dicom_io import to_RAS_affine
 DEFAULT_INTERPOLATION = 'spline36'
 # DEFAULT_INTERPOLATION = 'none' # DEBUG
 INVERT_SCROLL = True
-DO_DEBUG = True
+DO_DEBUG = False
 
 
 class ImListProxy:
@@ -215,6 +215,9 @@ class ImageShow:
         if redraw:
             self.redraw()
 
+    def refreshCB(self):
+        pass
+
     def redraw(self):
         try:
             self.refreshCB()
@@ -224,7 +227,11 @@ class ImageShow:
 
     def mouseScrollCB(self, event):
         self.oldMouseXY = (event.x, event.y)  # this will suppress the mouse move event
-        step = -event.step if INVERT_SCROLL else event.step
+        if abs(event.step) > 10:
+            step = np.sign(event.step) # new versions of matplotlib use steps of eight of degree and can generate very large numbers
+        else:
+            step = event.step
+        step = -step if INVERT_SCROLL else step
         if self.curImage is None or (step > 0 and self.curImage == 0) or (
                 step < 0 and self.curImage > len(self.imList) - 1):
             return
@@ -253,7 +260,8 @@ class ImageShow:
             event.step = 1 if INVERT_SCROLL else -1
         elif event.key == 'left' or event.key == 'up':
             event.step = -1 if INVERT_SCROLL else 1
-        self.mouseScrollCB(event)
+        if event.step != 0:
+            self.mouseScrollCB(event)
 
     def isCursorNormal(self):
         try:
@@ -262,6 +270,9 @@ class ImageShow:
         except:
             isCursorNormal = True
         return isCursorNormal
+
+    def leftPressCB(self, event):
+        pass
 
     def btnPressCB(self, event):
         if not self.isCursorNormal():
@@ -282,6 +293,9 @@ class ImageShow:
                 self.rightPressCB(event)
 
     def rightPressCB(self, event):
+        pass
+
+    def leftReleaseCB(self, event):
         pass
 
     def btnReleaseCB(self, event):
@@ -307,6 +321,9 @@ class ImageShow:
         else:
             # if image is RGB, we need to redraw it completely. Maybe it will be too slow?
             self.displayImageRGB()
+
+    def leftMoveCB(self, event):
+        pass
 
     # callback for mouse move
     def mouseMoveCB(self, event):
@@ -428,7 +445,7 @@ class ImageShow:
         if np.max(medical_volume.volume) < 10:
             medical_volume *= 100
         while np.max(medical_volume.volume) > 10000:
-            print(np.max(medical_volume.volume))
+            #print(np.max(medical_volume.volume))
             medical_volume.volume /= 10
         self.medical_volume = medical_volume
         self.resolution = np.array(self.medical_volume.pixel_spacing)

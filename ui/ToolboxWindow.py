@@ -59,12 +59,14 @@ SHORTCUT_HELP = [
     ('Previous Image', '[Left Arrow], [Up Arrow]'),
     ('Next Image', '[Right Arrow], [Down Arrow]'),
     ('Paint/Add/Move', '[Shift]'),
-    ('Erase/Delete', '[Ctrl], [Cmd]'),
+    ('Erase/Delete', '[Ctrl/Cmd]'),
     ('Propagate forward', 'n'),
     ('Propagate back', 'b'),
-    ('Reduce Brush Size', '-, y, z'),
-    ('Increase Brush Size', '+, x'),
+    ('Reduce Brush Size', '-, y, z, [Ctrl/Cmd]+[Scroll down]'),
+    ('Increase Brush Size', '+, x, [Ctrl/Cmd]+[Scroll up]'),
     ('Remove ROI overlap', 'r'),
+    ('Undo', '[Ctrl/Cmd]+z'),
+    ('Redo', '[Ctrl/Cmd]+y')
 ]
 
 class AboutDialog(QDialog):
@@ -128,6 +130,8 @@ def ask_confirm(text):
 
 
 class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
+
+    reblit = pyqtSignal()
     do_autosegment = pyqtSignal(int, int)
     contour_optimize = pyqtSignal()
     contour_simplify = pyqtSignal()
@@ -170,6 +174,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     mask_grow = pyqtSignal()
     mask_shrink = pyqtSignal()
+
+    brush_changed = pyqtSignal()
 
     config_changed = pyqtSignal()
 
@@ -282,9 +288,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionLoad_data.triggered.connect(self.loadData_clicked)
 
         self.actionSave_as_Dicom.triggered.connect(lambda: self.export_masks_dir('dicom'))
+        self.actionSave_as_Compact_Dicom.triggered.connect(lambda: self.export_masks_dir('compact_dicom'))
         self.actionSaveNPY.triggered.connect(lambda: self.export_masks_dir('npy'))
         self.actionSave_as_Nifti.triggered.connect(lambda: self.export_masks_dir('nifti'))
         self.actionSaveNPZ.triggered.connect(self.export_masks_npz)
+        self.actionSave_as_Compact_Nifti.triggered.connect(self.export_masks_compact_nifti)
 
         self.actionAbout.triggered.connect(self.about)
         self.actionOpen_online_documentation.triggered.connect(lambda : webbrowser.open(DOCUMENTATION_URL))
@@ -323,9 +331,17 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.reload_config()
         self.config_changed.connect(self.reload_config)
 
+        self.opacitySlider.setValue(config.GlobalConfig['MASK_LAYER_ALPHA']*100)
+        self.opacitySlider.valueChanged.connect(self.set_opacity_config)
+
         self.general_enable(False)
 
         self.resize(self.mainUIWidget.sizeHint())
+
+    @pyqtSlot(int)
+    def set_opacity_config(self, value):
+        config.GlobalConfig['MASK_LAYER_ALPHA'] = float(value) / 100
+        self.reblit.emit()
 
     @pyqtSlot()
     def general_enable(self, enabled = True):
@@ -343,6 +359,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def reload_config(self):
         # all config-dependent UI elements go here
         self.actionSave_as_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
+        self.actionSave_as_Compact_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
         self.actionImport_model.setVisible(config.GlobalConfig['MODEL_PROVIDER'] == 'Local')
         if config.GlobalConfig['ENABLE_DATA_UPLOAD'] and (config.GlobalConfig['MODEL_PROVIDER'] == 'Remote' or
                                                           config.GlobalConfig['FORCE_LOCAL_DATA_UPLOAD']):
@@ -498,15 +515,18 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @pyqtSlot()
     def reduce_brush_size(self):
         self.brushsize_slider.setValue(max(self.brushsize_slider.value()-1, 1))
+        self.brush_changed.emit()
 
     @pyqtSlot()
     def increase_brush_size(self):
         self.brushsize_slider.setValue(min(self.brushsize_slider.value() + 1, self.brushsize_slider.maximum()))
+        self.brush_changed.emit()
 
     @pyqtSlot(int)
     def brushsliderCB(self, value):
         #self.brushsize_label.setText(str(value*2+1))
         self.brushsize_label.setText(str(value))
+        self.brush_changed.emit()
 
     def get_brush(self):
         brush_size = int(self.brushsize_label.text())
@@ -609,11 +629,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def restore_edit_button_state(self):
         self.manage_state_buttons(self.edit_state)
         self.temp_edit_state = None
+        self.brush_changed.emit()
 
     @pyqtSlot(int)
     def set_temp_edit_button_state(self, temp_state):
         self.temp_edit_state = temp_state
         self.manage_state_buttons(temp_state)
+        self.brush_changed.emit()
 
     def get_edit_button_state(self):
         if self.temp_edit_state is not None: return self.temp_edit_state
@@ -820,8 +842,10 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     def set_exports_enabled(self, numpy=True, dicom=True, nifti=True):
         self.actionSave_as_Dicom.setEnabled(dicom)
+        self.actionSave_as_Compact_Dicom.setEnabled(dicom)
         self.menuSave_as_Numpy.setEnabled(numpy)
         self.actionSave_as_Nifti.setEnabled(nifti)
+        self.actionSave_as_Compact_Nifti.setEnabled(nifti)
 
     @pyqtSlot(str)
     def export_masks_dir(self, output_type):
@@ -835,6 +859,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
                                                   filter='Numpy array archive (*.npz);;All files ()')
         if file_out:
             self.masks_export.emit(file_out, 'npz')
+
+    @pyqtSlot()
+    def export_masks_compact_nifti(self):
+        file_out, _ = QFileDialog.getSaveFileName(self, caption='Select Nifti file to export',
+                                                  filter='Nifti files (*.nii *.nii.gz);;All files ()')
+        if file_out:
+            self.masks_export.emit(file_out, 'compact_nifti')
 
     @pyqtSlot()
     def calculate_statistics(self):

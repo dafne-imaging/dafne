@@ -95,7 +95,7 @@ class PixelatedCircleBrush(Polygon):
         P = 1 - radius
 
         octant_point_array = [(x, y-0.5)]
-        print(x, y, P)
+
 
         while x > y:
 
@@ -108,10 +108,8 @@ class PixelatedCircleBrush(Polygon):
             # Mid-point outside the perimeter
             else:
                 octant_point_array.append((x, y-0.5))
-                print(x, y, P)
                 x -= 1
                 octant_point_array.append((x, y-0.5))
-                print(x, y, P)
                 P = P + 2 * y - 2 * x + 1
 
             if x < y:

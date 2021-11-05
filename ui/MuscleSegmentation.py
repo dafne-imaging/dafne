@@ -29,7 +29,8 @@ load_config()
 
 from .ToolboxWindow import ToolboxWindow
 from .pyDicomView import ImageShow
-from utils.mask_utils import save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks
+from utils.mask_utils import save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks, \
+    save_single_dicom_dataset, save_single_nifti
 from dl.misc import calc_dice_score
 import matplotlib.pyplot as plt
 from PyQt5.QtGui import *
@@ -122,6 +123,8 @@ class MuscleSegmentation(ImageShow, QObject):
     reduce_brush_size = pyqtSignal()
     increase_brush_size = pyqtSignal()
     alert_signal = pyqtSignal(str)
+    undo_signal = pyqtSignal()
+    redo_signal = pyqtSignal()
 
     def __init__(self, *args, **kwargs):
         self.suppressRedraw = False
@@ -156,6 +159,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.fig.canvas.mpl_connect('resize_event', self.resizeCB)
         self.reblit_signal.connect(self.do_reblit)
         self.redraw_signal.connect(self.do_redraw)
+        self.undo_signal.connect(self.undo)
+        self.redo_signal.connect(self.redo)
 
         self.separate_thread_running = False
 
@@ -163,6 +168,12 @@ class MuscleSegmentation(ImageShow, QObject):
         for key in list(plt.rcParams):
             if 'keymap' in key and 'zoom' not in key and 'pan' not in key:
                 plt.rcParams[key] = []
+
+    def get_app(self):
+        if not self.app:
+            self.app = QApplication.instance()
+        return self.app
+
 
     def resizeCB(self, event):
         self.resetBlitBg()
@@ -263,7 +274,6 @@ class MuscleSegmentation(ImageShow, QObject):
         self.resolution = [1, 1, 1]
         self.curImage = 0
         self.classifications = []
-        self.originalSegmentationMasks = {}
         self.lastsave = datetime.now()
 
         self.roiChanged = {}
@@ -361,8 +371,11 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.reduce_brush_size.connect(self.toolbox_window.reduce_brush_size)
         self.increase_brush_size.connect(self.toolbox_window.increase_brush_size)
+        self.toolbox_window.brush_changed.connect(self.updateBrush)
 
         self.alert_signal.connect(self.toolbox_window.alert)
+
+        self.toolbox_window.reblit.connect(self.do_reblit)
 
     def setSplash(self, is_splash, current_value, maximum_value, text= ""):
         self.splash_signal.emit(is_splash, current_value, maximum_value, text)
@@ -636,6 +649,8 @@ class MuscleSegmentation(ImageShow, QObject):
 
         slices_with_rois = set()
 
+        originalSegmentationMasks = {}
+
         for roiName in self.roiManager.get_roi_names():
             if setSplash:
                 self.setSplash(True, current_roi_index, len(roi_names), "Calculating maps...")
@@ -646,10 +661,15 @@ class MuscleSegmentation(ImageShow, QObject):
                 if self.roiManager.contains(roiName, imageIndex):
                     roi = self.roiManager.get_mask(roiName, imageIndex)
 
-                if roi.any(): slices_with_rois.add(imageIndex) # add the slice to the set if any voxel is nonzero
+                if roi.any():
+                    slices_with_rois.add(imageIndex) # add the slice to the set if any voxel is nonzero
+                    if imageIndex not in originalSegmentationMasks:
+                        #print(imageIndex)
+                        originalSegmentationMasks[imageIndex] = self.getSegmentedMasks(imageIndex, False, True)
+
                 masklist.append(roi)
                 try:
-                    originalSegmentation = self.originalSegmentationMasks[imageIndex][roiName]
+                    originalSegmentation = originalSegmentationMasks[imageIndex][roiName]
                 except:
                     originalSegmentation = None
 
@@ -1211,6 +1231,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.maskImPlot.set_animated(True)
 
         self.maskImPlot.set_data(active_mask.astype(np.uint8))
+        self.maskImPlot.set_alpha(GlobalConfig['MASK_LAYER_ALPHA'])
         self.axes.draw_artist(self.maskImPlot)
 
         if self.maskOtherImPlot is None:
@@ -1228,6 +1249,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.maskOtherImPlot.set_animated(True)
 
         self.maskOtherImPlot.set_data(other_mask.astype(np.uint8))
+        self.maskOtherImPlot.set_alpha(GlobalConfig['MASK_LAYER_ALPHA'])
         self.axes.draw_artist(self.maskOtherImPlot)
 
     def updateContourPainters(self):
@@ -1340,7 +1362,9 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @pyqtSlot()
     def do_redraw(self):
+        #print("Redrawing...")
         if self.suppressRedraw: return
+        #print("Yes")
         try:
             self.removeMasks()
         except:
@@ -1373,13 +1397,10 @@ class MuscleSegmentation(ImageShow, QObject):
             self.lastsave = now
             self.saveROIPickle()
 
-        if not self.app:
-            self.app = QApplication.instance()
-
         if self.wacom:
-            self.app.setOverrideCursor(Qt.BlankCursor)
+            self.get_app().setOverrideCursor(Qt.BlankCursor)
         else:
-            self.app.setOverrideCursor(Qt.ArrowCursor)
+            self.get_app().setOverrideCursor(Qt.ArrowCursor)
 
 
     def closeCB(self, event):
@@ -1390,46 +1411,70 @@ class MuscleSegmentation(ImageShow, QObject):
         self.saveROIPickle()
         sys.exit(0)
 
-    def moveBrushPatch(self, event):
+    @pyqtSlot()
+    def updateBrush(self):
+        self.moveBrushPatch(None, True)
+        self.reblit()
+
+    def moveBrushPatch(self, event = None, force_update = False):
         """
             moves the brush. Returns True if the brush was moved to a new position
         """
-        brush_type, brush_size = self.toolbox_window.get_brush()
-        mouseX = event.xdata
-        mouseY = event.ydata
-        if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:
-            brush_color = GlobalConfig['BRUSH_PAINT_COLOR']
-        elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
-            brush_color = GlobalConfig['BRUSH_ERASE_COLOR']
-        else:
-            brush_color = None
-        if mouseX is None or mouseY is None or brush_color is None:
+        def remove_brush():
             try:
                 self.brush_patch.remove()
                 #self.fig.canvas.draw()
             except:
                 pass
             self.brush_patch = None
-            return False
+
+        if not self.getCurrentROIName() or self.editMode != ToolboxWindow.EDITMODE_MASK:
+            remove_brush()
+            return
+
+        brush_type, brush_size = self.toolbox_window.get_brush()
 
         try:
-            oldX = self.moveBrushPatch_oldX  # static variables
-            oldY = self.moveBrushPatch_oldY
-        except:
-            oldX = -1
-            oldY = -1
+            mouseX = event.xdata
+            mouseY = event.ydata
+        except AttributeError: # event is None
+            mouseX = None
+            mouseY = None
 
-        mouseX = np.round(mouseX)
-        mouseY = np.round(mouseY)
-
-        if oldX == mouseX and oldY == mouseY:
+        if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:
+            brush_color = GlobalConfig['BRUSH_PAINT_COLOR']
+        elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
+            brush_color = GlobalConfig['BRUSH_ERASE_COLOR']
+        else:
+            brush_color = None
+        if (event is not None and (mouseX is None or mouseY is None)) or brush_color is None:
+            remove_brush()
             return False
 
-        self.moveBrushPatch_oldX = mouseX
-        self.moveBrushPatch_oldY = mouseY
+        if event is not None:
+            try:
+                oldX = self.moveBrushPatch_oldX  # static variables
+                oldY = self.moveBrushPatch_oldY
+            except:
+                oldX = -1
+                oldY = -1
+
+            mouseX = np.round(mouseX)
+            mouseY = np.round(mouseY)
+            self.moveBrushPatch_oldX = mouseX
+            self.moveBrushPatch_oldY = mouseY
+
+            if oldX == mouseX and oldY == mouseY and not force_update:
+                return False # only return here if we are not forcing an update
 
         if brush_type == ToolboxWindow.BRUSH_SQUARE:
-            xy = (math.floor(mouseX - brush_size / 2) + 0.5, math.floor(mouseY - brush_size / 2) + 0.5)
+            if event is not None:
+                xy = (math.floor(mouseX - brush_size / 2) + 0.5, math.floor(mouseY - brush_size / 2) + 0.5)
+            else:
+                try:
+                    xy = self.brush_patch.get_xy()
+                except:
+                    xy = (0.0,0.0)
             if type(self.brush_patch) != SquareBrush:
                 try:
                     self.brush_patch.remove()
@@ -1443,7 +1488,14 @@ class MuscleSegmentation(ImageShow, QObject):
             self.brush_patch.set_width(brush_size)
 
         elif brush_type == ToolboxWindow.BRUSH_CIRCLE:
-            center = (math.floor(mouseX), math.floor(mouseY))
+            if event is not None:
+                center = (math.floor(mouseX), math.floor(mouseY))
+            else:
+                try:
+                    center = self.brush_patch.get_center()
+                except:
+                    center = (0.0,0.0)
+
             if type(self.brush_patch) != PixelatedCircleBrush:
                 try:
                     self.brush_patch.remove()
@@ -1515,7 +1567,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def leftPressCB(self, event):
         if not self.imPlot.contains(event):
-            print("Event outside")
+            #print("Event outside")
             return
 
         if self.getState() != 'MUSCLE': return
@@ -1574,32 +1626,71 @@ class MuscleSegmentation(ImageShow, QObject):
         self.hideRois = False
         self.redraw()
 
+    def mouseScrollCB(self, event):
+        modifier_status, *_ = self.get_key_modifiers(event)
+        if modifier_status['ctrl']:
+            if event.step < 0:
+                self.reduce_brush_size.emit()
+            elif event.step > 0:
+                self.increase_brush_size.emit()
+            return
+        ImageShow.mouseScrollCB(self, event)
+
+    @staticmethod
+    def get_key_modifiers(event):
+        modifiers = event.guiEvent.modifiers()
+        try:
+            pressed_key_without_modifiers = event.key.split('+')[-1]  # this gets the nonmodifier key if the pressed key is ctrl+z for example
+        except:
+            pressed_key_without_modifiers = ''
+        is_key_modifier_only = (pressed_key_without_modifiers in ['shift', 'control', 'ctrl', 'cmd', 'super', 'alt'])
+        out_modifiers = {'ctrl': (modifiers & (Qt.ControlModifier | Qt.MetaModifier)) != Qt.NoModifier,
+                         'shift': (modifiers & Qt.ShiftModifier) == Qt.ShiftModifier,
+                         'alt': (modifiers & Qt.AltModifier) == Qt.AltModifier,
+                         'none': (modifiers == Qt.NoModifier)}
+        return out_modifiers, is_key_modifier_only, pressed_key_without_modifiers
+
+
     def keyPressCB(self, event):
-        # print(event.key)
-        if 'shift' in event.key:
-            self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.ADD_STATE)
-        elif 'control' in event.key or 'cmd' in event.key or 'super' in event.key or 'ctrl' in event.key:
-            self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.REMOVE_STATE)
+        modifier_status, is_key_modifier_only, pressed_key_without_modifiers = self.get_key_modifiers(event)
+
+        if is_key_modifier_only:
+            if modifier_status['shift']:
+                self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.ADD_STATE)
+            elif modifier_status['ctrl']:
+                self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.REMOVE_STATE)
+            return
+
+        if modifier_status['ctrl']:
+            if pressed_key_without_modifiers == 'z':
+                self.undo_signal.emit()
+            elif pressed_key_without_modifiers == 'y':
+                self.redo_signal.emit()
+            return
+
         if event.key == 'n':
             self.propagate()
         elif event.key == 'b':
             self.propagateBack()
         elif event.key == '-' or event.key == 'y' or event.key == 'z':
             self.reduce_brush_size.emit()
-            self.reblit()
         elif event.key == '+' or event.key == 'x':
             self.increase_brush_size.emit()
-            self.reblit()
         elif event.key == 'r':
             self.roiRemoveOverlap()
         else:
             ImageShow.keyPressCB(self, event)
 
     def keyReleaseCB(self, event):
-        if 'shift' in event.key or 'control' in event.key or 'cmd' in event.key or 'super' in event.key or 'ctrl' in event.key:
+        modifier_status, is_key_modifier_only, pressed_key_without_modifiers = self.get_key_modifiers(event)
+
+        if modifier_status['shift']:
+            self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.ADD_STATE)
+        elif modifier_status['ctrl']:
+            self.toolbox_window.set_temp_edit_button_state(ToolboxWindow.REMOVE_STATE)
+        else:
             self.toolbox_window.restore_edit_button_state()
 
-        # plt.show()
 
     ################################################################################################################
     ###
@@ -1819,7 +1910,7 @@ class MuscleSegmentation(ImageShow, QObject):
     @pyqtSlot(str, str)
     @separate_thread_decorator
     def saveResults(self, pathOut: str, outputType: str):
-        # outputType is 'dicom', 'npy', 'npz', 'nifti'
+        # outputType is 'dicom', 'npy', 'npz', 'nifti', 'compact_dicom', 'compact_nifti'
         print("Saving results...")
 
         self.setSplash(True, 0, 4, "Calculating maps...")
@@ -1840,6 +1931,10 @@ class MuscleSegmentation(ImageShow, QObject):
             save_nifti_masks(pathOut, allMasks, self.affine)
         elif outputType == 'npy':
             save_npy_masks(pathOut, allMasks)
+        elif outputType == 'compact_dicom':
+            save_single_dicom_dataset(pathOut, allMasks, self.affine, self.dicomHeaderList)
+        elif outputType == 'compact_nifti':
+            save_single_nifti(pathOut, allMasks, self.affine)
         else: # assume the most generic outputType == 'npz':
             save_npz_masks(pathOut, allMasks)
 
@@ -2058,6 +2153,22 @@ class MuscleSegmentation(ImageShow, QObject):
                 mask = medical_volume.volume
             return mask
 
+        def load_accumulated_mask(names, accumulated_mask):
+            for index, name in enumerate(names):
+                mask = np.zeros_like(accumulated_mask)
+                mask[accumulated_mask == (index + 1)] = 1
+                load_mask_validate(name, mask)
+
+        def read_names_from_legend(legend_file):
+            name_list = []
+            with open(legend_file, newline='') as csv_file:
+                reader = csv.reader(csv_file)
+                header = next(reader)
+                for row in reader:
+                    name_list.append(row[1])
+            return name_list
+
+
         ext = ext.lower()
 
         if ext in npy_ext:
@@ -2083,7 +2194,16 @@ class MuscleSegmentation(ImageShow, QObject):
             mask = align_masks(mask_medical_volume)
 
             self.setSplash(True, 2, 3, "Importing masks")
-            load_mask_validate(name, mask)
+            if mask.max() > 1: # dataset with multiple labels
+                # try loading the legend
+                legend_name = path + '.csv'
+                try:
+                    names = read_names_from_legend(legend_name)
+                except FileNotFoundError:
+                    fail('No legend file found')
+                load_accumulated_mask(names, mask)
+            else:
+                load_mask_validate(name, mask)
             self.setSplash(False, 0, 0, "")
             return
         elif ext in dicom_ext:
@@ -2093,9 +2213,17 @@ class MuscleSegmentation(ImageShow, QObject):
             name = os.path.basename(path)
 
             mask = align_masks(mask_medical_volume)
-
             self.setSplash(True, 2, 3, "Importing masks")
-            load_mask_validate(name, mask)
+            if mask.max() > 1: # dataset with multiple labels
+                # try loading the legend
+                legend_name = os.path.join(path, 'legend.csv')
+                try:
+                    names = read_names_from_legend(legend_name)
+                except FileNotFoundError:
+                    fail('No legend file found')
+                load_accumulated_mask(names, mask)
+            else:
+                load_mask_validate(name, mask)
             self.setSplash(False, 0, 0, "")
             return
         elif ext == 'multidicom' or len(nii_list) > 0:
@@ -2135,10 +2263,7 @@ class MuscleSegmentation(ImageShow, QObject):
             aligned_masks = align_masks(accumulated_mask).astype(np.uint8)
 
             self.setSplash(True, 2, 3, "Importing masks")
-            for index, name in enumerate(names):
-                mask = np.zeros_like(aligned_masks)
-                mask[aligned_masks == (index+1)] = 1
-                load_mask_validate(name, mask)
+            load_accumulated_mask(names, aligned_masks)
             self.setSplash(False, 0, 0, "")
             return
 
@@ -2238,40 +2363,56 @@ class MuscleSegmentation(ImageShow, QObject):
             time.sleep(0.5)
         self.setSplash(False, 0, 3, "")
 
-    @pyqtSlot()
-    @snapshotSaver
-    def doSegmentation(self):
-        # run the segmentation
-        imIndex = int(self.curImage)
+    def getSegmentedMasks(self, imIndex, setSplash=False, downloadModel=True):
         class_str = self.classifications[imIndex]
         if class_str == 'None':
             self.alert('Segmentation with "None" model is impossible!')
             return
 
-        model_str = class_str.split(',')[0].strip() # get the base model string in case of multiple variants.
-                                                    # variants are identified by "Model, Variant"
+        model_str = class_str.split(',')[0].strip()  # get the base model string in case of multiple variants.
+        # variants are identified by "Model, Variant"
 
-        self.setSplash(True, 0, 3, "Loading model...")
+        if setSplash:
+            self.setSplash(True, 0, 3, "Loading model...")
+
         try:
             segmenter = self.dl_segmenters[model_str]
         except KeyError:
-            segmenter = self.model_provider.load_model(model_str,
-                                                       lambda cur_val, max_val: self.setSplash(True, cur_val, max_val,
-                                                                                               'Downloading Model...'),
+            if downloadModel:
+                if setSplash:
+                    splashCallback = lambda cur_val, max_val: self.setSplash(True, cur_val, max_val,
+                                                                                               'Downloading Model...')
+                else:
+                    splashCallback = None
+                segmenter = self.model_provider.load_model(model_str, splashCallback,
                                                        force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
-            if segmenter is None:
-                self.setSplash(False, 0, 3, "Loading model...")
-                self.alert(f"Error loading model {model_str}")
-                return
-            self.dl_segmenters[class_str] = segmenter
+                if segmenter is None:
+                    self.setSplash(False, 0, 3, "Loading model...")
+                    self.alert(f"Error loading model {model_str}")
+                    return None
+                self.dl_segmenters[class_str] = segmenter
+            else:
+                return None
 
-        self.setSplash(True, 1, 3, "Running segmentation...")
-        t = time.time()
+        if setSplash:
+            self.setSplash(True, 1, 3, "Running segmentation...")
         inputData = {'image': self.imList[imIndex], 'resolution': self.resolution[0:2],
                      'split_laterality': GlobalConfig['SPLIT_LATERALITY'], 'classification': class_str}
         print("Segmenting image...")
         masks_out = segmenter(inputData)
-        self.originalSegmentationMasks[imIndex] = masks_out # save original segmentation for statistics
+        return masks_out
+
+    @pyqtSlot()
+    @snapshotSaver
+    def doSegmentation(self):
+        # run the segmentation
+        imIndex = int(self.curImage)
+
+        t = time.time()
+        masks_out=self.getSegmentedMasks(imIndex, True, True)
+        if masks_out is None:
+            self.setSplash(False, 0, 3, "Loading model...")
+            return
         self.setSplash(True, 2, 3, "Converting masks...")
         print("Done")
         self.masksToRois(masks_out, imIndex)
@@ -2306,6 +2447,10 @@ class MuscleSegmentation(ImageShow, QObject):
                 model = self.dl_segmenters[model_str]
             except KeyError:
                 model = self.model_provider.load_model(model_str, force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
+                if model is None:
+                    self.setSplash(False, 0, 3, "Loading model...")
+                    self.alert(f"Error loading model {model_str}")
+                    return
                 self.dl_segmenters[model_str] = model
             training_data = []
             training_outputs = []
