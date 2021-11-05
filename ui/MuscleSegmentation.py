@@ -274,7 +274,6 @@ class MuscleSegmentation(ImageShow, QObject):
         self.resolution = [1, 1, 1]
         self.curImage = 0
         self.classifications = []
-        self.originalSegmentationMasks = {}
         self.lastsave = datetime.now()
 
         self.roiChanged = {}
@@ -650,6 +649,8 @@ class MuscleSegmentation(ImageShow, QObject):
 
         slices_with_rois = set()
 
+        originalSegmentationMasks = {}
+
         for roiName in self.roiManager.get_roi_names():
             if setSplash:
                 self.setSplash(True, current_roi_index, len(roi_names), "Calculating maps...")
@@ -660,10 +661,15 @@ class MuscleSegmentation(ImageShow, QObject):
                 if self.roiManager.contains(roiName, imageIndex):
                     roi = self.roiManager.get_mask(roiName, imageIndex)
 
-                if roi.any(): slices_with_rois.add(imageIndex) # add the slice to the set if any voxel is nonzero
+                if roi.any():
+                    slices_with_rois.add(imageIndex) # add the slice to the set if any voxel is nonzero
+                    if imageIndex not in originalSegmentationMasks:
+                        #print(imageIndex)
+                        originalSegmentationMasks[imageIndex] = self.getSegmentedMasks(imageIndex, False, True)
+
                 masklist.append(roi)
                 try:
-                    originalSegmentation = self.originalSegmentationMasks[imageIndex][roiName]
+                    originalSegmentation = originalSegmentationMasks[imageIndex][roiName]
                 except:
                     originalSegmentation = None
 
@@ -2357,40 +2363,56 @@ class MuscleSegmentation(ImageShow, QObject):
             time.sleep(0.5)
         self.setSplash(False, 0, 3, "")
 
-    @pyqtSlot()
-    @snapshotSaver
-    def doSegmentation(self):
-        # run the segmentation
-        imIndex = int(self.curImage)
+    def getSegmentedMasks(self, imIndex, setSplash=False, downloadModel=True):
         class_str = self.classifications[imIndex]
         if class_str == 'None':
             self.alert('Segmentation with "None" model is impossible!')
             return
 
-        model_str = class_str.split(',')[0].strip() # get the base model string in case of multiple variants.
-                                                    # variants are identified by "Model, Variant"
+        model_str = class_str.split(',')[0].strip()  # get the base model string in case of multiple variants.
+        # variants are identified by "Model, Variant"
 
-        self.setSplash(True, 0, 3, "Loading model...")
+        if setSplash:
+            self.setSplash(True, 0, 3, "Loading model...")
+
         try:
             segmenter = self.dl_segmenters[model_str]
         except KeyError:
-            segmenter = self.model_provider.load_model(model_str,
-                                                       lambda cur_val, max_val: self.setSplash(True, cur_val, max_val,
-                                                                                               'Downloading Model...'),
+            if downloadModel:
+                if setSplash:
+                    splashCallback = lambda cur_val, max_val: self.setSplash(True, cur_val, max_val,
+                                                                                               'Downloading Model...')
+                else:
+                    splashCallback = None
+                segmenter = self.model_provider.load_model(model_str, splashCallback,
                                                        force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
-            if segmenter is None:
-                self.setSplash(False, 0, 3, "Loading model...")
-                self.alert(f"Error loading model {model_str}")
-                return
-            self.dl_segmenters[class_str] = segmenter
+                if segmenter is None:
+                    self.setSplash(False, 0, 3, "Loading model...")
+                    self.alert(f"Error loading model {model_str}")
+                    return None
+                self.dl_segmenters[class_str] = segmenter
+            else:
+                return None
 
-        self.setSplash(True, 1, 3, "Running segmentation...")
-        t = time.time()
+        if setSplash:
+            self.setSplash(True, 1, 3, "Running segmentation...")
         inputData = {'image': self.imList[imIndex], 'resolution': self.resolution[0:2],
                      'split_laterality': GlobalConfig['SPLIT_LATERALITY'], 'classification': class_str}
         print("Segmenting image...")
         masks_out = segmenter(inputData)
-        self.originalSegmentationMasks[imIndex] = masks_out # save original segmentation for statistics
+        return masks_out
+
+    @pyqtSlot()
+    @snapshotSaver
+    def doSegmentation(self):
+        # run the segmentation
+        imIndex = int(self.curImage)
+
+        t = time.time()
+        masks_out=self.getSegmentedMasks(imIndex, True, True)
+        if masks_out is None:
+            self.setSplash(False, 0, 3, "Loading model...")
+            return
         self.setSplash(True, 2, 3, "Converting masks...")
         print("Done")
         self.masksToRois(masks_out, imIndex)
@@ -2425,6 +2447,10 @@ class MuscleSegmentation(ImageShow, QObject):
                 model = self.dl_segmenters[model_str]
             except KeyError:
                 model = self.model_provider.load_model(model_str, force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
+                if model is None:
+                    self.setSplash(False, 0, 3, "Loading model...")
+                    self.alert(f"Error loading model {model_str}")
+                    return
                 self.dl_segmenters[model_str] = model
             training_data = []
             training_outputs = []
