@@ -20,7 +20,7 @@ from utils.dicomUtils.misc import dosma_volume_from_path
 import tensorflow as tf
 
 CLASSIFICATION = 'Leg'
-TIMESTAMP_INTERVAL = (1625471255, 1626096769)
+TIMESTAMP_INTERVAL = (1625471255, 1625828753)
 UPLOAD_STATS = True
 
 
