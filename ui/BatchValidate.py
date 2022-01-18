@@ -20,8 +20,11 @@ from utils.dicomUtils.misc import dosma_volume_from_path
 import tensorflow as tf
 
 CLASSIFICATION = 'Leg'
-TIMESTAMP_INTERVAL = (1625471255, 1625828753)
-UPLOAD_STATS = True
+#TIMESTAMP_INTERVAL = (1625471255, 1625828753)
+TIMESTAMP_INTERVAL = (1624442225, 1638892356)
+UPLOAD_STATS = False
+SAVE_LOCAL = True
+LOCAL_FILENAME = 'batch_validation_results.txt'
 
 
 class BatchValidateWindow(QWidget, Ui_ValidateUI):
@@ -48,6 +51,7 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
         self.basename = ''
         self.maskpath = ''
         self.mask_list = {}
+        self.batch_mode = False
 
         self.evaluate_Button.clicked.connect(self.start_calculation)
 
@@ -61,7 +65,7 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
 
     def init_model_provider(self):
         self.model_provider = RemoteModelProvider(config.GlobalConfig['MODEL_PATH'], config.GlobalConfig['SERVER_URL'],
-                                             config.GlobalConfig['API_KEY'], config.GlobalConfig['TEMP_UPLOAD_DIR'])
+                                             config.GlobalConfig['API_KEY'], config.GlobalConfig['TEMP_UPLOAD_DIR'], delete_old_models=False)
 
         try:
             available_models = self.model_provider.available_models()
@@ -227,6 +231,10 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
             self.evaluate_Button.setEnabled(False)
 
         print('im_list len', len(self.im_list))
+
+        if SAVE_LOCAL: # clear out file if needed
+            with open(os.path.join(self.basepath, LOCAL_FILENAME), 'w') as f:
+                f.write('')
 
     @pyqtSlot()
     def do_load_roi(self):
@@ -467,9 +475,13 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
         accept = QMessageBox.question(self, "Run validation?", f'Running validation for model {CLASSIFICATION} on {len(self.timestamps_to_download)} models\nwith {n_rois} ROIs over {n_slices} slices. Continue?', QMessageBox.Yes | QMessageBox.No)
         if accept == QMessageBox.No:
             return
-        comment, ok = QInputDialog.getText(self, "Add comment", "Add an identifier for this dataset")
-        if not ok:
-            return
+        if not self.batch_mode:
+            comment, ok = QInputDialog.getText(self, "Add comment", "Add an identifier for this dataset")
+            if not ok:
+                return
+        else:
+            comment = ''
+
         self.setEnabled(False)
         self.calculate(comment)
 
@@ -532,6 +544,10 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
             if UPLOAD_STATS:
                 self.model_provider.log(message)
 
+            if SAVE_LOCAL:  # clear out file if needed
+                with open(os.path.join(self.basepath, LOCAL_FILENAME), 'a') as f:
+                    f.write(f'{timestamp},{average_dice}\n')
+
             current_model_n += 1
 
             # free memory
@@ -546,11 +562,17 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
         self.setEnabled(True)
 
 
-def run():
+def run(path = None, roi = None):
     app = QApplication(sys.argv)
     window = QMainWindow()
     widget = BatchValidateWindow()
     window.setCentralWidget(widget)
     window.setWindowTitle("Batch validation")
     window.show()
+    if path is not None:
+        widget.batch_mode = True
+        widget.load_directory(path)
+    if roi is not None:
+        widget.loadROIPickle(roi)
+
     sys.exit(app.exec_())
