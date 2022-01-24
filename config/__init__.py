@@ -14,3 +14,4 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from .config import *
+from .version import VERSION

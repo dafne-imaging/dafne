@@ -5,7 +5,8 @@ cd dl
 git checkout master
 git pull
 cd ..
+VERSION=`python update_version.py`
 pyinstaller dafne_mac.spec --noconfirm
 cd dist
 cp calc_transforms/calc_transforms dafne
-zip -r dafne_mac.zip dafne 
+zip -r dafne_mac_$VERSION.zip dafne

@@ -74,7 +74,7 @@ class AboutDialog(QDialog):
         QDialog.__init__(self, *args, **kwargs)
         myLayout = QVBoxLayout(self)
         self.setLayout(myLayout)
-        self.setWindowTitle("About")
+        self.setWindowTitle(f"About Dafne - version {config.VERSION}")
         self.setWindowModality(Qt.ApplicationModal)
         svg = QSvgWidget(ABOUT_SVG_PATH)
         myLayout.addWidget(svg)
