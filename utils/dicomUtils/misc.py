@@ -15,6 +15,8 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import traceback
+
 import pydicom
 import pydicom as dicom
 import numpy as np
@@ -166,11 +168,13 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
 
         if load_dicom_dir:
             try:
-                dr = dosma.DicomReader(num_workers=0, group_by=None)
+                dr = dosma.DicomReader(num_workers=0, group_by=None, ignore_ext=True)
                 medical_volume = dr.load(basepath)[0]
                 affine_valid = True
             except:
                 # Error reading with DOSMA. use standard dicom
+                print('Error using DOSMA for load')
+                traceback.print_exc()
                 l = os.listdir(basepath)
                 threeDlist = []
                 header_list = []
@@ -182,12 +186,20 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
                         dFile.file_meta.TransferSyntaxUID = '1.2.840.10008.1.2.1'
 
                     try:
-                        dFile.decompress()
-                    except ValueError:
-                        dFile.NumberOfFrames = 1
-                        dFile.decompress()
+                        try:
+                            dFile.decompress()
+                        except ValueError:
+                            dFile.NumberOfFrames = 1
+                            dFile.decompress()
+                    except:
+                        print('Error decompressing file')
 
-                    pixelIma = dFile.pixel_array
+
+                    try:
+                        pixelIma = dFile.pixel_array
+                    except:
+                        print('Error loading pixel array for file', f)
+                        continue
 
                     threeDlist.append(np.copy(pixelIma.astype('float32')))
                     dFile.PixelData = ""
