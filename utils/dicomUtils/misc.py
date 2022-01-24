@@ -174,7 +174,7 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
             except:
                 # Error reading with DOSMA. use standard dicom
                 print('Error using DOSMA for load')
-                traceback.print_exc()
+                #traceback.print_exc()
                 l = os.listdir(basepath)
                 threeDlist = []
                 header_list = []
