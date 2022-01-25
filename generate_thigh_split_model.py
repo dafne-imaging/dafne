@@ -23,10 +23,10 @@ import sys
 
 def coscia_unet():
     
-    from keras import regularizers
-    from keras.activations import softmax
-    from keras.layers import Input, Conv2D, Conv2DTranspose, BatchNormalization, Concatenate, Lambda, Activation, Reshape, Add
-    from keras.models import Model
+    from tensorflow.keras import regularizers
+    from tensorflow.keras.activations import softmax
+    from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, BatchNormalization, Concatenate, Lambda, Activation, Reshape, Add
+    from tensorflow.keras.models import Model
 
     inputs=Input(shape=(250,250,2))
     weight_matrix=Lambda(lambda z: z[:,:,:,1])(inputs)
@@ -318,8 +318,8 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
     import dl.common.preprocess_train as pretrain
     from dl.common.DataGenerators import DataGeneratorMem
     import os
-    from keras.callbacks import ModelCheckpoint
-    from keras import optimizers
+    from tensorflow.keras.callbacks import ModelCheckpoint
+    from tensorflow.keras import optimizers
     import time
     try:
         np
@@ -333,10 +333,10 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
     MODEL_SIZE_SPLIT = (250, 250)
     BAND = 49
     BATCH_SIZE = bs
-    CHECKPOINT_PATH = os.path.join(".", "Weights_incremental_split", "thigh")
+    #CHECKPOINT_PATH = os.path.join(".", "Weights_incremental_split", "thigh")
     MIN_TRAINING_IMAGES = minTrainImages
 
-    os.makedirs(CHECKPOINT_PATH, exist_ok=True)
+    #os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
     t = time.time()
     print('Image preprocess')
@@ -388,12 +388,13 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
     checkpoint_files = os.path.join(CHECKPOINT_PATH, "weights - {epoch: 02d} - {loss: .2f}.hdf5")
     training_generator = DataGeneratorMem(output_data_structure, list_X=list(range(steps * BATCH_SIZE)), batch_size=BATCH_SIZE, dim=MODEL_SIZE_SPLIT)
     #check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=False,save_weights_only=True, mode='auto', period=10)
-    check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=True, # save_freq='epoch',
-                            save_weights_only=True, mode='auto')
+    #check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=True, # save_freq='epoch',
+    #                        save_weights_only=True, mode='auto')
     adamlr = optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=True)
     netc.compile(loss=pretrain.weighted_loss, optimizer=adamlr)
     #history = netc.fit_generator(generator=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check], verbose=1)
-    history = netc.fit(x=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check],verbose=1)
+    #history = netc.fit(x=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check],verbose=1)
+    history = netc.fit(x=training_generator, steps_per_epoch=steps, epochs=5, verbose=1)
     print('Done. Elapsed', time.time() - t)
 
 

@@ -2422,8 +2422,9 @@ class MuscleSegmentation(ImageShow, QObject):
         self.setSplash(False, 3, 3)
         self.redraw()
 
+    #@pyqtSlot()
+    #@separate_thread_decorator # this crashes tensorflow!!
     @pyqtSlot()
-    @separate_thread_decorator
     def incrementalLearnStandalone(self):
         self.setSplash(True, 0, 4, "Calculating maps...")
         allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)

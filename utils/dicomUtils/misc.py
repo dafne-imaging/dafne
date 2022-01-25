@@ -180,7 +180,11 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
                 header_list = []
                 for f in sorted(l):
                     if os.path.basename(f).startswith('.'): continue
-                    dFile = dicom.read_file(os.path.join(basepath, f), force=True)
+                    try:
+                        dFile = dicom.read_file(os.path.join(basepath, f), force=True)
+                    except:
+                        print("Error loading", f)
+                        continue
                     dFile.ensure_file_meta()
                     if 'TransferSyntaxUID' not in dFile.file_meta:
                         dFile.file_meta.TransferSyntaxUID = '1.2.840.10008.1.2.1'

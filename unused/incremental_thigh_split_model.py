@@ -21,10 +21,10 @@ import numpy as np # this is assumed to be available in every context
 
 def coscia_unet():
     
-    from keras import regularizers
-    from keras.activations import softmax
-    from keras.layers import Input, Conv2D, Conv2DTranspose, BatchNormalization, Concatenate, Lambda, Activation, Reshape, Add
-    from keras.models import Model
+    from tensorflow.keras import regularizers
+    from tensorflow.keras.activations import softmax
+    from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, BatchNormalization, Concatenate, Lambda, Activation, Reshape, Add
+    from tensorflow.keras.models import Model
 
     inputs=Input(shape=(270,270,2))
     weight_matrix=Lambda(lambda z: z[:,:,:,1])(inputs)
@@ -277,8 +277,8 @@ def thigh_incremental(modelObj: DynamicDLModel, trainingdata: dict, trainingoutp
     import dl.common.preprocess_train as pretrain
     import os
     import math
-    from keras.callbacks import ModelCheckpoint
-    from keras import optimizers
+    from tensorflow.keras.callbacks import ModelCheckpoint
+    from tensorflow.keras import optimizers
     try:
         np
     except:

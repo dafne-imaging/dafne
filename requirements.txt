@@ -6,10 +6,11 @@ matplotlib
 pyqt5
 nibabel
 pydicom
-#pypotrace
+#pypotrace # this is needed, but under Windows it must be provided separately
 dill
 progress
-keras
+#keras==2.4.3 # now loaded from tensorflow
+tensorflow-gpu
 appdirs
 requests
 scikit-image
