@@ -43,7 +43,9 @@ class ContourPainter:
         if not self.painted: return
         self.painted = False
         if axes:
-            axes.patches = []
+            # axes.patches = [] # Error with new matplotlib!
+            while axes.patches:
+                axes.patches.pop()
             return
         for knot in self._knots:
             try:
