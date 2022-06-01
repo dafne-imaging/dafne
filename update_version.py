@@ -14,4 +14,13 @@ with open('dafne_win.iss.old', 'r') as orig_file:
             else:
                 new_file.write(line)
 
+shutil.move('dafne_mac.spec', 'dafne_mac.spec.old')
+with open('dafne_mac.spec.old', 'r') as orig_file:
+    with open('dafne_mac.spec', 'w') as new_file:
+        for line in orig_file:
+            if 'version=' in line:
+                new_file.write(f"    version='{VERSION}')\n")
+            else:
+                new_file.write(line)
+
 print(VERSION)

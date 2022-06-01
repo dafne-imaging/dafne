@@ -85,3 +85,9 @@ coll_calc_tra = COLLECT(exe_calc_tra,
                upx=True,
                upx_exclude=[],
                name='calc_transforms')
+
+app = BUNDLE(coll_dafne,
+    name='dafne.app',
+    icon='dafne_icon.icns',
+    bundle_identifier='network.dafne.dafne',
+    version='1.1-alpha5')
