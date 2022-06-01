@@ -16,6 +16,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import matplotlib
 import matplotlib.pyplot as plt
 import pydicom.filereader
 from PyQt5.QtWidgets import QInputDialog
@@ -28,6 +29,21 @@ import numpy as np
 import os
 import sys
 import traceback
+
+try:
+    CursorShape = matplotlib.backends.backend_qt.QtCore.Qt.CursorShape
+except:
+    print("CursorShape not found")
+    class CursorShape:
+        ArrowCursor = 0
+
+try:
+    from matplotlib.backend_bases import MouseButton
+except:
+    print("Mousebutton not found")
+    class MouseButton:
+        LEFT = 1
+        RIGHT = 3
 
 try:
     from utils.dicomUtils.misc import dosma_volume_from_path
@@ -265,7 +281,7 @@ class ImageShow:
 
     def isCursorNormal(self):
         try:
-            isCursorNormal = (self.fig.canvas.cursor().shape() == 0)  # if backend is qt, it gets the shape of the
+            isCursorNormal = (self.fig.canvas.cursor().shape() == CursorShape.ArrowCursor)  # if backend is qt, it gets the shape of the
             # cursor. 0 is the arrow, which means we are not zooming or panning.
         except:
             isCursorNormal = True
@@ -278,12 +294,12 @@ class ImageShow:
         if not self.isCursorNormal():
             # print("Zooming or panning. Not processing clicks")
             return
-        if event.button == 1:
+        if event.button is MouseButton.LEFT:
             try:
                 self.leftPressCB(event)
             except Exception as err:
                 if DO_DEBUG: traceback.print_exc()
-        if event.button == 3:
+        if event.button is MouseButton.RIGHT:
             if event.dblclick:
                 self.resetContrast()
             else:
@@ -299,12 +315,12 @@ class ImageShow:
         pass
 
     def btnReleaseCB(self, event):
-        if event.button == 1:
+        if event.button is MouseButton.LEFT:
             try:
                 self.leftReleaseCB(event)
             except Exception as err:
                 if DO_DEBUG: traceback.print_exc()
-        if event.button == 3:
+        if event.button is MouseButton.RIGHT:
             self.imPlot.set_interpolation(self.interpolation)
             self.startXY = None  #
             self.redraw()
@@ -330,12 +346,12 @@ class ImageShow:
         xy = (event.x, event.y)
         if xy == self.oldMouseXY: return  # reject mouse move events when the mouse doesn't move
         self.oldMouseXY = xy
-        if event.button == 1:
+        if event.button is MouseButton.LEFT:
             try:
                 self.leftMoveCB(event)
             except Exception as err:
                 if DO_DEBUG: traceback.print_exc()
-        if event.button != 3 or self.startXY is None:
+        if event.button is not MouseButton.RIGHT or self.startXY is None:
             return
 
         self.imPlot.set_interpolation('none')
