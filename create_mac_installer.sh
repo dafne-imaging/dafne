@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/zsh
 
 git pull
 cd dl
@@ -12,8 +12,10 @@ cd dist
 echo "Signing code"
 codesign --deep -s "Francesco" dafne.app
 echo "Creating DMG"
-hdiutil create /tmp/dafne.dmg -ov -volname "Dafne" -fs HFS+ -srcfolder "dafne.app"
-hdiutil convert /tmp/dafne.dmg -format UDZO -o "dafne_$VERSION.dmg"
-rm /tmp/dafne.dmg
+create-dmg --volname "Dafne" --volicon dafne.app/Contents/Resources/dafne_icon.icns \
+	 --eula dafne.app/Contents/Resources/LICENSE --background ../mac_installer_bg.png \
+	 --window-size 420 220 --icon-size 64 --icon dafne.app 46 31 \
+	 --app-drop-link 236 90 "dafne_$VERSION.dmg" dafne.app
+#rm /tmp/dafne.dmg
 #cp calc_transforms/calc_transforms dafne
 #zip -r dafne_mac_$VERSION.zip dafne
