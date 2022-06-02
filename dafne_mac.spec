@@ -48,7 +48,7 @@ exe_dafne = EXE(pyz_dafne,
           a_dafne.scripts,
           [],
           exclude_binaries=True,
-          name='dafne',
+          name='Dafne',
           debug=False,
           icon='dafne_icon.ico',
           bootloader_ignore_signals=False,
@@ -62,7 +62,7 @@ coll_dafne = COLLECT(exe_dafne,
                strip=False,
                upx=True,
                upx_exclude=[],
-               name='dafne')
+               name='Dafne')
 
 pyz_calc_tra = PYZ(a_calc_tra.pure, a_calc_tra.zipped_data,
              cipher=block_cipher)
@@ -87,7 +87,7 @@ coll_calc_tra = COLLECT(exe_calc_tra,
                name='calc_transforms')
 
 app = BUNDLE(coll_dafne,
-    name='dafne.app',
+    name='Dafne.app',
     icon='dafne_icon.icns',
     bundle_identifier='network.dafne.dafne',
     version='1.1-alpha5')
