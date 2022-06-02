@@ -19,6 +19,8 @@
 import functools
 
 import os
+import sys
+
 from ui.ToolboxUI import Ui_SegmentationToolbox
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt
 from PyQt5.QtGui import QMovie, QIcon, QPixmap
@@ -36,7 +38,13 @@ from .LogWindow import LogWindow
 from .pyDicomView import INVERT_SCROLL
 
 DOCUMENTATION_URL = 'https://www.dafne.network/documentation/'
-UI_PATH = os.path.dirname(os.path.abspath(__file__))
+
+try:
+    UI_PATH = os.path.join(sys._MEIPASS, 'ui') # PyInstaller support
+except:
+    UI_PATH = os.path.dirname(os.path.abspath(__file__))
+
+print(UI_PATH)
 
 SPLASH_ANIMATION_PATH = os.path.join(UI_PATH, "images", "dafne_anim.gif")
 ABOUT_SVG_PATH = os.path.join(UI_PATH, "images", "about_paths.svg")
@@ -215,13 +223,16 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         if platform.system() == 'Darwin':
             self.menubar.setNativeMenuBar(False) # native menu bar behaves weirdly in Mac OS
-            icon = QIcon()    
-            icon.addPixmap(QPixmap(os.path.join(UI_PATH, 'images', 'circle.png')), QIcon.Normal, QIcon.Off)
-            self.circlebrush_button.setIcon(icon)
-            icon1 = QIcon()
-            icon1.addPixmap(QPixmap(os.path.join(UI_PATH, 'images', 'square.png')), QIcon.Normal, QIcon.Off)
-            self.squarebrush_button.setIcon(icon1)
-            self.setWindowFlag(Qt.CustomizeWindowHint, True)
+            self.setWindowFlag(Qt.CustomizeWindowHint, True) # disable window decorations
+
+        # reload the brush icons so that it works in with pyinstaller too. Check under windows!
+        icon = QIcon()
+        icon.addPixmap(QPixmap(os.path.join(UI_PATH, 'images', 'circle.png')), QIcon.Normal, QIcon.Off)
+        self.circlebrush_button.setIcon(icon)
+        icon1 = QIcon()
+        icon1.addPixmap(QPixmap(os.path.join(UI_PATH, 'images', 'square.png')), QIcon.Normal, QIcon.Off)
+        self.squarebrush_button.setIcon(icon1)
+
 
         
         self.setWindowTitle("Segmentation Toolbox")
