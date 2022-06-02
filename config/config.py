@@ -15,6 +15,8 @@
 
 import os
 import pickle
+from sys import platform
+
 from ui import GenericInputDialog
 from appdirs import AppDirs
 
@@ -90,7 +92,10 @@ static_config = {
     'MODEL_PATH': os.path.join(app_dirs.user_data_dir, 'models'),
     'TEMP_UPLOAD_DIR': os.path.join(app_dirs.user_cache_dir, 'upload_temp'),
     'TEMP_DIR': os.path.join(app_dirs.user_cache_dir, 'temp'),
-    'ENABLE_NIFTI': True
+    'ENABLE_NIFTI': True,
+    'OUTPUT_LOG_FILE': os.path.join(app_dirs.user_cache_dir, 'dafne_output.log'),
+    'ERROR_LOG_FILE': os.path.join(app_dirs.user_cache_dir, 'dafne_error.log'),
+    'REDIRECT_OUTPUT': True
 }
 
 ## Initialization

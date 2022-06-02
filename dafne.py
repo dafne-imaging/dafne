@@ -18,6 +18,8 @@
 
 import os
 # Hide tensorflow warnings; set to 1 to see warnings
+from utils import log
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # or any {'0', '1', '2', '3'}
 
 from ui.MuscleSegmentation import MuscleSegmentation
@@ -53,6 +55,15 @@ if __name__ == "__main__":
 
     if args.local_model:
         GlobalConfig['MODEL_PROVIDER'] = 'Local'
+
+    if GlobalConfig['REDIRECT_OUTPUT']:
+        import sys
+
+        log.log_objects['stdout'] = log.LogStream(GlobalConfig['OUTPUT_LOG_FILE'], sys.stdout)
+        log.log_objects['stderr'] = log.LogStream(GlobalConfig['ERROR_LOG_FILE'], sys.stderr)
+
+        sys.stdout = log.log_objects['stdout']
+        sys.stderr = log.log_objects['stderr']
 
     imFig = MuscleSegmentation()
 

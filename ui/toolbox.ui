@@ -588,7 +588,7 @@
      <x>0</x>
      <y>0</y>
      <width>311</width>
-     <height>32</height>
+     <height>30</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -658,6 +658,7 @@
     <addaction name="actionHelp_shortcuts"/>
     <addaction name="separator"/>
     <addaction name="actionAbout"/>
+    <addaction name="actionShowLogs"/>
    </widget>
    <widget class="QMenu" name="menuROI">
     <property name="title">
@@ -802,6 +803,11 @@
   <action name="actionSave_as_Compact_Nifti">
    <property name="text">
     <string>Nifti...</string>
+   </property>
+  </action>
+  <action name="actionShowLogs">
+   <property name="text">
+    <string>Show Logs...</string>
    </property>
   </action>
  </widget>

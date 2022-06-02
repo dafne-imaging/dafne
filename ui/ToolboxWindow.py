@@ -31,6 +31,8 @@ import platform
 from utils.ThreadHelpers import separate_thread_decorator
 from . import BatchCalcTransforms
 import webbrowser
+
+from .LogWindow import LogWindow
 from .pyDicomView import INVERT_SCROLL
 
 DOCUMENTATION_URL = 'https://www.dafne.network/documentation/'
@@ -328,6 +330,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionOpen_transform_calculator.triggered.connect(self.open_transform_calculator)
 
+        self.actionShowLogs.triggered.connect(self.show_logs)
+
+        if not config.GlobalConfig['REDIRECT_OUTPUT']:
+            self.actionShowLogs.setEnabled(False)
+            self.actionShowLogs.setVisible(False)
+
         self.reload_config()
         self.config_changed.connect(self.reload_config)
 
@@ -337,6 +345,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.general_enable(False)
 
         self.resize(self.mainUIWidget.sizeHint())
+
+    @pyqtSlot()
+    def show_logs(self):
+        log_window = LogWindow(self)
+        log_window.show()
+
 
     @pyqtSlot(int)
     def set_opacity_config(self, value):
