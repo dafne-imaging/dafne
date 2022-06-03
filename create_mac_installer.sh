@@ -14,8 +14,8 @@ codesign --deep -s "Francesco" Dafne.app
 echo "Creating DMG"
 create-dmg --volname "Dafne" --volicon Dafne.app/Contents/Resources/dafne_icon.icns \
 	 --eula Dafne.app/Contents/Resources/LICENSE --background ../mac_installer_bg.png \
-	 --window-size 420 220 --icon-size 64 --icon dafne.app 46 31 \
-	 --app-drop-link 236 90 "dafne_$VERSION.dmg" dafne.app
+	 --window-size 420 220 --icon-size 64 --icon Dafne.app 46 31 \
+	 --app-drop-link 236 90 "dafne_$VERSION.dmg" Dafne.app
 #rm /tmp/dafne.dmg
 #cp calc_transforms/calc_transforms dafne
 #zip -r dafne_mac_$VERSION.zip dafne
