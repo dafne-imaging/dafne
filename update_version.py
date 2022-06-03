@@ -11,6 +11,8 @@ with open('dafne_win.iss.old', 'r') as orig_file:
         for line in orig_file:
             if line.startswith('#define MyAppVersion'):
                 new_file.write(f'#define MyAppVersion "{VERSION}"\n')
+            elif line.startswith('OutputBaseFilename='):
+                new_file.write(f'OutputBaseFilename=dafne_setup_{VERSION}\n')
             else:
                 new_file.write(line)
 
