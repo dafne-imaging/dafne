@@ -52,7 +52,7 @@ exe_dafne = EXE(pyz_dafne,
           strip=False,
           upx=True,
           icon='dafne_icon.ico',
-          console=False )
+          console=True)
 coll_dafne = COLLECT(exe_dafne,
                a_dafne.binaries,
                a_dafne.zipfiles,
