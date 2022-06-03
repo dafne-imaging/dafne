@@ -253,7 +253,7 @@ class ImageShow:
         if event.inaxes != self.axes:
             return
 
-        self.curImage = self.curImage - step;
+        self.curImage = self.curImage - step
         if self.curImage < 0:
             self.curImage = 0
         if self.curImage > len(self.imList) - 1:
