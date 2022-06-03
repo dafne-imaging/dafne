@@ -44,8 +44,6 @@ try:
 except:
     UI_PATH = os.path.dirname(os.path.abspath(__file__))
 
-print(UI_PATH)
-
 SPLASH_ANIMATION_PATH = os.path.join(UI_PATH, "images", "dafne_anim.gif")
 ABOUT_SVG_PATH = os.path.join(UI_PATH, "images", "about_paths.svg")
 
