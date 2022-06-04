@@ -59,8 +59,8 @@ if __name__ == "__main__":
     if GlobalConfig['REDIRECT_OUTPUT']:
         import sys
 
-        log.log_objects['stdout'] = log.LogStream(GlobalConfig['OUTPUT_LOG_FILE'], sys.stdout)
-        log.log_objects['stderr'] = log.LogStream(GlobalConfig['ERROR_LOG_FILE'], sys.stderr)
+        log.log_objects['stdout'] = log.LogStream(GlobalConfig['OUTPUT_LOG_FILE'], sys.stdout if GlobalConfig['ECHO_OUTPUT'] else None)
+        log.log_objects['stderr'] = log.LogStream(GlobalConfig['ERROR_LOG_FILE'], sys.stderr if GlobalConfig['ECHO_OUTPUT'] else None)
 
         sys.stdout = log.log_objects['stdout']
         sys.stderr = log.log_objects['stderr']

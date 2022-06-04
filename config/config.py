@@ -83,6 +83,7 @@ defaults = {
     'HISTORY_LENGTH':  (20, 'int_slider', 1, 1000, 1, None),
     'FORCE_LOCAL_DATA_UPLOAD': (False, 'bool', None),
     'DELETE_OLD_MODELS': (True, 'bool', None),
+    'ECHO_OUTPUT': (False, 'bool', None),
     'ADVANCED_CONFIG': (False, 'bool', 'Show advanced configuration'),
 }
 
@@ -95,7 +96,7 @@ static_config = {
     'ENABLE_NIFTI': True,
     'OUTPUT_LOG_FILE': os.path.join(app_dirs.user_cache_dir, 'dafne_output.log'),
     'ERROR_LOG_FILE': os.path.join(app_dirs.user_cache_dir, 'dafne_error.log'),
-    'REDIRECT_OUTPUT': True
+    'REDIRECT_OUTPUT': True # redirect stdout/stderr to logfiles
 }
 
 ## Initialization
