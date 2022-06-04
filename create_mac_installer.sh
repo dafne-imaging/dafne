@@ -9,6 +9,8 @@ VERSION=`python update_version.py | tail -n 1`
 echo $VERSION
 pyinstaller dafne_mac.spec --noconfirm
 cd dist
+echo "Fixing app bundle"
+python ../fix_app_bundle_for_mac.py Dafne.app
 echo "Signing code"
 codesign --deep -s "Francesco" Dafne.app
 echo "Creating DMG"
