@@ -14,4 +14,4 @@ VERSION=`python update_version.py | tail -n1`
 echo $VERSION
 pyinstaller dafne_linux.spec --noconfirm
 cd dist
-tar czf "dafne_linux_$VERSION.tar.gz" dafne
+mv dafne "dafne_linux_$VERSION"
