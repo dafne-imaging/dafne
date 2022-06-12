@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Dafne"
-#define MyAppVersion "1.1-alpha5"
+#define MyAppVersion "1.1-alpha7"
 #define MyAppPublisher "Dafne-imaging"
 #define MyAppURL "https://www.dafne.network/"
 #define MyAppExeName "dafne.exe"
@@ -29,7 +29,7 @@ LicenseFile=C:\dafne\dafne\dist\dafne\LICENSE
 ;PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=C:\dafne
-OutputBaseFilename=dafne_setup
+OutputBaseFilename=dafne_windows_setup_1.1-alpha7
 SetupIconFile=C:\dafne\dafne\dafne_icon.ico
 Compression=lzma
 SolidCompression=yes

@@ -21,7 +21,11 @@ echo "Signing code"
 # Sign code outside MacOS
 find $APPNAME.app/Contents/Resources -name '*.dylib' | xargs codesign --force -v -s "$CODESIGN_IDENTITY"
 # sign the app
-codesign --deep --force -v --options=runtime -s "$CODESIGN_IDENTITY" $APPNAME.app
+codesign --deep --force -v -s "$CODESIGN_IDENTITY" $APPNAME.app
+
+# Resign the app with the correct entitlement
+codesign --force -o runtime --entitlements ../entitlements.plist -v -s "$CODESIGN_IDENTITY" $APPNAME.app
+
 echo "Creating DMG"
 create-dmg --volname "Dafne" --volicon $APPNAME.app/Contents/Resources/dafne_icon.icns \
 	 --eula $APPNAME.app/Contents/Resources/LICENSE --background ../mac_installer_bg.png \
