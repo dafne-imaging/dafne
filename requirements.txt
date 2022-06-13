@@ -1,15 +1,14 @@
-#h5py<3.0.0 # version 3.0.0 introduces an incompatibility with keras
-h5py # incompatibility seemingly resolved
+h5py
 numpy
 scipy
 matplotlib
 pyqt5
 nibabel
 pydicom
-#pypotrace # this is needed, but under Windows it must be provided separately
+pypotrace-windows ; sys_platform == "win32"
+pypotrace ; sys_platform != "win32"
 dill
 progress
-#keras==2.4.3 # now loaded from tensorflow
 tensorflow-gpu
 appdirs
 requests
