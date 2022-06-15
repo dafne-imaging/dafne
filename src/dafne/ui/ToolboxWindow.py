@@ -32,8 +32,11 @@ from .. import config
 import platform
 from . import BatchCalcTransforms
 import webbrowser
+from . import images as image_resources
 
 from .LogWindow import LogWindow
+
+assert sys.version_info.major == 3, "This software is only compatible with Python 3.x"
 
 if sys.version_info.minor < 10:
     import importlib_resources as pkg_resources
@@ -42,21 +45,19 @@ else:
 
 DOCUMENTATION_URL = 'https://www.dafne.network/documentation/'
 
-try:
-    UI_PATH = os.path.join(sys._MEIPASS, 'ui') # PyInstaller support
-except:
-    UI_PATH = os.path.dirname(os.path.abspath(__file__))
+from contextlib import contextmanager
 
-
+@contextmanager
 def _get_resource(file_name):
-    try:
-        return os.path.join(sys._MEIPASS, 'ui', 'images', file_name)  # PyInstaller support. If _MEIPASS is set, we are in a Pyinstaller environment
-    except:
-        return pkg_resources.as_file(pkg_resources.files('.images').joinpath('file_name')) # this is the pip/standard environment. Use pkg_resources
+    if getattr(sys, '_MEIPASS', None):
+        yield os.path.join(sys._MEIPASS, 'ui', 'images', file_name)  # PyInstaller support. If _MEIPASS is set, we are in a Pyinstaller environment
+    else:
+        with pkg_resources.as_file(pkg_resources.files(image_resources).joinpath(file_name)) as resource:
+            yield str(resource)
 
 
-SPLASH_ANIMATION_PATH = _get_resource('dafne_anim.gif')
-ABOUT_SVG_PATH = _get_resource('about_paths.svg')
+SPLASH_ANIMATION_FILE = 'dafne_anim.gif'
+ABOUT_SVG_FILE = 'about_paths.svg'
 
 UPLOAD_DATA_TXT_1 = \
 """<h2>!!! This will upload your data to our servers !!!</h2>
@@ -95,7 +96,8 @@ class AboutDialog(QDialog):
         self.setLayout(myLayout)
         self.setWindowTitle(f"About Dafne - version {config.VERSION}")
         self.setWindowModality(Qt.ApplicationModal)
-        svg = QSvgWidget(ABOUT_SVG_PATH)
+        with _get_resource(ABOUT_SVG_FILE) as svg_file:
+            svg = QSvgWidget(svg_file)
         myLayout.addWidget(svg)
         btn = QPushButton("OK")
         btn.clicked.connect(self.close)
@@ -236,10 +238,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         # reload the brush icons so that it works in with pyinstaller too. Check under windows!
         icon = QIcon()
-        icon.addPixmap(QPixmap(_get_resource('circle.png')), QIcon.Normal, QIcon.Off)
+        with _get_resource('circle.png') as f:
+            icon.addPixmap(QPixmap(f), QIcon.Normal, QIcon.Off)
         self.circlebrush_button.setIcon(icon)
         icon1 = QIcon()
-        icon1.addPixmap(QPixmap(_get_resource('square.png')), QIcon.Normal, QIcon.Off)
+        with _get_resource('square.png') as f:
+            icon1.addPixmap(QPixmap(f), QIcon.Normal, QIcon.Off)
         self.squarebrush_button.setIcon(icon1)
 
 
@@ -299,7 +303,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.grow_button.clicked.connect(self.mask_grow.emit)
         self.shrink_button.clicked.connect(self.mask_shrink.emit)
 
-        self.splash_movie = QMovie(SPLASH_ANIMATION_PATH)
+        with _get_resource(SPLASH_ANIMATION_FILE) as f:
+            self.splash_movie = QMovie(f)
         self.splash_label.setMovie(self.splash_movie)
 
         ## Menus

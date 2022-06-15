@@ -22,9 +22,7 @@ from appdirs import AppDirs
 APP_NAME='Dafne'
 APP_DEVELOPER='Dafne-imaging'
 
-APP_DIR = os.path.abspath(
-    os.path.join(
-        os.path.dirname(os.path.join(os.path.realpath(__file__))), os.pardir))
+APP_DIR = os.path.abspath(os.getcwd())
 
 DEBUG_ENVIRONMENT = os.path.isfile(os.path.join(APP_DIR, 'use_local_directories')) # this changes all the directory locations.
 # True means local directories, False means system standard
