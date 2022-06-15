@@ -40,6 +40,7 @@ if DEBUG_ENVIRONMENT:
     app_dirs.user_config_dir = os.path.join(APP_DIR, 'config')
     app_dirs.user_data_dir = APP_DIR
     app_dirs.user_cache_dir = APP_DIR
+    app_dirs.user_log_dir = APP_DIR
 else:
     print('Using system directories for configuration')
     app_dirs = AppDirs(APP_NAME, APP_DEVELOPER)
@@ -93,8 +94,8 @@ static_config = {
     'TEMP_UPLOAD_DIR': os.path.join(app_dirs.user_cache_dir, 'upload_temp'),
     'TEMP_DIR': os.path.join(app_dirs.user_cache_dir, 'temp'),
     'ENABLE_NIFTI': True,
-    'OUTPUT_LOG_FILE': os.path.join(app_dirs.user_cache_dir, 'dafne_output.log'),
-    'ERROR_LOG_FILE': os.path.join(app_dirs.user_cache_dir, 'dafne_error.log'),
+    'OUTPUT_LOG_FILE': os.path.join(app_dirs.user_log_dir, 'dafne_output.log'),
+    'ERROR_LOG_FILE': os.path.join(app_dirs.user_log_dir, 'dafne_error.log'),
     'REDIRECT_OUTPUT': True # redirect stdout/stderr to logfiles
 }
 
@@ -105,6 +106,7 @@ for k, v in static_config.items():
     GlobalConfig[k] = v
 
 os.makedirs(CONFIG_DIR, exist_ok=True)
+os.makedirs(app_dirs.user_log_dir, exist_ok=True)
 os.makedirs(GlobalConfig['MODEL_PATH'], exist_ok=True)
 os.makedirs(GlobalConfig['TEMP_UPLOAD_DIR'], exist_ok=True)
 os.makedirs(GlobalConfig['TEMP_DIR'], exist_ok=True)
