@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 #  Copyright (c) 2022 Dafne-Imaging Team
 import shutil
+import sys
+import os
 
-from src.dafne import VERSION
+sys.path.append(os.path.abspath(os.path.join('../..', 'src')))
+
+from dafne.config.config import VERSION
 
 shutil.move('dafne_win.iss', 'dafne_win.iss.old')
 
-with open('dafne_win.iss.old', 'r') as orig_file:
+with open('../dafne_win.iss.old', 'r') as orig_file:
     with open('dafne_win.iss', 'w') as new_file:
         for line in orig_file:
             if line.startswith('#define MyAppVersion'):
@@ -17,7 +21,7 @@ with open('dafne_win.iss.old', 'r') as orig_file:
                 new_file.write(line)
 
 shutil.move('dafne_mac.spec', 'dafne_mac.spec.old')
-with open('dafne_mac.spec.old', 'r') as orig_file:
+with open('../dafne_mac.spec.old', 'r') as orig_file:
     with open('dafne_mac.spec', 'w') as new_file:
         for line in orig_file:
             if 'version=' in line:

@@ -2,36 +2,34 @@
 
 block_cipher = None
 
-
 a_dafne = Analysis(['dafne.py'],
-             pathex=['/Users/francesco/dafne/dafne'],
-             binaries=[],
-             datas=[('LICENSE', '.'), ('ui/images/*', 'ui/images/')],
-             hiddenimports = ['pydicom', 
-              'SimpleITK',
-              'potrace.bezier',
-              'potrace.agg',
-              'potrace.agg.curves',
-              'tensorflow',
-              'skimage',
-              'nibabel',
-              'dl',
-              'cmath'],
-             hookspath=['.'],
+             pathex=['C:\\dafne\\dafne'],
+             binaries=[('libpotrace-0.dll', '.')],
+             datas=[('LICENSE', '.'), ('src\\dafne\\ui\\images\\*', 'ui\\images')],
+			 hiddenimports = ['pydicom', 
+				'SimpleITK',
+				'potrace.bezier',
+				'potrace.agg',
+				'potrace.agg.curves',
+				'tensorflow',
+				'skimage',
+				'nibabel',
+				'dl'],
+             hookspath=['pyinstaller_hooks'],
              runtime_hooks=[],
              excludes=[],
              win_no_prefer_redirects=False,
              win_private_assemblies=False,
              cipher=block_cipher,
              noarchive=False)
-
+			 
 a_calc_tra = Analysis(['calc_transforms.py'],
-             pathex=['/Users/francesco/dafne/dafne'],
+             pathex=['C:\\dafne\\dafne'],
              binaries=[],
              datas=[],
              hiddenimports=[
-              'pydicom', 
-              'SimpleITK'],
+			    'pydicom', 
+				'SimpleITK'],
              hookspath=[],
              runtime_hooks=[],
              excludes=[],
@@ -39,8 +37,8 @@ a_calc_tra = Analysis(['calc_transforms.py'],
              win_private_assemblies=False,
              cipher=block_cipher,
              noarchive=False) 
-
-MERGE( (a_dafne, 'dafne', 'dafne'), (a_calc_tra, 'calc_transforms', 'calc_transforms') )
+			
+MERGE( (a_dafne, 'dafne', 'dafne'), (a_calc_tra, 'calc_transforms', 'calc_transforms') )			
 
 pyz_dafne = PYZ(a_dafne.pure, a_dafne.zipped_data,
              cipher=block_cipher)
@@ -50,11 +48,11 @@ exe_dafne = EXE(pyz_dafne,
           exclude_binaries=True,
           name='dafne',
           debug=False,
-          icon='dafne_icon.ico',
           bootloader_ignore_signals=False,
           strip=False,
           upx=True,
-          console=False )
+          icon='dafne_icon.ico',
+          console=True)
 coll_dafne = COLLECT(exe_dafne,
                a_dafne.binaries,
                a_dafne.zipfiles,
@@ -63,6 +61,7 @@ coll_dafne = COLLECT(exe_dafne,
                upx=True,
                upx_exclude=[],
                name='dafne')
+
 
 pyz_calc_tra = PYZ(a_calc_tra.pure, a_calc_tra.zipped_data,
              cipher=block_cipher)
@@ -85,9 +84,4 @@ coll_calc_tra = COLLECT(exe_calc_tra,
                upx=True,
                upx_exclude=[],
                name='calc_transforms')
-
-app = BUNDLE(coll_dafne,
-    name='Dafne.app',
-    icon='dafne_icon.icns',
-    bundle_identifier='network.dafne.dafne',
-    version='1.1-alpha7')
+			   

@@ -49,7 +49,10 @@ except:
 
 
 def _get_resource(file_name):
-    pkg_resources.as_file(pkg_resources.files('.images').joinpath('file_name'))
+    try:
+        return os.path.join(sys._MEIPASS, 'ui', 'images', file_name)  # PyInstaller support. If _MEIPASS is set, we are in a Pyinstaller environment
+    except:
+        return pkg_resources.as_file(pkg_resources.files('.images').joinpath('file_name')) # this is the pip/standard environment. Use pkg_resources
 
 
 SPLASH_ANIMATION_PATH = _get_resource('dafne_anim.gif')
