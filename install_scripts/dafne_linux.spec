@@ -8,7 +8,7 @@ a = Analysis(
     ['dafne.py'],
     pathex=[],
     binaries=[],
-    datas=[('LICENSE', '.'), ('src/dafne/ui/images/*', 'ui/images/')],
+    datas=[('LICENSE', '.'), ('src/dafne/resources/*', 'resources/')],
     hiddenimports=['pydicom',
               'SimpleITK',
               'potrace.bezier',

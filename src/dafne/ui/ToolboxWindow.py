@@ -36,24 +36,9 @@ from . import images as image_resources
 
 from .LogWindow import LogWindow
 
-assert sys.version_info.major == 3, "This software is only compatible with Python 3.x"
-
-if sys.version_info.minor < 10:
-    import importlib_resources as pkg_resources
-else:
-    import importlib.resources as pkg_resources
+from ..utils.resource_utils import get_resource_path
 
 DOCUMENTATION_URL = 'https://www.dafne.network/documentation/'
-
-from contextlib import contextmanager
-
-@contextmanager
-def _get_resource(file_name):
-    if getattr(sys, '_MEIPASS', None):
-        yield os.path.join(sys._MEIPASS, 'ui', 'images', file_name)  # PyInstaller support. If _MEIPASS is set, we are in a Pyinstaller environment
-    else:
-        with pkg_resources.as_file(pkg_resources.files(image_resources).joinpath(file_name)) as resource:
-            yield str(resource)
 
 
 SPLASH_ANIMATION_FILE = 'dafne_anim.gif'
@@ -96,7 +81,7 @@ class AboutDialog(QDialog):
         self.setLayout(myLayout)
         self.setWindowTitle(f"About Dafne - version {config.VERSION}")
         self.setWindowModality(Qt.ApplicationModal)
-        with _get_resource(ABOUT_SVG_FILE) as svg_file:
+        with get_resource_path(ABOUT_SVG_FILE) as svg_file:
             svg = QSvgWidget(svg_file)
         myLayout.addWidget(svg)
         btn = QPushButton("OK")
@@ -238,11 +223,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         # reload the brush icons so that it works in with pyinstaller too. Check under windows!
         icon = QIcon()
-        with _get_resource('circle.png') as f:
+        with get_resource_path('circle.png') as f:
             icon.addPixmap(QPixmap(f), QIcon.Normal, QIcon.Off)
         self.circlebrush_button.setIcon(icon)
         icon1 = QIcon()
-        with _get_resource('square.png') as f:
+        with get_resource_path('square.png') as f:
             icon1.addPixmap(QPixmap(f), QIcon.Normal, QIcon.Off)
         self.squarebrush_button.setIcon(icon1)
 
@@ -303,7 +288,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.grow_button.clicked.connect(self.mask_grow.emit)
         self.shrink_button.clicked.connect(self.mask_shrink.emit)
 
-        with _get_resource(SPLASH_ANIMATION_FILE) as f:
+        with get_resource_path(SPLASH_ANIMATION_FILE) as f:
             self.splash_movie = QMovie(f)
         self.splash_label.setMovie(self.splash_movie)
 

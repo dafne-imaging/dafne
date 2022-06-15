@@ -5,7 +5,7 @@ block_cipher = None
 a_dafne = Analysis(['dafne.py'],
              pathex=['C:\\dafne\\dafne'],
              binaries=[('libpotrace-0.dll', '.')],
-             datas=[('LICENSE', '.'), ('src\\dafne\\ui\\images\\*', 'ui\\images')],
+             datas=[('LICENSE', '.'), ('src\\dafne\\resources\\*', 'resources\\')],
 			 hiddenimports = ['pydicom', 
 				'SimpleITK',
 				'potrace.bezier',

@@ -6,7 +6,7 @@ block_cipher = None
 a_dafne = Analysis(['dafne.py'],
              pathex=['/Users/francesco/dafne/dafne'],
              binaries=[],
-             datas=[('LICENSE', '.'), ('src/dafne/ui/images/*', 'ui/images/')],
+             datas=[('LICENSE', '.'), ('src/dafne/resources/*', 'resources/')],
              hiddenimports = ['pydicom', 
               'SimpleITK',
               'potrace.bezier',
