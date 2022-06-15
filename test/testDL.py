@@ -16,8 +16,8 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from dl.DynamicDLModel import DynamicDLModel
-from utils.dicomUtils import loadDicomFile
+from src.dafne_dl import DynamicDLModel
+from src.dafne.utils.dicomUtils import loadDicomFile
 #import numpy as np
 from test.plotSegmentations import plotSegmentations
 import matplotlib.pyplot as plt

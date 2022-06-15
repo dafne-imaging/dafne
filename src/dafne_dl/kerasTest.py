@@ -1,32 +1,19 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-#  Copyright (c) 2021 Dafne-Imaging Team
-#
-#  This program is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-from src.dafne_dl import DynamicDLModel
 
 
-def gamba_unet():
+def coscia_unet():
     
-    from tensorflow.keras import regularizers
+    from tensorflow.keras.layers import Layer, InputSpec
+    from tensorflow.keras import initializers, regularizers, constraints
     from tensorflow.keras.activations import softmax
-    from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, BatchNormalization, Concatenate, Lambda, \
-        Activation, Reshape, Add
-    from tensorflow.keras.models import Model
+    from tensorflow.keras.layers import Dense, Input, Conv2D, Conv2DTranspose, UpSampling2D, MaxPooling2D, Dropout, Flatten, BatchNormalization, Concatenate, Lambda, ZeroPadding2D, Activation, Reshape, Add
+    from tensorflow.keras.models import Sequential, Model
+    from tensorflow.keras.preprocessing.image import ImageDataGenerator
+    from tensorflow.keras.callbacks import ModelCheckpoint, Callback
+    from tensorflow.keras.utils import plot_model, Sequence
 
+    
     inputs=Input(shape=(432,432,2))
     weight_matrix=Lambda(lambda z: z[:,:,:,1])(inputs)
     weight_matrix=Reshape((432,432,1))(weight_matrix)
@@ -237,138 +224,43 @@ def gamba_unet():
     #Level1_r=InstanceNormalization(axis=-1)(Level1_r)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
     Level1_r=Add()([Level1_r,Level1_r_shortcut])
     Level1_r=Activation('relu')(Level1_r)
-    output=Conv2D(filters=7,kernel_size=(1,1),strides=1,kernel_regularizer=regularizers.l2(reg))(Level1_r)
+    output=Conv2D(filters=13,kernel_size=(1,1),strides=1,kernel_regularizer=regularizers.l2(reg))(Level1_r)
     #output=BatchNormalization(axis=-1)(output)
     output=Lambda(lambda x : softmax(x,axis=-1))(output)
     output=Concatenate(axis=-1)([output,weight_matrix])
     model=Model(inputs=inputs,outputs=output)
     return model
 
-def gamba_apply(modelObj: DynamicDLModel, data: dict):
-    from src.dafne_dl.common.padorcut import padorcut
-    from scipy.ndimage import zoom
-    try:
-        np
-    except:
-        import numpy as np
+#  Copyright (c) 2021 Dafne-Imaging Team
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+#  This program was supported by SNF Grant CRSK-3_196515
 
-    from src.dafne_dl.labels import long_labels as LABELS_DICT
-
-    MODEL_RESOLUTION = np.array([1.037037, 1.037037])
-    MODEL_SIZE = (432, 432)
-    netc = modelObj.model
-    resolution = np.array(data['resolution'])
-    zoomFactor = resolution/MODEL_RESOLUTION
-    img = data['image']
-    originalShape = img.shape
-    img = zoom(img, zoomFactor) # resample the image to the model resolution
-    img = padorcut(img, MODEL_SIZE)
-    segmentation = netc.predict(np.expand_dims(np.stack([img,np.zeros(MODEL_SIZE)],axis=-1),axis=0))
-    labelsMask = np.argmax(np.squeeze(segmentation[0,:,:,:7]), axis=2)
-    if (data['split_laterality']):
-        a1,a2,a3,a4,b1,b2=split_mirror(img)
-        labelsMask_left=np.zeros(MODEL_SIZE,dtype='float32')
-        labelsMask_right=np.zeros(MODEL_SIZE,dtype='float32')
-        labelsMask_left[int(b1):int(b2),int(a1):int(a2)]=labelsMask[int(b1):int(b2),int(a1):int(a2)]
-        labelsMask_right[int(b1):int(b2),int(a3):int(a4)]=labelsMask[int(b1):int(b2),int(a3):int(a4)]
-        labelsMask_left = zoom(labelsMask_left, 1/zoomFactor, order=0)
-        labelsMask_left = padorcut(labelsMask_left, originalShape).astype(np.int8)
-        labelsMask_right = zoom(labelsMask_right, 1/zoomFactor, order=0)
-        labelsMask_right = padorcut(labelsMask_right, originalShape).astype(np.int8)
-        outputLabels = {}
-        for labelValue, labelName in LABELS_DICT.items():
-            outputLabels[labelName+'_L'] = (labelsMask_left == labelValue).astype(np.int8)
-            outputLabels[labelName+'_R'] = (labelsMask_right == labelValue).astype(np.int8)
-    
-        return outputLabels
-    else:
-        labelsMask = zoom(labelsMask, 1/zoomFactor, order=0)
-        labelsMask = padorcut(labelsMask, originalShape).astype(np.int8)
-        outputLabels = {}
-        for labelValue, labelName in LABELS_DICT.items():
-            outputLabels[labelName] = (labelsMask == labelValue).astype(np.int8)
-    
-        return outputLabels
-
-
-def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,
-                        bs=5, minTrainImages=5):
-    import src.dafne_dl.common.preprocess_train as pretrain
-    from src.dafne_dl.common.DataGenerators import DataGeneratorMem
-    import os, time
-    from tensorflow.keras.callbacks import ModelCheckpoint
-    from tensorflow.keras import optimizers
-    try:
-        np
-    except:
-        import numpy as np
-
-    from src.dafne_dl.labels import inverse_labels as INVERSE_LABEL_DICT
-
-    MODEL_RESOLUTION = np.array([1.037037, 1.037037])
-    MODEL_SIZE = (432, 432)
-    BAND = 49
-    BATCH_SIZE = bs
-    CHECKPOINT_PATH = os.path.join(".", "Weights_incremental", "leg")
-    MIN_TRAINING_IMAGES = minTrainImages
-
-    os.makedirs(CHECKPOINT_PATH, exist_ok=True)
-
-    t = time.time()
-    print('Image preprocess')
-
-    image_list, mask_list = pretrain.common_input_process(INVERSE_LABEL_DICT, MODEL_RESOLUTION, MODEL_SIZE, trainingData,
-                                                          trainingOutputs)
-
-    print('Done. Elapsed', time.time() - t)
-    nImages = len(image_list)
-
-    if nImages < MIN_TRAINING_IMAGES:
-        print("Not enough images for training")
-        return
-
-    print("image shape", image_list[0].shape)
-    print("mask shape", mask_list[0].shape)
-
-    print('Weight calculation')
-    t = time.time()
-
-    output_data_structure = pretrain.input_creation_mem(image_list, mask_list, BAND)
-
-    print('Done. Elapsed', time.time() - t)
-
-    card = len(image_list)
-    steps = int(float(card) / BATCH_SIZE)
-
-    print(f'Incremental learning for leg with {nImages} images')
-    t = time.time()
-
-    netc = modelObj.model
-    checkpoint_files = os.path.join(CHECKPOINT_PATH, "weights - {epoch: 02d} - {loss: .2f}.hdf5")
-    training_generator = DataGeneratorMem(output_data_structure, list_X=list(range(steps * BATCH_SIZE)),
-                                          batch_size=BATCH_SIZE, dim=MODEL_SIZE)
-    # check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=False,save_weights_only=True, mode='auto', period=10)
-    check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=False,
-                            save_freq='epoch',
-                            save_weights_only=True, mode='auto')
-    adamlr = optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=True)
-    netc.compile(loss=pretrain.weighted_loss, optimizer=adamlr)
-    # history = netc.fit_generator(generator=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check], verbose=1)
-    history = netc.fit(x=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check], verbose=1)
-    print('Done. Elapsed', time.time() - t)
-
-
-model = gamba_unet()
-model.load_weights('weights/weights_gamba.hdf5')
-weights = model.get_weights()
-
-modelObject = DynamicDLModel('ba333b4d-90e7-4108-aca5-9216f408d91e',
-                             gamba_unet,
-                             gamba_apply,
-                             incremental_learn_function=leg_incremental_mem,
-                             weights=weights,
-                             timestamp_id="1603281013"
-                             )
-
-with open('models/Leg_1603281013.model', 'wb') as f:
-    modelObject.dump(f)
+import dill
+with open('functest.dil', 'wb') as f:
+    dill.dump(coscia_unet, f)

@@ -16,21 +16,17 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from dl.DynamicDLModel import DynamicDLModel
-import numpy as np # this is assumed to be available in every context
+from src.dafne_dl import DynamicDLModel
+
 
 def coscia_unet():
     
-    from tensorflow.keras.layers import Layer, InputSpec
-    from tensorflow.keras import initializers, regularizers, constraints
+    from tensorflow.keras import regularizers
     from tensorflow.keras.activations import softmax
-    from tensorflow.keras.layers import Dense, Input, Conv2D, Conv2DTranspose, UpSampling2D, MaxPooling2D, Dropout, Flatten, BatchNormalization, Concatenate, Lambda, ZeroPadding2D, Activation, Reshape, Add
-    from tensorflow.keras.models import Sequential, Model
-    from tensorflow.keras.preprocessing.image import ImageDataGenerator
-    from tensorflow.keras.callbacks import ModelCheckpoint, Callback
-    from tensorflow.keras.utils import plot_model, Sequence
+    from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, BatchNormalization, Concatenate, Lambda, \
+        Activation, Reshape, Add
+    from tensorflow.keras.models import Model
 
-    
     inputs=Input(shape=(432,432,2))
     weight_matrix=Lambda(lambda z: z[:,:,:,1])(inputs)
     weight_matrix=Reshape((432,432,1))(weight_matrix)
@@ -249,15 +245,15 @@ def coscia_unet():
     return model
 
 def coscia_apply(modelObj: DynamicDLModel, data: dict):
-    from dl.common.padorcut import padorcut
-    from dl.common.preprocess_train import split_mirror
+    from src.dafne_dl.common.padorcut import padorcut
+    from src.dafne_dl.common.preprocess_train import split_mirror
     from scipy.ndimage import zoom
     try:
         np
     except:
         import numpy as np
 
-    from dl.labels.thigh import long_labels as LABELS_DICT
+    from src.dafne_dl.labels import long_labels as LABELS_DICT
     
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
@@ -298,8 +294,8 @@ def coscia_apply(modelObj: DynamicDLModel, data: dict):
 
 def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,
                           bs=5, minTrainImages=5):
-    import dl.common.preprocess_train as pretrain
-    from dl.common.DataGenerators import DataGeneratorMem
+    import src.dafne_dl.common.preprocess_train as pretrain
+    from src.dafne_dl.common.DataGenerators import DataGeneratorMem
     import os
     from tensorflow.keras.callbacks import ModelCheckpoint
     from tensorflow.keras import optimizers
@@ -309,7 +305,7 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
     except:
         import numpy as np
 
-    from dl.labels.thigh import inverse_labels
+    from src.dafne_dl.labels import inverse_labels
 
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)

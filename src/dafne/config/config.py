@@ -15,9 +15,8 @@
 
 import os
 import pickle
-from sys import platform
 
-from ui import GenericInputDialog
+from ..ui import GenericInputDialog
 from appdirs import AppDirs
 
 APP_NAME='Dafne'

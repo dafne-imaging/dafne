@@ -1,11 +1,10 @@
 from PyQt5 import Qt
 from PyQt5.QtCore import pyqtSlot
-from PyQt5.QtWidgets import QMainWindow, QDialog
+from PyQt5.QtWidgets import QDialog
 
-from config import GlobalConfig
-from ui.LogWindowUI import Ui_LogWindow
+from ..ui.LogWindowUI import Ui_LogWindow
 
-from utils.log import log_objects
+from ..utils.log import log_objects
 
 
 class LogWindow(QDialog, Ui_LogWindow):

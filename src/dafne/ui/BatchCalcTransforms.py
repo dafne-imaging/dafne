@@ -21,10 +21,10 @@ from PyQt5.QtCore import pyqtSlot, pyqtSignal
 from .CalcTransformsUI import Ui_CalcTransformsUI
 import os
 import numpy as np
-from utils.RegistrationManager import RegistrationManager
-from utils.dicomUtils.misc import dosma_volume_from_path
-from utils.ThreadHelpers import separate_thread_decorator
-from config import GlobalConfig
+from ..utils.RegistrationManager import RegistrationManager
+from ..utils.dicomUtils.misc import dosma_volume_from_path
+from ..utils.ThreadHelpers import separate_thread_decorator
+from ..config import GlobalConfig
 import sys
 
 

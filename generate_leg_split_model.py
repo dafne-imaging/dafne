@@ -18,8 +18,8 @@
 import shutil
 import sys
 
-from dl.DynamicDLModel import DynamicDLModel
-import numpy as np # this is assumed to be available in every context
+from src.dafne_dl import DynamicDLModel
+
 
 def gamba_unet():
     
@@ -217,17 +217,16 @@ def gamba_unet():
     return model
 
 def gamba_apply(modelObj: DynamicDLModel, data: dict):
-    from dl.common.padorcut import padorcut
-    import dl.common.biascorrection as biascorrection
-    import dl.common.preprocess_train as pretrain
-    from dl.common.preprocess_train import split_mirror
+    from src.dafne_dl.common.padorcut import padorcut
+    import src.dafne_dl.common.biascorrection as biascorrection
+    from src.dafne_dl.common.preprocess_train import split_mirror
     from scipy.ndimage import zoom
     try:
         np
     except:
         import numpy as np
 
-    from dl.labels.leg import long_labels as LABELS_DICT
+    from src.dafne_dl.labels import long_labels as LABELS_DICT
     
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
@@ -280,7 +279,7 @@ def gamba_apply(modelObj: DynamicDLModel, data: dict):
 
     # two sides
     img = padorcut(img, MODEL_SIZE)
-    imgbc=biascorrection.biascorrection_image(img)
+    imgbc= biascorrection.biascorrection_image(img)
     a1,a2,a3,a4,b1,b2=split_mirror(imgbc)
     left=imgbc[int(b1):int(b2),int(a1):int(a2)]
     left=padorcut(left, MODEL_SIZE_SPLIT)
@@ -315,9 +314,9 @@ def gamba_apply(modelObj: DynamicDLModel, data: dict):
 
 def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,
                         bs=5, minTrainImages=5):
-    import dl.common.preprocess_train as pretrain
-    from dl.common.DataGenerators import DataGeneratorMem
-    import os, time
+    import src.dafne_dl.common.preprocess_train as pretrain
+    from src.dafne_dl.common.DataGenerators import DataGeneratorMem
+    import time
     #from keras.callbacks import ModelCheckpoint
     from tensorflow.keras import optimizers
     try:
@@ -325,7 +324,7 @@ def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOu
     except:
         import numpy as np
 
-    from dl.labels.leg import inverse_labels
+    from src.dafne_dl.labels import inverse_labels
 
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)

@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 #  Copyright (c) 2021 Dafne-Imaging Team
 #
 #  This program is free software: you can redistribute it and/or modify
@@ -16,18 +13,9 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from src.dafne import show_config_dialog, save_config, load_config
+def invert_dict(d):
+    return { v:k for k,v in d.items() }
 
-import sys
-from PyQt5.QtWidgets import QApplication
-
-app = QApplication(sys.argv)
-app.setQuitOnLastWindowClosed(True)
-
-load_config()
-accepted = show_config_dialog(None, True)
-if accepted:
-    save_config()
-    print('Configuration saved')
-else:
-    print('Aborted')
+# the nice union operator was introduced in python 3.9. Let's be compatible with older versions too
+def merge_dict(a,b):
+    return { **a, **b }

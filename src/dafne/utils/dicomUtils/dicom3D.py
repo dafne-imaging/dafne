@@ -118,4 +118,4 @@ def save3dDicom(volume, info, path, newSeriesNumber = None, newSeriesDescription
 
 # test
 if __name__ == '__main__':
-    data, info = load3dDicom('.')    
+    data, info = load3dDicom('')

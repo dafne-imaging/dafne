@@ -15,7 +15,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from dl.LocalModelProvider import LocalModelProvider
+from src.dafne_dl import LocalModelProvider
 import numpy as np
 import pickle
 

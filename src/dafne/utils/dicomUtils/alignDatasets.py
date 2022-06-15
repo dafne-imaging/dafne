@@ -27,7 +27,7 @@ except:
         
 ERROR_TOL = 1e-4
 
-from dl.common.padorcut import padorcut
+from ..dl.common.padorcut import padorcut
 
 # code by Satya Mallick from https://www.learnopencv.com/rotation-matrix-to-euler-angles/
 # Checks if a matrix is a valid rotation matrix.

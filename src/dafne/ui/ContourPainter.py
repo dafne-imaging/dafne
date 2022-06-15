@@ -14,7 +14,7 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from matplotlib.patches import Circle, Polygon
-from utils.pySplineInterp import SplineInterpROIClass
+from ..utils.pySplineInterp import SplineInterpROIClass
 
 MIN_KNOT_RADIUS = 0.5 # if radius is smaller than this, knots are not painted
 

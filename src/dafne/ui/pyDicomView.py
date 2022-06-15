@@ -18,8 +18,6 @@
 
 import matplotlib
 import matplotlib.pyplot as plt
-import pydicom.filereader
-from PyQt5.QtWidgets import QInputDialog
 
 try:
     import pydicom as dicom
@@ -46,12 +44,9 @@ except:
         RIGHT = 3
 
 try:
-    from utils.dicomUtils.misc import dosma_volume_from_path
+    from ..utils.dicomUtils.misc import dosma_volume_from_path
 except:
     from dicomUtils.misc import dosma_volume_from_path
-
-import dosma
-from dosma.core.io.dicom_io import to_RAS_affine
 
 DEFAULT_INTERPOLATION = 'spline36'
 # DEFAULT_INTERPOLATION = 'none' # DEBUG

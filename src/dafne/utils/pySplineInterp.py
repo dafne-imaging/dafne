@@ -19,9 +19,7 @@ from numpy import linalg
 from scipy.interpolate import splprep, splev
 import numpy as np
 import matplotlib as mpl
-import matplotlib.pyplot as plt
-from matplotlib.patches import Circle, Polygon
-from utils.polyToMask import polyToMask
+from ..utils.polyToMask import polyToMask
 import scipy.ndimage as ndimage
 import time
 #import similaritymeasures

@@ -17,49 +17,48 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import matplotlib
 
-from utils.dicomUtils.misc import realign_medical_volume, dosma_volume_from_path
+from ..utils.dicomUtils.misc import realign_medical_volume, dosma_volume_from_path
 from . import GenericInputDialog
 
 matplotlib.use("Qt5Agg")
 
 import os, time, math, sys
 
-from config import GlobalConfig, load_config
+from ..config import GlobalConfig, load_config
 load_config()
 
 from .ToolboxWindow import ToolboxWindow
 from .pyDicomView import ImageShow
-from utils.mask_utils import save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks, \
+from ..utils.mask_utils import save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks, \
     save_single_dicom_dataset, save_single_nifti
-from dl.misc import calc_dice_score
+from dafne_dl.misc import calc_dice_score
 import matplotlib.pyplot as plt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 import shutil
 from datetime import datetime
-from utils.ROIManager import ROIManager
+from ..utils.ROIManager import ROIManager
 
 import numpy as np
 import scipy.ndimage as ndimage
 from scipy.ndimage.morphology import binary_dilation, binary_erosion
-#import pickle
-import utils.compressed_pickle as pickle
+from ..utils import compressed_pickle as pickle
 import os.path
 from collections import deque
 import functools
 import csv
 
-from utils.ThreadHelpers import separate_thread_decorator
+from ..utils.ThreadHelpers import separate_thread_decorator
 
 from .BrushPatches import SquareBrush, PixelatedCircleBrush
 from .ContourPainter import ContourPainter
 import traceback
 
-from dl.LocalModelProvider import LocalModelProvider
-from dl.RemoteModelProvider import RemoteModelProvider
+from dafne_dl.LocalModelProvider import LocalModelProvider
+from dafne_dl.RemoteModelProvider import RemoteModelProvider
 
-from utils.RegistrationManager import RegistrationManager
+from ..utils.RegistrationManager import RegistrationManager
 
 import requests
 
@@ -73,7 +72,6 @@ try:
 except:
     radiomics = None
 
-import re
 import subprocess
 
 if os.name == 'posix':

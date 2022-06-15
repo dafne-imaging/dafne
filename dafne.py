@@ -18,14 +18,12 @@
 
 import os
 # Hide tensorflow warnings; set to 1 to see warnings
-from utils import log
+from src.dafne.utils import log
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # or any {'0', '1', '2', '3'}
 
-from ui.MuscleSegmentation import MuscleSegmentation
-from dl.LocalModelProvider import LocalModelProvider
-from dl.RemoteModelProvider import RemoteModelProvider
-from config import GlobalConfig, load_config
+from src.dafne.ui.MuscleSegmentation import MuscleSegmentation
+from src.dafne import GlobalConfig, load_config
 
 import matplotlib
 matplotlib.use("Qt5Agg")

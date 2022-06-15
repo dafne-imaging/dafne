@@ -19,7 +19,7 @@
 import numpy as np
 import pickle
 from generate_thigh_model import coscia_unet as unet
-import dl.common.preprocess_train as pretrain
+import src.dafne_dl.common.preprocess_train as pretrain
 
 model=unet()
 #model.load_weights('weights/weights_coscia.hdf5') ## old

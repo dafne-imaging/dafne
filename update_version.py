@@ -2,7 +2,7 @@
 #  Copyright (c) 2022 Dafne-Imaging Team
 import shutil
 
-from config import VERSION
+from src.dafne import VERSION
 
 shutil.move('dafne_win.iss', 'dafne_win.iss.old')
 

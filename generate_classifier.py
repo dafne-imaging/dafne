@@ -16,20 +16,14 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from dl.DynamicDLModel import DynamicDLModel
-import numpy as np # this is assumed to be available in every context
+from src.dafne_dl import DynamicDLModel
+
 
 def class_unet():
-    from tensorflow.keras.layers import Layer, InputSpec
-    from tensorflow.keras import initializers, regularizers, constraints
-    from tensorflow.keras.activations import softmax
-    from tensorflow.keras.layers import Dense, Input, Conv2D, Conv2DTranspose, UpSampling2D, MaxPooling2D, Dropout, Flatten, BatchNormalization, Concatenate, Lambda, ZeroPadding2D, Activation, Reshape, Add
-    from tensorflow.keras.models import Sequential, Model
-    from tensorflow.keras.preprocessing.image import ImageDataGenerator
-    from tensorflow.keras.callbacks import ModelCheckpoint, Callback
-    from tensorflow.keras.utils import plot_model, Sequence
+    from tensorflow.keras import regularizers
+    from tensorflow.keras.layers import Dense, Input, Conv2D, Flatten, BatchNormalization, Activation, Reshape, Add
+    from tensorflow.keras.models import Model
 
-    
     inputs=Input(shape=(128,128))
     reshape=Reshape((128,128,1))(inputs)
 
@@ -131,7 +125,7 @@ def class_unet():
     return model
 
 def class_apply(modelObj: DynamicDLModel, data: dict):
-    from dl.common.padorcut import padorcut
+    from src.dafne_dl.common.padorcut import padorcut
     from scipy.ndimage import zoom
     try:
         np

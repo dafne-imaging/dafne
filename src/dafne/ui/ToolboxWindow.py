@@ -21,21 +21,19 @@ import functools
 import os
 import sys
 
-from ui.ToolboxUI import Ui_SegmentationToolbox
+from ..ui.ToolboxUI import Ui_SegmentationToolbox
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt
 from PyQt5.QtGui import QMovie, QIcon, QPixmap
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog, QApplication, QDialog, \
                             QVBoxLayout, QPushButton, QTableWidget, QTableWidgetItem
 from PyQt5.QtSvg import QSvgWidget
 from . import GenericInputDialog
-import config
+from .. import config
 import platform
-from utils.ThreadHelpers import separate_thread_decorator
 from . import BatchCalcTransforms
 import webbrowser
 
 from .LogWindow import LogWindow
-from .pyDicomView import INVERT_SCROLL
 
 DOCUMENTATION_URL = 'https://www.dafne.network/documentation/'
 
@@ -348,7 +346,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.reload_config()
         self.config_changed.connect(self.reload_config)
 
-        self.opacitySlider.setValue(config.GlobalConfig['MASK_LAYER_ALPHA']*100)
+        self.opacitySlider.setValue(config.GlobalConfig['MASK_LAYER_ALPHA'] * 100)
         self.opacitySlider.valueChanged.connect(self.set_opacity_config)
 
         self.general_enable(False)
@@ -843,7 +841,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             if config.GlobalConfig['USE_CLASSIFIER']:
                 classifications.insert(0, ('Automatic', ''))
             accepted, chosen_class = GenericInputDialog.show_dialog("Choose classification",
-                                                          [GenericInputDialog.OptionInput("Classification", classifications)])
+                                                                    [GenericInputDialog.OptionInput("Classification", classifications)])
             if not accepted:
                 return
             self.data_open.emit(dataFile, chosen_class[0])
@@ -899,9 +897,10 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     @pyqtSlot()
     def calculate_radiomics(self):
         accept, radiomics_props = GenericInputDialog.show_dialog('PyRadiomics Options',
-                    [GenericInputDialog.BooleanInput('Quantize gray levels', True),
-                     GenericInputDialog.IntSpinInput('Quantization levels', 32, 0, 1024),
-                     GenericInputDialog.IntSliderInput('Mask erosion (px)', 0)], self)
+                                                                 [
+                                                                     GenericInputDialog.BooleanInput('Quantize gray levels', True),
+                                                                     GenericInputDialog.IntSpinInput('Quantization levels', 32, 0, 1024),
+                                                                     GenericInputDialog.IntSliderInput('Mask erosion (px)', 0)], self)
 
         if not accept: return
         file_out, _ = QFileDialog.getSaveFileName(self, caption='Select csv file to save the statistics',
@@ -911,8 +910,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
 
     @pyqtSlot()
-    @ask_confirm(f'This action will improve the model through incremental learning.\n'+
-                 f'At least {config.GlobalConfig["IL_MIN_SLICES"]} slices are required for the operation.\n'+
+    @ask_confirm(f'This action will improve the model through incremental learning.\n' +
+                 f'At least {config.GlobalConfig["IL_MIN_SLICES"]} slices are required for the operation.\n' +
                  f'It might take a few minutes. Continue?')
     def do_incremental_learn(self):
         self.incremental_learn.emit()

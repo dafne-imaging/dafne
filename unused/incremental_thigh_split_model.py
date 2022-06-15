@@ -16,7 +16,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from dl.DynamicDLModel import DynamicDLModel
+from src.dafne_dl import DynamicDLModel
 import numpy as np # this is assumed to be available in every context
 
 def coscia_unet():
@@ -274,7 +274,7 @@ class DataGenerator(Sequence):
 
 def thigh_incremental(modelObj: DynamicDLModel, trainingdata: dict, trainingoutputs):
     from unused.create_train import create_train_thigh
-    import dl.common.preprocess_train as pretrain
+    import src.dafne_dl.common.preprocess_train as pretrain
     import os
     import math
     from tensorflow.keras.callbacks import ModelCheckpoint

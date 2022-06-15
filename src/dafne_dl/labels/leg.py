@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 #  Copyright (c) 2021 Dafne-Imaging Team
 #
 #  This program is free software: you can redistribute it and/or modify
@@ -16,18 +13,31 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from src.dafne import show_config_dialog, save_config, load_config
+from .utils import invert_dict, merge_dict
 
-import sys
-from PyQt5.QtWidgets import QApplication
+short_labels = {
+    1: 'SOL',
+    2: 'GM',
+    3: 'GL',
+    4: 'TA',
+    5: 'ELD',
+    6: 'PE',
+}
 
-app = QApplication(sys.argv)
-app.setQuitOnLastWindowClosed(True)
+long_labels = {
+    1: 'Soleus',
+    2: 'Gastrocnemius Medialis',
+    3: 'Gastrocnemius Lateralis',
+    4: 'Tibialis Anterior',
+    5: 'Extensor Longus Digitorum',
+    6: 'Peroneus'
+}
 
-load_config()
-accepted = show_config_dialog(None, True)
-if accepted:
-    save_config()
-    print('Configuration saved')
-else:
-    print('Aborted')
+long_labels_split = {}
+ctr = 1
+for key, val in long_labels.items():
+    long_labels_split[ctr] = val + "_R"
+    long_labels_split[ctr+1] = val + "_L"
+    ctr += 2
+
+inverse_labels = merge_dict(invert_dict(short_labels), invert_dict(long_labels))
