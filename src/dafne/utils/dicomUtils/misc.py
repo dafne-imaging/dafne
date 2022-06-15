@@ -21,10 +21,10 @@ import pydicom
 import pydicom as dicom
 import numpy as np
 from PyQt5.QtWidgets import QInputDialog
-from dosma.core.io.dicom_io import to_RAS_affine
+from muscle_bids.dosma_io import NiftiReader
+from muscle_bids.dosma_io.io.dicom_io import to_RAS_affine, DicomReader
 from scipy.ndimage import map_coordinates
-import dosma
-from dosma.core import MedicalVolume
+from muscle_bids import MedicalVolume
 import os
 
 from .multiframe import is_enhanced_dicom, is_multi_dicom, convert_to_slices, load_multi_dicom
@@ -106,7 +106,7 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
         title = basepath
 
     elif ext.lower() in nii_ext:
-        niiReader = dosma.NiftiReader()
+        niiReader = NiftiReader()
         medical_volume = niiReader.load(path)
         if reorient_data:
             desired_orientation, accept = QInputDialog.getItem(parent_qobject,
@@ -151,7 +151,7 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
                     data, header_list = convert_to_slices(dataset)
 
                 affine = to_RAS_affine(header_list)
-                medical_volume = dosma.core.MedicalVolume(data, affine, header_list)
+                medical_volume = MedicalVolume(data, affine, header_list)
                 affine_valid = True
                 title = os.path.basename(path)
                 load_dicom_dir = False
@@ -168,7 +168,7 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
 
         if load_dicom_dir:
             try:
-                dr = dosma.DicomReader(num_workers=0, group_by=None, ignore_ext=True)
+                dr = DicomReader(num_workers=0, group_by=None, ignore_ext=True)
                 medical_volume = dr.load(basepath)[0]
                 affine_valid = True
             except:
@@ -210,7 +210,7 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
                     header_list.append(dFile)
                 data = np.stack(threeDlist, axis=2)
                 affine = to_RAS_affine(header_list)
-                medical_volume = dosma.core.MedicalVolume(data, affine, header_list)
+                medical_volume = MedicalVolume(data, affine, header_list)
                 affine_valid = True
 
     return medical_volume, affine_valid, title, basepath, basename

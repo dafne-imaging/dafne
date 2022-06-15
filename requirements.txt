@@ -15,4 +15,5 @@ requests
 scikit-image
 SimpleITK-SimpleElastix # Own distribution including elastix
 pyradiomics # optional requirement
-dosma
+muscle-bids
+importlib_resources ; python_version < "3.10"

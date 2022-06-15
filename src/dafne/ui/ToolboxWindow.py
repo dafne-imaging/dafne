@@ -35,6 +35,11 @@ import webbrowser
 
 from .LogWindow import LogWindow
 
+if sys.version_info.minor < 10:
+    import importlib_resources as pkg_resources
+else:
+    import importlib.resources as pkg_resources
+
 DOCUMENTATION_URL = 'https://www.dafne.network/documentation/'
 
 try:
@@ -42,8 +47,13 @@ try:
 except:
     UI_PATH = os.path.dirname(os.path.abspath(__file__))
 
-SPLASH_ANIMATION_PATH = os.path.join(UI_PATH, "images", "dafne_anim.gif")
-ABOUT_SVG_PATH = os.path.join(UI_PATH, "images", "about_paths.svg")
+
+def _get_resource(file_name):
+    pkg_resources.as_file(pkg_resources.files('.images').joinpath('file_name'))
+
+
+SPLASH_ANIMATION_PATH = _get_resource('dafne_anim.gif')
+ABOUT_SVG_PATH = _get_resource('about_paths.svg')
 
 UPLOAD_DATA_TXT_1 = \
 """<h2>!!! This will upload your data to our servers !!!</h2>
@@ -223,10 +233,10 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         # reload the brush icons so that it works in with pyinstaller too. Check under windows!
         icon = QIcon()
-        icon.addPixmap(QPixmap(os.path.join(UI_PATH, 'images', 'circle.png')), QIcon.Normal, QIcon.Off)
+        icon.addPixmap(QPixmap(_get_resource('circle.png')), QIcon.Normal, QIcon.Off)
         self.circlebrush_button.setIcon(icon)
         icon1 = QIcon()
-        icon1.addPixmap(QPixmap(os.path.join(UI_PATH, 'images', 'square.png')), QIcon.Normal, QIcon.Off)
+        icon1.addPixmap(QPixmap(_get_resource('square.png')), QIcon.Normal, QIcon.Off)
         self.squarebrush_button.setIcon(icon1)
 
 

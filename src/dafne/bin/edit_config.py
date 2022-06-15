@@ -1,4 +1,7 @@
-#  Copyright (c) 2021 Dafne-Imaging Team
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+#  Copyright (c) 2022 Dafne-Imaging Team
 #
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -13,5 +16,19 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# -*- coding: utf-8 -*-
+from ..config.config import show_config_dialog, save_config, load_config
 
+import sys
+from PyQt5.QtWidgets import QApplication
+
+def main():
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(True)
+
+    load_config()
+    accepted = show_config_dialog(None, True)
+    if accepted:
+        save_config()
+        print('Configuration saved')
+    else:
+        print('Aborted')

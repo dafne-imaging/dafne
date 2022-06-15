@@ -15,12 +15,13 @@
 
 import os
 import numpy as np
-import dosma
+from muscle_bids.dosma_io import DicomWriter, NiftiWriter
+from muscle_bids import MedicalVolume
 from matplotlib import pyplot as plt
 
 
 def save_dicom_masks(base_path: str, mask_dict: dict, affine, dicom_headers: list):
-    dicom_writer = dosma.DicomWriter(num_workers=0)
+    dicom_writer = DicomWriter(num_workers=0)
     for name, mask in mask_dict.items():
         n = name.strip()
         if n == '': n = '_'
@@ -29,7 +30,7 @@ def save_dicom_masks(base_path: str, mask_dict: dict, affine, dicom_headers: lis
             os.makedirs(dicom_path)
         except OSError:
             pass
-        medical_volume = dosma.core.MedicalVolume(mask.astype(np.uint16), affine, dicom_headers)
+        medical_volume = MedicalVolume(mask.astype(np.uint16), affine, dicom_headers)
         dicom_writer.save(medical_volume, dicom_path, fname_fmt='image%04d.dcm')
 
 
@@ -44,10 +45,10 @@ def save_npz_masks(filename, mask_dict):
 
 
 def save_nifti_masks(base_path, mask_dict, affine):
-    nifti_writer = dosma.NiftiWriter()
+    nifti_writer = NiftiWriter()
     for name, mask in mask_dict.items():
         nifti_name = os.path.join(base_path, name + '.nii.gz')
-        medical_volume = dosma.core.MedicalVolume(mask.astype(np.uint16), affine)
+        medical_volume = MedicalVolume(mask.astype(np.uint16), affine)
         nifti_writer.save(medical_volume, nifti_name)
 
 
@@ -106,20 +107,20 @@ def write_itksnap_legend(filename, name_list):
 
 
 def save_single_nifti(filename, mask_dict, affine):
-    nifti_writer = dosma.NiftiWriter()
+    nifti_writer = NiftiWriter()
     accumulated_mask, name_list = make_accumulated_mask(mask_dict)
     legend_name = filename + '.csv'
     snap_legend_name = filename + '_itk-snap.txt'
-    medical_volume = dosma.core.MedicalVolume(accumulated_mask.astype(np.uint16), affine)
+    medical_volume = MedicalVolume(accumulated_mask.astype(np.uint16), affine)
     nifti_writer.save(medical_volume, filename)
     write_legend(legend_name, name_list)
     write_itksnap_legend(snap_legend_name, name_list)
 
 
 def save_single_dicom_dataset(base_path, mask_dict, affine, dicom_headers: list):
-    dicom_writer = dosma.DicomWriter(num_workers=0)
+    dicom_writer = DicomWriter(num_workers=0)
     accumulated_mask, name_list = make_accumulated_mask(mask_dict)
-    medical_volume = dosma.core.MedicalVolume(accumulated_mask.astype(np.uint16), affine, dicom_headers)
+    medical_volume = MedicalVolume(accumulated_mask.astype(np.uint16), affine, dicom_headers)
     try:
         os.makedirs(base_path)
     except OSError:

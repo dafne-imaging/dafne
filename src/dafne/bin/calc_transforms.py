@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 #  Copyright (c) 2021 Dafne-Imaging Team
 #
 #  This program is free software: you can redistribute it and/or modify
@@ -13,4 +16,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from ..ui.BatchCalcTransforms import run
 
+def main():
+    run()

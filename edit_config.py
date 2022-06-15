@@ -1,33 +1,20 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+#  Copyright (c) 2022 Dafne-Imaging Team
+# generic stub for executable scripts residing in bin.
+# This code will execute the main function of a script residing in bin having the same name as the script.
+# The main function must be named "main" and must be in the global scope.
 
-#  Copyright (c) 2021 Dafne-Imaging Team
-#
-#  This program is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-from src.dafne import show_config_dialog, save_config, load_config
-
+import os
 import sys
-from PyQt5.QtWidgets import QApplication
+import importlib
 
-app = QApplication(sys.argv)
-app.setQuitOnLastWindowClosed(True)
+sys.path.append(os.path.abspath('src'))
 
-load_config()
-accepted = show_config_dialog(None, True)
-if accepted:
-    save_config()
-    print('Configuration saved')
-else:
-    print('Aborted')
+this_script = os.path.basename(__file__)
+this_script_name = os.path.splitext(this_script)[0]
+
+import_module_name = f'dafne.bin.{this_script_name}'
+
+i = importlib.import_module(import_module_name)
+
+if __name__ == '__main__':
+    i.main()
