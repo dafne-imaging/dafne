@@ -19,7 +19,7 @@
 import matplotlib
 import matplotlib.pyplot as plt
 import pydicom.filereader
-from PyQt5.QtWidgets import QInputDialog
+from PyQt5.QtWidgets import QInputDialog, QMessageBox
 
 try:
     import pydicom as dicom
@@ -178,6 +178,16 @@ class ImageShow:
             oldSize = (-1, -1)
 
         # im can be an integer index in the imList
+        if im is None:
+            try:
+                self.imPlot.set_data(np.zeros((0, 0)))
+            except:
+                pass
+            try:
+                self.axes.set_title('')
+            except:
+                pass
+            return
         if isinstance(im, int):
             if im >= 0 and im < len(self.imList):
                 self.curImage = im
@@ -477,17 +487,15 @@ class ImageShow:
 
     # load a whole directory of dicom files
     def loadDirectory(self, path):
+
+        medical_volume, affine_valid, title, basepath, basename = dosma_volume_from_path(path, self.fig.canvas)
+
         self.imList = []
         self.dicomHeaderList = None
         self.medical_volume = None
         self.affine = None
         self.resolution_valid = False
         self.resolution = [1, 1, 1]
-
-        try:
-            medical_volume, affine_valid, title, basepath, basename = dosma_volume_from_path(path, self.fig.canvas)
-        except TypeError:
-            return
 
         self.load_dosma_volume(medical_volume)
         self.resolution_valid = affine_valid
@@ -505,6 +513,7 @@ class ImageShow:
             self.displayImage(int(0))
             self.axes.set_xlim(-0.5, self.image.shape[1] - 0.5)
             self.axes.set_ylim(self.image.shape[0] - 0.5, -0.5)
+
 
 
 # when called as a script, load all the images in the directory

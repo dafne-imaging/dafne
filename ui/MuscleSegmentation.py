@@ -377,7 +377,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.toolbox_window.reblit.connect(self.do_reblit)
 
-    def setSplash(self, is_splash, current_value, maximum_value, text= ""):
+    def setSplash(self, is_splash, current_value = 0, maximum_value = 1, text= ""):
         self.splash_signal.emit(is_splash, current_value, maximum_value, text)
 
     #dis/enable interface callbacks
@@ -1788,12 +1788,28 @@ class MuscleSegmentation(ImageShow, QObject):
     @pyqtSlot(str)
     def loadDirectory(self, path, override_class=None):
         self.setSplash(True, 0, 1, "Loading dataset")
-        self.imList = []
-        self.resetInternalState()
-        self.override_class = override_class
-        self.resolution_valid = False
-        self.affine = None
-        self.resolution = [1, 1, 1]
+
+        def __reset_state():
+            self.imList = []
+            self.resetInternalState()
+            self.override_class = override_class
+            self.resolution_valid = False
+            self.affine = None
+            self.image = None
+            self.resolution = [1, 1, 1]
+
+        def __cleanup():
+            __reset_state()
+            self.setSplash(False)
+
+        def __error(error = None):
+            print(error, file=sys.stderr)
+            self.alert("Error loading dataset. See the log for details")
+            __cleanup()
+            self.displayImage(None)
+            self.redraw()
+
+        __reset_state()
         _, ext = os.path.splitext(path)
         mask_dictionary = None
         if ext.lower() == '.npz':
@@ -1801,12 +1817,18 @@ class MuscleSegmentation(ImageShow, QObject):
             bundle = np.load(path, allow_pickle=False)
             if 'data' not in bundle:
                 self.alert('No data in bundle!')
+                self.setSplash(False, 1, 2, "")
                 return
             if 'comment' in bundle:
                 self.alert('Loading bundle with comment:\n' + str(bundle['comment']))
 
             self.basepath = os.path.dirname(path)
-            self.loadNumpyArray(bundle['data'])
+            try:
+                self.loadNumpyArray(bundle['data'])
+            except Exception as e:
+                __error(e)
+                return
+
             if 'resolution' in bundle:
                 self.resolution = list(bundle['resolution'])
                 self.resolution_valid = True
@@ -1830,7 +1852,11 @@ class MuscleSegmentation(ImageShow, QObject):
             self.axes.set_xlim(-0.5, self.image.shape[1] - 0.5)
             self.axes.set_ylim(self.image.shape[0] - 0.5, -0.5)
         else:
-            ImageShow.loadDirectory(self, path)
+            try:
+                ImageShow.loadDirectory(self, path)
+            except Exception as e:
+                __error(e)
+                return
 
         # ask for resolution to be inserted
         if not self.resolution_valid:
