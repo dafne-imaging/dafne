@@ -17,7 +17,11 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import shutil
 
-from src.dafne_dl import DynamicDLModel
+try:
+    from dafne_dl import DynamicDLModel
+except ModuleNotFoundError:
+    from dl import DynamicDLModel
+
 import sys
 
 def coscia_unet():
@@ -217,17 +221,21 @@ def coscia_unet():
 
 
 def coscia_apply(modelObj: DynamicDLModel, data: dict):
-    from src.dafne_dl.common.padorcut import padorcut
-    import src.dafne_dl.common.biascorrection as biascorrection
-    from src.dafne_dl.common.preprocess_train import split_mirror
+    try:
+        import dafne_dl as dl
+    except ModuleNotFoundError:
+        import dl
+    padorcut = dl.common.padorcut.padorcut
+    biascorrection = dl.common.biascorrection.biascorrection
+    split_mirror = dl.common.preprocess_train.split_mirror
+
+    LABELS_DICT = dl.labels.thigh.long_labels
     from scipy.ndimage import zoom
     try:
         np
     except:
         import numpy as np
-    
-    from src.dafne_dl.labels import long_labels as LABELS_DICT
-    
+
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
     MODEL_SIZE_SPLIT = (250, 250)
@@ -313,8 +321,14 @@ def coscia_apply(modelObj: DynamicDLModel, data: dict):
 
 def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,
                           bs=5, minTrainImages=5):
-    import src.dafne_dl.common.preprocess_train as pretrain
-    from src.dafne_dl.common.DataGenerators import DataGeneratorMem
+    try:
+        import dafne_dl as dl
+    except ModuleNotFoundError:
+        import dl
+
+    pretrain = dl.common.preprocess_train
+    DataGeneratorMem = dl.common.DataGenerators.DataGeneratorMem
+
     import os
     from tensorflow.keras import optimizers
     import time
@@ -323,7 +337,7 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
     except:
         import numpy as np
 
-    from src.dafne_dl.labels import inverse_labels
+    inverse_labels = dl.labels.thigh.inverse_labels
 
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)

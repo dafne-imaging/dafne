@@ -16,7 +16,10 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from src.dafne_dl import DynamicDLModel
+try:
+    from dafne_dl import DynamicDLModel
+except ModuleNotFoundError:
+    from dl import DynamicDLModel
 
 
 def class_unet():
@@ -125,7 +128,10 @@ def class_unet():
     return model
 
 def class_apply(modelObj: DynamicDLModel, data: dict):
-    from src.dafne_dl.common.padorcut import padorcut
+    try:
+        from dafne_dl.common.padorcut import padorcut
+    except ModuleNotFoundError:
+        from dl.common.padorcut import padorcut
     from scipy.ndimage import zoom
     try:
         np

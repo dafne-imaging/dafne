@@ -18,8 +18,10 @@
 import shutil
 import sys
 
-from src.dafne_dl import DynamicDLModel
-
+try:
+    from dafne_dl import DynamicDLModel
+except ModuleNotFoundError:
+    from dl import DynamicDLModel
 
 def gamba_unet():
     
@@ -217,16 +219,21 @@ def gamba_unet():
     return model
 
 def gamba_apply(modelObj: DynamicDLModel, data: dict):
-    from src.dafne_dl.common.padorcut import padorcut
-    import src.dafne_dl.common.biascorrection as biascorrection
-    from src.dafne_dl.common.preprocess_train import split_mirror
+    try:
+        import dafne_dl as dl
+    except ModuleNotFoundError:
+        import dl
+    padorcut = dl.common.padorcut.padorcut
+    biascorrection = dl.common.biascorrection.biascorrection
+    split_mirror = dl.common.preprocess_train.split_mirror
+
+    LABELS_DICT = dl.labels.leg.long_labels
+
     from scipy.ndimage import zoom
     try:
         np
     except:
         import numpy as np
-
-    from src.dafne_dl.labels import long_labels as LABELS_DICT
     
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
@@ -314,8 +321,13 @@ def gamba_apply(modelObj: DynamicDLModel, data: dict):
 
 def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,
                         bs=5, minTrainImages=5):
-    import src.dafne_dl.common.preprocess_train as pretrain
-    from src.dafne_dl.common.DataGenerators import DataGeneratorMem
+    try:
+        import dafne_dl as dl
+    except ModuleNotFoundError:
+        import dl
+
+    pretrain = dl.common.preprocess_train
+    DataGeneratorMem = dl.common.DataGenerators.DataGeneratorMem
     import time
     #from keras.callbacks import ModelCheckpoint
     from tensorflow.keras import optimizers
@@ -324,7 +336,7 @@ def leg_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOu
     except:
         import numpy as np
 
-    from src.dafne_dl.labels import inverse_labels
+    inverse_labels = dl.labels.leg.inverse_labels
 
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
