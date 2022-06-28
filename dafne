@@ -12,8 +12,6 @@ src_path = os.path.abspath('src')
 if src_path not in sys.path:
     sys.path.append(src_path)
 
-print(sys.path)
-
 this_script = os.path.basename(__file__)
 this_script_name = os.path.splitext(this_script)[0]
 
