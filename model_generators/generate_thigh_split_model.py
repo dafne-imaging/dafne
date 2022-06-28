@@ -222,14 +222,17 @@ def coscia_unet():
 
 def coscia_apply(modelObj: DynamicDLModel, data: dict):
     try:
-        import dafne_dl as dl
+        from dafne_dl.common.padorcut import padorcut
+        from dafne_dl.common import biascorrection
+        from dafne_dl.common.preprocess_train import split_mirror
+        from dafne_dl.labels.thigh import long_labels as LABELS_DICT
     except ModuleNotFoundError:
-        import dl
-    padorcut = dl.common.padorcut.padorcut
-    biascorrection = dl.common.biascorrection.biascorrection
-    split_mirror = dl.common.preprocess_train.split_mirror
+        from dl.common.padorcut import padorcut
+        from dl.common import biascorrection
+        from dl.common.preprocess_train import split_mirror
+        from dl.labels.thigh import long_labels as LABELS_DICT
 
-    LABELS_DICT = dl.labels.thigh.long_labels
+
     from scipy.ndimage import zoom
     try:
         np
@@ -322,12 +325,13 @@ def coscia_apply(modelObj: DynamicDLModel, data: dict):
 def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,
                           bs=5, minTrainImages=5):
     try:
-        import dafne_dl as dl
+        import dafne_dl.common.preprocess_train as pretrain
+        from dafne_dl.common.DataGenerators import DataGeneratorMem
+        from dafne_dl.labels.thigh import inverse_labels
     except ModuleNotFoundError:
-        import dl
-
-    pretrain = dl.common.preprocess_train
-    DataGeneratorMem = dl.common.DataGenerators.DataGeneratorMem
+        import dl.common.preprocess_train as pretrain
+        from dl.common.DataGenerators import DataGeneratorMem
+        from dl.labels.thigh import inverse_labels
 
     import os
     from tensorflow.keras import optimizers
@@ -336,8 +340,6 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
         np
     except:
         import numpy as np
-
-    inverse_labels = dl.labels.thigh.inverse_labels
 
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
