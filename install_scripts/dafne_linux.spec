@@ -5,11 +5,13 @@ block_cipher = None
 
 
 a = Analysis(
-    ['dafne.py'],
-    pathex=[],
+    ['../dafne'],
+    pathex=['../src'],
     binaries=[],
-    datas=[('LICENSE', '.'), ('src/dafne/resources/*', 'resources/')],
-    hiddenimports=['pydicom',
+    datas=[('../LICENSE', '.'), ('../src/dafne/resources/*', 'resources/')],
+    hiddenimports=[
+              'dafne',
+              'pydicom',
               'SimpleITK',
               'potrace.bezier',
               'potrace.agg',
@@ -17,9 +19,9 @@ a = Analysis(
               'tensorflow',
               'skimage',
               'nibabel',
-              'dl',
+              'dafne_dl',
               'cmath'],
-    hookspath=['pyinstaller_hooks'],
+    hookspath=['../pyinstaller_hooks'],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
