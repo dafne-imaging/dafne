@@ -97,10 +97,10 @@ class IntSpinInput(InputClass):
     def __init__(self, label:str, initial_value:int=0, min:int=0, max:int=99, increment:int=1):
         self.label = label
         self.widget = QSpinBox()
-        self.widget.setMinimum(min)
-        self.widget.setMaximum(max)
-        self.widget.setValue(initial_value)
-        self.widget.setSingleStep(increment)
+        self.widget.setMinimum(int(min))
+        self.widget.setMaximum(int(max))
+        self.widget.setValue(int(initial_value))
+        self.widget.setSingleStep(int(increment))
 
     def get_label(self) -> str:
         return self.label
@@ -139,10 +139,10 @@ class IntSliderInput(InputClass):
         self.widget = QWidget()
         self.slider = QSlider(self.widget)
         self.slider.setOrientation(Qt.Horizontal)
-        self.slider.setMinimum(min)
-        self.slider.setMaximum(max)
-        self.slider.setValue(initial_value)
-        self.slider.setSingleStep(increment)
+        self.slider.setMinimum(int(min))
+        self.slider.setMaximum(int(max))
+        self.slider.setValue(int(initial_value))
+        self.slider.setSingleStep(int(increment))
         self.slider_label = QLabel(self.widget)
         self.slider_label.setText(str(initial_value))
         layout = QHBoxLayout(self.widget)

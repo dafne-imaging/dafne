@@ -348,7 +348,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.reload_config()
         self.config_changed.connect(self.reload_config)
 
-        self.opacitySlider.setValue(config.GlobalConfig['MASK_LAYER_ALPHA'] * 100)
+        self.opacitySlider.setValue(int(config.GlobalConfig['MASK_LAYER_ALPHA'] * 100))
         self.opacitySlider.valueChanged.connect(self.set_opacity_config)
 
         self.general_enable(False)
