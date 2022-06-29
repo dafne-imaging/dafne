@@ -1,4 +1,8 @@
 #!/bin/zsh
+#
+# Copyright (c) 2022 Dafne-Imaging Team
+#
+
 # note: checking signature/notarization: spctl -a -vvv
 
 git pull
