@@ -32,7 +32,7 @@ codesign --force -o runtime --entitlements ../entitlements.plist -v -s "$CODESIG
 
 echo "Creating DMG"
 create-dmg --volname "Dafne" --volicon $APPNAME.app/Contents/Resources/dafne_icon.icns \
-	 --eula $APPNAME.app/Contents/Resources/LICENSE --background ../mac_installer_bg.png \
+	 --eula $APPNAME.app/Contents/Resources/LICENSE --background ../icons/mac_installer_bg.png \
 	 --window-size 420 220 --icon-size 64 --icon $APPNAME.app 46 31 \
 	 --app-drop-link 236 90 "$DMG_NAME" $APPNAME.app
 codesign -s "$CODESIGN_IDENTITY" "$DMG_NAME"

@@ -4,7 +4,7 @@
 #define MyAppName "Dafne"
 #define MyAppVersion "1.1-alpha7"
 #define MyAppPublisher "Dafne-imaging"
-#define MyAppURL "https://www.dafne.network/"
+#define MyAppURL "https://dafne.network/"
 #define MyAppExeName "dafne.exe"
 #define CalcTransformsName "calc_transforms.exe"
 
@@ -24,13 +24,13 @@ ArchitecturesInstallIn64BitMode=x64
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=auto
 DefaultGroupName={#MyAppName}
-LicenseFile=C:\dafne\dafne\dist\dafne\LICENSE
+LicenseFile=dist\dafne\LICENSE
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=C:\dafne
 OutputBaseFilename=dafne_windows_setup_1.1-alpha7
-SetupIconFile=C:\dafne\dafne\dafne_icon.ico
+SetupIconFile=..\icons\dafne_icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -42,10 +42,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "C:\dafne\dafne\dist\dafne\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\dafne\dafne\dist\calc_transforms\{#CalcTransformsName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\dafne\dafne\dist\calc_transforms\{#CalcTransformsName}.manifest"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\dafne\dafne\dist\dafne\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\dafne\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\calc_transforms\{#CalcTransformsName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\calc_transforms\{#CalcTransformsName}.manifest"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\dafne\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
