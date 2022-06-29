@@ -2,10 +2,10 @@
 
 block_cipher = None
 
-a_dafne = Analysis(['dafne.py'],
-             pathex=['C:\\dafne\\dafne'],
-             binaries=[('libpotrace-0.dll', '.')],
-             datas=[('LICENSE', '.'), ('src\\dafne\\resources\\*', 'resources\\')],
+a_dafne = Analysis(['..\\dafne.py'],
+             pathex=['..\\src'],
+             binaries=[],
+             datas=[('LICENSE', '.'), ('..\\src\\dafne\\resources\\*', 'resources\\')],
 			 hiddenimports = ['pydicom', 
 				'SimpleITK',
 				'potrace.bezier',
@@ -15,7 +15,7 @@ a_dafne = Analysis(['dafne.py'],
 				'skimage',
 				'nibabel',
 				'dl'],
-             hookspath=['pyinstaller_hooks'],
+             hookspath=['..\\pyinstaller_hooks'],
              runtime_hooks=[],
              excludes=[],
              win_no_prefer_redirects=False,
@@ -23,8 +23,8 @@ a_dafne = Analysis(['dafne.py'],
              cipher=block_cipher,
              noarchive=False)
 			 
-a_calc_tra = Analysis(['calc_transforms.py'],
-             pathex=['C:\\dafne\\dafne'],
+a_calc_tra = Analysis(['..\\calc_transforms.py'],
+             pathex=['..\\src'],
              binaries=[],
              datas=[],
              hiddenimports=[

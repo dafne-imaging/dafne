@@ -15,23 +15,27 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import shutil
 
-from src.dafne_dl import DynamicDLModel
+try:
+    from dafne_dl import DynamicDLModel
+except ModuleNotFoundError:
+    from dl import DynamicDLModel
 
+import sys
 
 def coscia_unet():
     
     from tensorflow.keras import regularizers
     from tensorflow.keras.activations import softmax
-    from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, BatchNormalization, Concatenate, Lambda, \
-        Activation, Reshape, Add
+    from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, BatchNormalization, Concatenate, Lambda, Activation, Reshape, Add
     from tensorflow.keras.models import Model
 
-    inputs=Input(shape=(432,432,2))
+    inputs=Input(shape=(250,250,2))
     weight_matrix=Lambda(lambda z: z[:,:,:,1])(inputs)
-    weight_matrix=Reshape((432,432,1))(weight_matrix)
+    weight_matrix=Reshape((250,250,1))(weight_matrix)
     reshape=Lambda(lambda z : z[:,:,:,0])(inputs)
-    reshape=Reshape((432,432,1))(reshape)
+    reshape=Reshape((250,250,1))(reshape)
 
     reg=0.01
     
@@ -56,8 +60,6 @@ def coscia_unet():
     Level2_l=BatchNormalization(axis=-1)(Level2_l)
     Level2_l_shortcut=Level2_l
     Level2_l=Activation('relu')(Level2_l)
-    #Level2_l=BatchNormalization(axis=-1)(Level2_l)
-    #Level2_l=ZeroPadding2D(padding=(1,1))(Level2_l)
     Level2_l=Conv2D(filters=64,kernel_size=(3,3),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level2_l)
     Level2_l=BatchNormalization(axis=-1)(Level2_l)
     #Level2_l=InstanceNormalization(axis=-1)(Level2_l)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -74,7 +76,6 @@ def coscia_unet():
     Level3_l=BatchNormalization(axis=-1)(Level3_l)
     Level3_l_shortcut=Level3_l
     Level3_l=Activation('relu')(Level3_l)
-    #Level3_l=ZeroPadding2D(padding=(1,1))(Level3_l)
     Level3_l=Conv2D(filters=128,kernel_size=(3,3),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level3_l)
     Level3_l=BatchNormalization(axis=-1)(Level3_l)
     #Level3_l=InstanceNormalization(axis=-1)(Level3_l)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -91,7 +92,6 @@ def coscia_unet():
     Level4_l=BatchNormalization(axis=-1)(Level4_l)
     Level4_l_shortcut=Level4_l
     Level4_l=Activation('relu')(Level4_l)
-    #Level4_l=ZeroPadding2D(padding=(1,1))(Level4_l)
     Level4_l=Conv2D(filters=256,kernel_size=(3,3),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level4_l)
     Level4_l=BatchNormalization(axis=-1)(Level4_l)
     #Level4_l=InstanceNormalization(axis=-1)(Level4_l)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -108,8 +108,6 @@ def coscia_unet():
     Level5_l=BatchNormalization(axis=-1)(Level5_l)
     Level5_l_shortcut=Level5_l
     Level5_l=Activation('relu')(Level5_l)
-    #Level5_l=BatchNormalization(axis=-1)(Level5_l) 
-    #Level5_l=ZeroPadding2D(padding=(1,1))(Level5_l)
     Level5_l=Conv2D(filters=512,kernel_size=(3,3),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level5_l)
     Level5_l=BatchNormalization(axis=-1)(Level5_l)
     #Level5_l=InstanceNormalization(axis=-1)(Level5_l)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -124,24 +122,9 @@ def coscia_unet():
 
     Level6_l=Conv2D(filters=1024,kernel_size=(3,3),strides=3,kernel_regularizer=regularizers.l2(reg))(Level5_l)
     Level6_l=BatchNormalization(axis=-1)(Level6_l)
-    Level6_l_shortcut=Level6_l
-    Level6_l=Activation('relu')(Level6_l)
-    #Level5_l=BatchNormalization(axis=-1)(Level5_l) 
-    #Level5_l=ZeroPadding2D(padding=(1,1))(Level5_l)
-    Level6_l=Conv2D(filters=1024,kernel_size=(3,3),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level6_l)
-    Level6_l=BatchNormalization(axis=-1)(Level6_l)
-    #Level5_l=InstanceNormalization(axis=-1)(Level5_l)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
-    Level6_l=Activation('relu')(Level6_l)
-    #Level5_l=Dropout(0.5)(Level5_l)
-    Level6_l=Conv2D(filters=1024,kernel_size=(3,3),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level6_l)
-    Level6_l=BatchNormalization(axis=-1)(Level6_l)
-    #Level5_l=InstanceNormalization(axis=-1)(Level5_l)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
-    Level6_l=Add()([Level6_l,Level6_l_shortcut])
     Level6_l=Activation('relu')(Level6_l)
     
     Level5_r=Conv2DTranspose(filters=512,kernel_size=(3,3),strides=3,kernel_regularizer=regularizers.l2(reg))(Level6_l)
-    #Level4_r=UpSampling2D(size=(2, 2),interpolation='nearest')(Level5_l)
-    #Level4_r=Conv2D(filters=256,kernel_size=(2,2),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level4_r)
     Level5_r=BatchNormalization(axis=-1)(Level5_r)
     Level5_r_shortcut=Level5_r
     #Level4_r=InstanceNormalization(axis=-1)(Level4_r)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -159,9 +142,7 @@ def coscia_unet():
     Level5_r=Activation('relu')(Level5_r)
 
     
-    Level4_r=Conv2DTranspose(filters=256,kernel_size=(2,2),strides=2,kernel_regularizer=regularizers.l2(reg))(Level5_r)
-    #Level4_r=UpSampling2D(size=(2, 2),interpolation='nearest')(Level5_l)
-    #Level4_r=Conv2D(filters=256,kernel_size=(2,2),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level4_r)
+    Level4_r=Conv2DTranspose(filters=256,kernel_size=(2,2),strides=2,output_padding=(1,1),kernel_regularizer=regularizers.l2(reg))(Level5_r)
     Level4_r=BatchNormalization(axis=-1)(Level4_r)
     Level4_r_shortcut=Level4_r
     #Level4_r=InstanceNormalization(axis=-1)(Level4_r)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -180,8 +161,6 @@ def coscia_unet():
     
     
     Level3_r=Conv2DTranspose(filters=128,kernel_size=(2,2),strides=2,kernel_regularizer=regularizers.l2(reg))(Level4_r)
-    #Level3_r=UpSampling2D(size=(2, 2),interpolation='nearest')(Level4_r)
-    #Level3_r=Conv2D(filters=128,kernel_size=(2,2),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level3_r)
     Level3_r=BatchNormalization(axis=-1)(Level3_r)
     Level3_r_shortcut=Level3_r
     #Level3_r=InstanceNormalization(axis=-1)(Level3_r)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -199,9 +178,7 @@ def coscia_unet():
     Level3_r=Activation('relu')(Level3_r)
     
     
-    Level2_r=Conv2DTranspose(filters=64,kernel_size=(2,2),strides=2,kernel_regularizer=regularizers.l2(reg))(Level3_r)
-    #Level2_r=UpSampling2D(size=(2, 2),interpolation='nearest')(Level3_r)
-    #Level2_r=Conv2D(filters=64,kernel_size=(2,2),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level2_r)
+    Level2_r=Conv2DTranspose(filters=64,kernel_size=(2,2),strides=2,output_padding=(1,1),kernel_regularizer=regularizers.l2(reg))(Level3_r)
     Level2_r=BatchNormalization(axis=-1)(Level2_r)
     Level2_r_shortcut=Level2_r
     #Level2_r=InstanceNormalization(axis=-1)(Level2_r)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -220,8 +197,6 @@ def coscia_unet():
     
     
     Level1_r=Conv2DTranspose(filters=32,kernel_size=(2,2),strides=2,kernel_regularizer=regularizers.l2(reg))(Level2_r)
-    #Level1_r=UpSampling2D(size=(2, 2),interpolation='nearest')(Level2_r)
-    #Level1_r=Conv2D(filters=32,kernel_size=(2,2),strides=1,padding='same',kernel_regularizer=regularizers.l2(reg))(Level1_r)
     Level1_r=BatchNormalization(axis=-1)(Level1_r)
     Level1_r_shortcut=Level1_r
     #Level1_r=InstanceNormalization(axis=-1)(Level1_r)  ## Instance Normalization. Use InstanceNormalization() for Layer Normalization.
@@ -244,60 +219,121 @@ def coscia_unet():
     model=Model(inputs=inputs,outputs=output)
     return model
 
+
 def coscia_apply(modelObj: DynamicDLModel, data: dict):
-    from src.dafne_dl.common.padorcut import padorcut
-    from src.dafne_dl.common.preprocess_train import split_mirror
+    try:
+        from dafne_dl.common.padorcut import padorcut
+        from dafne_dl.common import biascorrection
+        from dafne_dl.common.preprocess_train import split_mirror
+        from dafne_dl.labels.thigh import long_labels as LABELS_DICT
+    except ModuleNotFoundError:
+        from dl.common.padorcut import padorcut
+        from dl.common import biascorrection
+        from dl.common.preprocess_train import split_mirror
+        from dl.labels.thigh import long_labels as LABELS_DICT
+
+
     from scipy.ndimage import zoom
     try:
         np
     except:
         import numpy as np
 
-    from src.dafne_dl.labels import long_labels as LABELS_DICT
-    
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
+    MODEL_SIZE_SPLIT = (250, 250)
+
+    classification = data.get('classification', '')
+
+    single_side = False
+    swap = False
+
+    # Note: this is anatomical right, which means it's image left! It's the image right that is swapped
+    if classification.lower().strip().endswith('right'):
+        single_side = True
+        swap = False
+    elif classification.lower().strip().endswith('left'):
+        single_side = True
+        swap = True
+
+    # otherwise: double sided
+
     netc = modelObj.model
     resolution = np.array(data['resolution'])
     zoomFactor = resolution/MODEL_RESOLUTION
     img = data['image']
     originalShape = img.shape
     img = zoom(img, zoomFactor) # resample the image to the model resolution
-    img = padorcut(img, MODEL_SIZE)
-    segmentation = netc.predict(np.expand_dims(np.stack([img,np.zeros(MODEL_SIZE)],axis=-1),axis=0))
-    labelsMask = np.argmax(np.squeeze(segmentation[0,:,:,:13]), axis=2)
-    if (data['split_laterality']):
-        a1,a2,a3,a4,b1,b2=split_mirror(img)
-        labelsMask_left=np.zeros(MODEL_SIZE,dtype='float32')
-        labelsMask_right=np.zeros(MODEL_SIZE,dtype='float32')
-        labelsMask_left[int(b1):int(b2),int(a1):int(a2)]=labelsMask[int(b1):int(b2),int(a1):int(a2)]
-        labelsMask_right[int(b1):int(b2),int(a3):int(a4)]=labelsMask[int(b1):int(b2),int(a3):int(a4)]
-        labelsMask_left = zoom(labelsMask_left, 1/zoomFactor, order=0)
-        labelsMask_left = padorcut(labelsMask_left, originalShape).astype(np.int8)
-        labelsMask_right = zoom(labelsMask_right, 1/zoomFactor, order=0)
-        labelsMask_right = padorcut(labelsMask_right, originalShape).astype(np.int8)
+
+    if single_side:
+        img = padorcut(img, MODEL_SIZE_SPLIT)
+        if swap:
+            img = img[::1,::-1]
+
+        segmentation = netc.predict(np.expand_dims(np.stack([img, np.zeros(MODEL_SIZE_SPLIT)], axis=-1), axis=0))
+        label = np.argmax(np.squeeze(segmentation[0, :, :, :13]), axis=2)
+        if swap:
+            label = label[::1,::-1]
+
+        labelsMask = zoom(label, 1 / zoomFactor, order=0)
+        labelsMask = padorcut(labelsMask, originalShape).astype(np.int8)
+
         outputLabels = {}
+
+        suffix = ''
+        if data['split_laterality']:
+            suffix = '_L' if swap else '_R'
         for labelValue, labelName in LABELS_DICT.items():
-            outputLabels[labelName+'_L'] = (labelsMask_left == labelValue).astype(np.int8)
-            outputLabels[labelName+'_R'] = (labelsMask_right == labelValue).astype(np.int8)
-    
+            outputLabels[labelName + suffix] = (labelsMask == labelValue).astype(np.int8)  # left in the image is right in the anatomy
+        return outputLabels
+
+    # two sides
+    img = padorcut(img, MODEL_SIZE)
+    imgbc= biascorrection.biascorrection_image(img)
+    a1,a2,a3,a4,b1,b2=split_mirror(imgbc)
+    left=imgbc[int(b1):int(b2),int(a1):int(a2)]
+    left=padorcut(left, MODEL_SIZE_SPLIT)
+    right=imgbc[int(b1):int(b2),int(a3):int(a4)]
+    right=right[::1,::-1]
+    right=padorcut(right, MODEL_SIZE_SPLIT)
+    segmentationleft=netc.predict(np.expand_dims(np.stack([left,np.zeros(MODEL_SIZE_SPLIT)],axis=-1),axis=0))
+    labelleft=np.argmax(np.squeeze(segmentationleft[0,:,:,:13]), axis=2)
+    segmentationright=netc.predict(np.expand_dims(np.stack([right,np.zeros(MODEL_SIZE_SPLIT)],axis=-1),axis=0))
+    labelright=np.argmax(np.squeeze(segmentationright[0,:,:,:13]), axis=2)
+    labelright=labelright[::1,::-1]
+    labelsMask_left = np.zeros(MODEL_SIZE, dtype='float32')
+    labelsMask_right = np.zeros(MODEL_SIZE, dtype='float32')
+    labelsMask_left[int(b1):int(b2), int(a1):int(a2)] = padorcut(labelleft, [b2 - b1, a2 - a1])
+    labelsMask_right[int(b1):int(b2), int(a3):int(a4)] = padorcut(labelright, [b2 - b1, a4 - a3])
+    labelsMask_left = zoom(labelsMask_left, 1 / zoomFactor, order=0)
+    labelsMask_left = padorcut(labelsMask_left, originalShape).astype(np.int8)
+    labelsMask_right = zoom(labelsMask_right, 1 / zoomFactor, order=0)
+    labelsMask_right = padorcut(labelsMask_right, originalShape).astype(np.int8)
+    outputLabels = {}
+
+    if data['split_laterality']:
+        for labelValue, labelName in LABELS_DICT.items():
+            outputLabels[labelName + '_R'] = (labelsMask_left == labelValue).astype(np.int8) # left in the image is right in the anatomy
+            outputLabels[labelName + '_L'] = (labelsMask_right == labelValue).astype(np.int8)
         return outputLabels
     else:
-        labelsMask = zoom(labelsMask, 1/zoomFactor, order=0)
-        labelsMask = padorcut(labelsMask, originalShape).astype(np.int8)
-        outputLabels = {}
         for labelValue, labelName in LABELS_DICT.items():
-            outputLabels[labelName] = (labelsMask == labelValue).astype(np.int8)
-    
+            outputLabels[labelName] = np.logical_or(labelsMask_left == labelValue, labelsMask_right == labelValue).astype(np.int8)
         return outputLabels
 
 
 def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, trainingOutputs,
                           bs=5, minTrainImages=5):
-    import src.dafne_dl.common.preprocess_train as pretrain
-    from src.dafne_dl.common.DataGenerators import DataGeneratorMem
+    try:
+        import dafne_dl.common.preprocess_train as pretrain
+        from dafne_dl.common.DataGenerators import DataGeneratorMem
+        from dafne_dl.labels.thigh import inverse_labels
+    except ModuleNotFoundError:
+        import dl.common.preprocess_train as pretrain
+        from dl.common.DataGenerators import DataGeneratorMem
+        from dl.labels.thigh import inverse_labels
+
     import os
-    from tensorflow.keras.callbacks import ModelCheckpoint
     from tensorflow.keras import optimizers
     import time
     try:
@@ -305,21 +341,37 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
     except:
         import numpy as np
 
-    from src.dafne_dl.labels import inverse_labels
-
     MODEL_RESOLUTION = np.array([1.037037, 1.037037])
     MODEL_SIZE = (432, 432)
+    MODEL_SIZE_SPLIT = (250, 250)
     BAND = 49
     BATCH_SIZE = bs
-    CHECKPOINT_PATH = os.path.join(".", "Weights_incremental", "thigh")
+    #CHECKPOINT_PATH = os.path.join(".", "Weights_incremental_split", "thigh")
     MIN_TRAINING_IMAGES = minTrainImages
 
-    os.makedirs(CHECKPOINT_PATH, exist_ok=True)
+    #os.makedirs(CHECKPOINT_PATH, exist_ok=True)
 
     t = time.time()
     print('Image preprocess')
 
-    image_list, mask_list = pretrain.common_input_process(inverse_labels, MODEL_RESOLUTION, MODEL_SIZE, trainingData,
+    classification = trainingData.get('classification', '')
+
+    single_side = False
+    swap = False
+
+    # Note: this is anatomical right, which means it's image left! It's the image right that is swapped
+    if classification.lower().strip().endswith('right'):
+        single_side = True
+        swap = False
+    elif classification.lower().strip().endswith('left'):
+        single_side = True
+        swap = True
+
+    if single_side:
+        image_list, mask_list = pretrain.common_input_process_single(inverse_labels, MODEL_RESOLUTION, MODEL_SIZE, MODEL_SIZE_SPLIT, trainingData,
+                                                          trainingOutputs, swap)
+    else:
+        image_list, mask_list = pretrain.common_input_process_split(inverse_labels, MODEL_RESOLUTION, MODEL_SIZE, MODEL_SIZE_SPLIT, trainingData,
                                                           trainingOutputs)
 
     print('Done. Elapsed', time.time()-t)
@@ -347,27 +399,46 @@ def thigh_incremental_mem(modelObj: DynamicDLModel, trainingData: dict, training
 
     netc = modelObj.model
     checkpoint_files = os.path.join(CHECKPOINT_PATH, "weights - {epoch: 02d} - {loss: .2f}.hdf5")
-    training_generator = DataGeneratorMem(output_data_structure, list_X=list(range(steps * BATCH_SIZE)), batch_size=BATCH_SIZE, dim=MODEL_SIZE)
+    training_generator = DataGeneratorMem(output_data_structure, list_X=list(range(steps * BATCH_SIZE)), batch_size=BATCH_SIZE, dim=MODEL_SIZE_SPLIT)
     #check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=False,save_weights_only=True, mode='auto', period=10)
-    check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=False, save_freq='epoch',
-                            save_weights_only=True, mode='auto')
+    #check = ModelCheckpoint(filepath=checkpoint_files, monitor='loss', verbose=0, save_best_only=True, # save_freq='epoch',
+    #                        save_weights_only=True, mode='auto')
     adamlr = optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=True)
     netc.compile(loss=pretrain.weighted_loss, optimizer=adamlr)
     #history = netc.fit_generator(generator=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check], verbose=1)
-    history = netc.fit(x=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check],verbose=1)
+    #history = netc.fit(x=training_generator, steps_per_epoch=steps, epochs=5, callbacks=[check],verbose=1)
+    history = netc.fit(x=training_generator, steps_per_epoch=steps, epochs=5, verbose=1)
     print('Done. Elapsed', time.time() - t)
 
-model = coscia_unet()
-model.load_weights('weights/weights_coscia.hdf5')
-weights = model.get_weights()
 
-modelObject = DynamicDLModel('210e2a21-1984-4e6f-8675-bf57bbabef2f',
+if len(sys.argv) > 1:
+    # convert an existing model
+    print("Converting model", sys.argv[1])
+    old_model_path = sys.argv[1]
+    filename = old_model_path
+    old_model = DynamicDLModel.Load(open(old_model_path, 'rb'))
+    shutil.move(old_model_path, old_model_path + '.bak')
+    weights = old_model.get_weights()
+    timestamp = old_model.timestamp_id
+    model_id = old_model.model_id
+else:
+    model_id = '210e2a21-1984-4e6f-8675-bf57bbabef2f'
+    timestamp = 1610001000
+    model = coscia_unet()
+    model.load_weights('weights/weights_coscia_split.hdf5')
+    weights = model.get_weights()
+    filename = f'models/Thigh_{timestamp}.model'
+
+modelObject = DynamicDLModel(model_id,
                              coscia_unet,
                              coscia_apply,
                              incremental_learn_function=thigh_incremental_mem,
                              weights=weights,
-                             timestamp_id="1603281020"
+                             timestamp_id=timestamp
                              )
 
-with open('models/Thigh_1603281020.model', 'wb') as f:
+
+with open(filename, 'wb') as f:
     modelObject.dump(f)
+
+print('Saved', filename)

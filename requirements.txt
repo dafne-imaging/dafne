@@ -14,6 +14,6 @@ appdirs
 requests
 scikit-image
 SimpleITK-SimpleElastix # Own distribution including elastix
-pyradiomics # optional requirement
 muscle-bids
 importlib_resources ; python_version < "3.10"
+dafne-dl

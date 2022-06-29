@@ -7,7 +7,9 @@ import os
 import sys
 import importlib
 
-sys.path.append(os.path.abspath('src'))
+src_path = os.path.abspath('src')
+if src_path not in sys.path:
+    sys.path.append(src_path)
 
 this_script = os.path.basename(__file__)
 this_script_name = os.path.splitext(this_script)[0]

@@ -32,7 +32,6 @@ from .. import config
 import platform
 from . import BatchCalcTransforms
 import webbrowser
-from . import images as image_resources
 
 from .LogWindow import LogWindow
 
