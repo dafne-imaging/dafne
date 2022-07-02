@@ -186,7 +186,10 @@ class MuscleSegmentation(ImageShow, QObject):
             model_provider = LocalModelProvider(GlobalConfig['MODEL_PATH'], GlobalConfig['TEMP_UPLOAD_DIR'])
             available_models = model_provider.available_models()
         else:
-            model_provider = RemoteModelProvider(GlobalConfig['MODEL_PATH'], GlobalConfig['SERVER_URL'], GlobalConfig['API_KEY'], GlobalConfig['TEMP_UPLOAD_DIR'])
+            url = GlobalConfig['SERVER_URL']
+            if not url.endswith('/'):
+                url += '/'
+            model_provider = RemoteModelProvider(GlobalConfig['MODEL_PATH'], url, GlobalConfig['API_KEY'], GlobalConfig['TEMP_UPLOAD_DIR'])
             fallback = False
             try:
                 available_models = model_provider.available_models()
@@ -195,6 +198,9 @@ class MuscleSegmentation(ImageShow, QObject):
                 fallback = True
             except requests.exceptions.ConnectionError:
                 self.alert("Remote server unavailable. Falling back to Local")
+                fallback = True
+            except requests.exceptions.InvalidURL:
+                self.alert("Invalid URL. Falling back to Local")
                 fallback = True
             else:
                 if available_models is None:
