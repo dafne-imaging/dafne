@@ -782,7 +782,7 @@ class MuscleSegmentation(ImageShow, QObject):
         # self.setCurrentROI(r.getSimplifiedSpline(GlobalConfig['SIMPLIFIED_ROI_POINTS']))
         # self.setCurrentROI(r.getSimplifiedSpline(spacing=GlobalConfig['SIMPLIFIED_ROI_SPACING']))
         self.setCurrentROI(r.getSimplifiedSpline3())
-        self.reblit()
+        self.redraw() # this also updates the contour painters
 
     @snapshotSaver
     def optimize(self):
@@ -1091,14 +1091,15 @@ class MuscleSegmentation(ImageShow, QObject):
 
 
         self.curImage += 1
-        self.displayImage(self.imList[int(self.curImage)], self.cmap)
-        self.redraw()
+        self.displayImage(int(self.curImage), self.cmap, redraw=False)
         self.setSplash(True, 1, 3)
 
         if self.editMode == ToolboxWindow.EDITMODE_CONTOUR:
             self.simplify()
             self.setSplash(True, 2, 3)
             self.optimize()
+
+        self.redraw()
 
         self.setSplash(False, 3, 3)
 
@@ -1144,8 +1145,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.setSplash(True, 1, 3)
 
         self.curImage -= 1
-        self.displayImage(self.imList[int(self.curImage)], self.cmap)
-        self.redraw()
+        self.displayImage(int(self.curImage), self.cmap, redraw=False)
 
         self.setSplash(True, 2, 3)
 
@@ -1153,6 +1153,8 @@ class MuscleSegmentation(ImageShow, QObject):
             self.simplify()
             self.setSplash(True, 3, 3)
             self.optimize()
+
+        self.redraw()
 
         self.setSplash(False, 3, 3)
 
@@ -1370,7 +1372,6 @@ class MuscleSegmentation(ImageShow, QObject):
     def do_redraw(self):
         #print("Redrawing...")
         if self.suppressRedraw: return
-        #print("Yes")
         try:
             self.removeMasks()
         except:
@@ -1392,6 +1393,14 @@ class MuscleSegmentation(ImageShow, QObject):
         self.blitXlim = self.axes.get_xlim()
         self.blitYlim = self.axes.get_ylim()
         self.refreshCB()
+        try:
+            self.updateContourPainters()
+        except:
+            pass
+        try:
+            self.updateMasksFromROIs()
+        except:
+            pass
         self.reblit()
 
     @pyqtSlot()
@@ -1610,6 +1619,7 @@ class MuscleSegmentation(ImageShow, QObject):
                     self.addPoint(roi, event)
                 else:
                     self.currentPoint = knotIndex
+                print('LeftCB: currentPoint', self.currentPoint)
 
     def leftReleaseCB(self, event):
         self.currentPoint = None  # reset the state
