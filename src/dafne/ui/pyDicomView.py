@@ -15,6 +15,7 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import time
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -54,6 +55,7 @@ DEFAULT_INTERPOLATION = 'spline36'
 # DEFAULT_INTERPOLATION = 'none' # DEBUG
 INVERT_SCROLL = True
 DO_DEBUG = False
+MOUSE_SCROLL_DEBOUNCE_TIME = 0.2
 
 
 class ImListProxy:
@@ -102,6 +104,8 @@ class ImageShow:
         self.resolution_valid = False
         self.affine = None
         self.medical_volume = None
+        self.scroll_debounce_time = MOUSE_SCROLL_DEBOUNCE_TIME
+        self.last_scroll_time = 0
 
         self.interpolation = DEFAULT_INTERPOLATION
 
@@ -116,7 +120,6 @@ class ImageShow:
 
         if im is not None:
             if type(im) is np.ndarray:
-                print("Display array")
                 self.loadNumpyArray(im)
             elif type(im) is str:
                 if os.path.isdir(im):
@@ -249,6 +252,10 @@ class ImageShow:
         self.fig.canvas.draw()
 
     def mouseScrollCB(self, event):
+        current_time = time.time()
+        if current_time - self.last_scroll_time < self.scroll_debounce_time:
+            return
+        self.last_scroll_time = current_time
         self.oldMouseXY = (event.x, event.y)  # this will suppress the mouse move event
         step = np.sign(event.step) # new versions of matplotlib use steps of eight of degree and can generate very large numbers. Mac is also weird
         
@@ -266,7 +273,7 @@ class ImageShow:
         if self.curImage > len(self.imList) - 1:
             self.curImage = len(self.imList) - 1
         self.displayImage(self.imList[int(self.curImage)], self.cmap, redraw=False)
-        self.redraw()  # already called in displayImage
+        self.redraw()
         try:
             self.fig.canvas.setFocus()
         except:
@@ -297,7 +304,6 @@ class ImageShow:
 
     def btnPressCB(self, event):
         if not self.isCursorNormal():
-            # print("Zooming or panning. Not processing clicks")
             return
         if event.button is MouseButton.LEFT:
             try:
@@ -427,7 +433,6 @@ class ImageShow:
         return resolution, resolution_valid
 
     def loadDicomFile(self, fname):
-        print(fname)
         ds = dicom.read_file(fname)
         # rescale dynamic range to 0-4095
         try:
@@ -466,7 +471,6 @@ class ImageShow:
         if np.max(medical_volume.volume) < 10:
             medical_volume *= 100
         while np.max(medical_volume.volume) > 10000:
-            #print(np.max(medical_volume.volume))
             medical_volume.volume /= 10
         self.medical_volume = medical_volume
         self.resolution = np.array(self.medical_volume.pixel_spacing)

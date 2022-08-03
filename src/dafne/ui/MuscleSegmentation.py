@@ -219,6 +219,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @pyqtSlot()
     def configChanged(self):
+        self.scroll_debounce_time = float(GlobalConfig['MOUSE_SCROLL_DEBOUNCE_TIME'])/1000.0
         self.resetInterface()
         self.resetModelProvider()
 
@@ -270,10 +271,10 @@ class MuscleSegmentation(ImageShow, QObject):
             self.updateContourPainters()
         except:
             pass
+
         self.redraw()
 
     def resetInternalState(self):
-        #load_config() # this was already loaded in dafne.py
         self.imList = []
         self.resolution = [1, 1, 1]
         self.curImage = 0
@@ -296,6 +297,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.currentPoint = None
         self.translateDelta = None
         self.rotationDelta = None
+        self.scroll_debounce_time = float(GlobalConfig['MOUSE_SCROLL_DEBOUNCE_TIME'])/1000.0
 
 
     #############################################################################################

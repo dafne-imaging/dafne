@@ -64,6 +64,7 @@ defaults = {
     'ROI_CIRCLE_SIZE':  (2, 'int', 1, 200, 1, None),
     'SIMPLIFIED_ROI_POINTS':  (20, 'int', 1, 200, 1, None),
     'SIMPLIFIED_ROI_SPACING':  (15, 'int', 1, 200, 1, None),
+    'MOUSE_SCROLL_DEBOUNCE_TIME':  (200, 'int_slider', 0, 1000, 1, 'Debounce time for mouse scrollwheel (ms)'),
     'HIDE_ROIS_RIGHTCLICK':  (True, 'bool', 'Hide ROIs with right click'),
     'INTERPOLATION': ('spline36', 'option', ['none', 'nearest', 'bilinear', 'bicubic', 'spline36', 'catrom', 'lanczos'], 'Image interpolation method'),
     'COLORMAP': ('gray', 'option', ['gray', 'viridis', 'magma', 'gist_yarg', 'hsv'], 'Image colormap'),
