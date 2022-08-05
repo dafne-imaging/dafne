@@ -16,6 +16,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import matplotlib
+from skimage.morphology import area_opening, area_closing
 
 from ..utils.dicomUtils.misc import realign_medical_volume, dosma_volume_from_path
 from . import GenericInputDialog
@@ -94,6 +95,9 @@ try:
 except:
     def QString(s):
         return s
+
+
+INTENSITY_AWARE_THRESHOLD = 0.5
 
 
 def makeMaskLayerColormap(color):
@@ -298,6 +302,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.translateDelta = None
         self.rotationDelta = None
         self.scroll_debounce_time = float(GlobalConfig['MOUSE_SCROLL_DEBOUNCE_TIME'])/1000.0
+        self.threshold_mask = None
 
 
     #############################################################################################
@@ -369,6 +374,8 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.toolbox_window.mask_grow.connect(self.maskGrow)
         self.toolbox_window.mask_shrink.connect(self.maskShrink)
+        self.toolbox_window.mask_fill_holes.connect(self.maskFillHoles)
+        self.toolbox_window.mask_despeckle.connect(self.maskDespeckle)
 
         self.toolbox_window.config_changed.connect(self.configChanged)
         self.toolbox_window.data_upload.connect(self.uploadData)
@@ -1019,6 +1026,14 @@ class MuscleSegmentation(ImageShow, QObject):
     def maskShrink(self):
         self._currentMaskOperation(binary_erosion)
 
+    @pyqtSlot(int)
+    def maskDespeckle(self, radius):
+        self._currentMaskOperation(lambda mask: area_opening(mask, radius**2))
+
+    @pyqtSlot(int)
+    def maskFillHoles(self, radius):
+        self._currentMaskOperation(lambda mask: area_closing(mask, radius ** 2))
+
 
     #####################################################################################################
     ###
@@ -1530,9 +1545,15 @@ class MuscleSegmentation(ImageShow, QObject):
     def modifyMaskFromBrush(self):
         if not self.brush_patch: return
         if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:
-            np.logical_or(self.activeMask, self.brush_patch.to_mask(self.activeMask.shape), out=self.activeMask)
+            paintMask = self.brush_patch.to_mask(self.activeMask.shape)
+            if self.toolbox_window.get_intensity_aware():
+                np.logical_and(paintMask, self.threshold_mask, out=paintMask)
+            np.logical_or(self.activeMask, paintMask, out=self.activeMask)
         elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.REMOVE_STATE:
-            eraseMask = np.logical_not(self.brush_patch.to_mask(self.activeMask.shape))
+            brush_mask = self.brush_patch.to_mask(self.activeMask.shape)
+            if self.toolbox_window.get_intensity_aware():
+                np.logical_and(brush_mask, self.threshold_mask, out=brush_mask)
+            eraseMask = np.logical_not(brush_mask)
             np.logical_and(self.activeMask, eraseMask, out=self.activeMask)
             if self.toolbox_window.get_erase_from_all_rois():
                 np.logical_and(self.otherMask, eraseMask, out=self.otherMask)
@@ -1588,6 +1609,14 @@ class MuscleSegmentation(ImageShow, QObject):
         if self.getState() != 'MUSCLE': return
 
         if self.toolbox_window.get_edit_mode() == ToolboxWindow.EDITMODE_MASK:
+            if self.toolbox_window.get_intensity_aware():
+                # if the operation has to be intensity aware, create a threshold mask based on current point
+                intensity = self.image[int(event.ydata), int(event.xdata)]
+                threshold_intensity = intensity * self.toolbox_window.get_intensity_threshold()
+                lower_threshold = intensity - threshold_intensity
+                upper_threshold = intensity + threshold_intensity
+                self.threshold_mask = self.image < upper_threshold
+                np.logical_and(self.threshold_mask, self.image > lower_threshold, out=self.threshold_mask)
             self.modifyMaskFromBrush()
         else:
             #print("Edit button state", self.toolbox_window.get_edit_button_state())

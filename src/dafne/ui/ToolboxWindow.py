@@ -179,6 +179,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     mask_grow = pyqtSignal()
     mask_shrink = pyqtSignal()
+    mask_fill_holes = pyqtSignal(int)
+    mask_despeckle = pyqtSignal(int)
 
     brush_changed = pyqtSignal()
 
@@ -253,6 +255,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.rotateContour_button.clicked.connect(self.manage_edit_toggle)
 
         self.eraseFromAllROIs_checkbox.setVisible(False)
+        self.intensityAware_checkbox.setVisible(False)
+        self.intensityThreshold_widget.setVisible(False)
+        self.intensityAware_checkbox.clicked.connect(lambda: self.intensityThreshold_widget.setVisible(self.get_intensity_aware()))
 
         self.edit_state = self.NO_STATE
         self.temp_edit_state = None
@@ -286,6 +291,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.grow_button.clicked.connect(self.mask_grow.emit)
         self.shrink_button.clicked.connect(self.mask_shrink.emit)
+        self.despeckle_button.clicked.connect(lambda : self.mask_despeckle.emit(self.despeckle_radius_slider.value()))
+        self.fillholes_button.clicked.connect(lambda : self.mask_fill_holes.emit(self.despeckle_radius_slider.value()))
 
         with get_resource_path(SPLASH_ANIMATION_FILE) as f:
             self.splash_movie = QMovie(f)
@@ -561,6 +568,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def get_erase_from_all_rois(self):
         return self.eraseFromAllROIs_checkbox.isChecked()
 
+    def get_intensity_aware(self):
+        return self.intensityAware_checkbox.isChecked()
+
+    def get_intensity_threshold(self):
+        return float(self.intensityThreshold_slider.value()) / 100.0
+
     def get_edit_mode(self):
         if self.editmode_combo.currentText() == self.EDITMODE_MASK:
             return self.EDITMODE_MASK
@@ -583,6 +596,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.rotateContour_button.setChecked(False)
             #self.removeall_button.setVisible(False)
             self.eraseFromAllROIs_checkbox.setVisible(self.edit_state == self.REMOVE_STATE)
+            self.intensityAware_checkbox.setVisible(True)
+            self.intensityThreshold_widget.setVisible(self.get_intensity_aware())
             self.editmode_changed.emit(self.EDITMODE_MASK)
         else:
             self.subroi_widget.setVisible(True)
@@ -593,6 +608,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.removeerase_button.setText("Remove")
             #self.removeall_button.setVisible(True)
             self.eraseFromAllROIs_checkbox.setVisible(False)
+            self.intensityAware_checkbox.setVisible(False)
+            self.intensityThreshold_widget.setVisible(False)
             self.editmode_changed.emit(self.EDITMODE_CONTOUR)
 
     @pyqtSlot(bool)

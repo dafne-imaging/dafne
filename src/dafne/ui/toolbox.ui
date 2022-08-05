@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>311</width>
-    <height>1078</height>
+    <height>1246</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -309,6 +309,57 @@
             </property>
            </widget>
           </item>
+          <item>
+           <widget class="QCheckBox" name="intensityAware_checkbox">
+            <property name="text">
+             <string>Intensity aware</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QWidget" name="intensityThreshold_widget" native="true">
+            <layout class="QHBoxLayout" name="horizontalLayout_16">
+             <property name="spacing">
+              <number>0</number>
+             </property>
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item>
+              <widget class="QLabel" name="label_4">
+               <property name="text">
+                <string>Threshold:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QSlider" name="intensityThreshold_slider">
+               <property name="minimum">
+                <number>1</number>
+               </property>
+               <property name="maximum">
+                <number>100</number>
+               </property>
+               <property name="value">
+                <number>50</number>
+               </property>
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>
@@ -438,6 +489,27 @@
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_7">
           <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_12">
+            <item>
+             <widget class="QLabel" name="opacityLabel">
+              <property name="text">
+               <string>Opacity</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSlider" name="opacitySlider">
+              <property name="maximum">
+               <number>100</number>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
            <layout class="QHBoxLayout" name="horizontalLayout_10">
             <item>
              <widget class="QPushButton" name="grow_button">
@@ -456,18 +528,42 @@
            </layout>
           </item>
           <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_12">
+           <layout class="QHBoxLayout" name="horizontalLayout_13">
             <item>
-             <widget class="QLabel" name="opacityLabel">
+             <widget class="QPushButton" name="despeckle_button">
               <property name="text">
-               <string>Opacity</string>
+               <string>Despeckle</string>
               </property>
              </widget>
             </item>
             <item>
-             <widget class="QSlider" name="opacitySlider">
+             <widget class="QPushButton" name="fillholes_button">
+              <property name="text">
+               <string>Fill Holes</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_15">
+            <item>
+             <widget class="QLabel" name="label_3">
+              <property name="text">
+               <string>Radius</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSlider" name="despeckle_radius_slider">
+              <property name="minimum">
+               <number>1</number>
+              </property>
               <property name="maximum">
-               <number>100</number>
+               <number>30</number>
+              </property>
+              <property name="value">
+               <number>5</number>
               </property>
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
@@ -588,7 +684,7 @@
      <x>0</x>
      <y>0</y>
      <width>311</width>
-     <height>30</height>
+     <height>32</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
