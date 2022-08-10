@@ -26,15 +26,19 @@ UPLOAD_STATS = False
 SAVE_LOCAL = True
 LOCAL_FILENAME = 'batch_validation_results.txt'
 
-
 class BatchValidateWindow(QWidget, Ui_ValidateUI):
     update_progress = pyqtSignal(int, int, str)
     update_overall_progress = pyqtSignal(int, int)
     alert_signal = pyqtSignal(str)
     success = pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         QWidget.__init__(self)
+        self.classification = kwargs.get('classification', CLASSIFICATION)
+        self.timestamp_interval = kwargs.get('timestamp_interval', TIMESTAMP_INTERVAL)
+        self.upload_stats = kwargs.get('upload_stats', UPLOAD_STATS)
+        self.save_local = kwargs.get('save_local', SAVE_LOCAL)
+        self.local_filename = kwargs.get('local_filename', LOCAL_FILENAME)
         self.setupUi(self)
         self.setWindowTitle("Batch model validation")
         self.update_progress.connect(self.set_progress)
@@ -54,14 +58,33 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
         self.batch_mode = False
 
         self.evaluate_Button.clicked.connect(self.start_calculation)
+        self.configure_button.clicked.connect(self.configure)
 
         self.data = None
         self.model_provider = None
         config.load_config()
-        print("Timestamp interval", TIMESTAMP_INTERVAL)
-        print("Logging enabled", UPLOAD_STATS)
+        print("Timestamp interval", self.timestamp_interval)
+        print("Logging enabled", self.upload_stats)
         self.timestamps_to_download = []
         self.init_model_provider()
+
+    def configure(self):
+        accepted, values = GenericInputDialog.show_dialog('Configure', [
+            GenericInputDialog.TextLineInput('Classification', self.classification),
+            GenericInputDialog.TextLineInput('Timestamp start', str(self.timestamp_interval[0])),
+            GenericInputDialog.TextLineInput('Timestamp end', str(self.timestamp_interval[1])),
+            GenericInputDialog.BooleanInput('Upload stats', self.upload_stats),
+            GenericInputDialog.BooleanInput('Save local', self.save_local),
+            GenericInputDialog.TextLineInput('Local filename', self.local_filename),
+        ])
+
+        if accepted:
+            self.classification = values[0]
+            self.timestamp_interval = (int(values[1]), int(values[2]))
+            self.upload_stats = values[3]
+            self.save_local = values[4]
+            self.local_filename = values[5]
+
 
     def init_model_provider(self):
         self.model_provider = RemoteModelProvider(config.GlobalConfig['MODEL_PATH'], config.GlobalConfig['SERVER_URL'],
@@ -74,13 +97,13 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
             self.signal_alert("Error connecting to server")
             sys.exit(-1)
 
-        if CLASSIFICATION not in available_models:
+        if self.classification not in available_models:
             self.signal_alert("Model not found")
             sys.exit(-1)
 
-        model_info = self.model_provider.model_details(CLASSIFICATION)
+        model_info = self.model_provider.model_details(self.classification)
         timestamps = model_info['timestamps']
-        self.timestamps_to_download = [timestamp for timestamp in timestamps if TIMESTAMP_INTERVAL[0] <= int(timestamp) <= TIMESTAMP_INTERVAL[1]]
+        self.timestamps_to_download = [timestamp for timestamp in timestamps if self.timestamp_interval[0] <= int(timestamp) <= self.timestamp_interval[1]]
 
 
         #self.model_provider.log("Testing")
@@ -232,8 +255,8 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
 
         print('im_list len', len(self.im_list))
 
-        if SAVE_LOCAL: # clear out file if needed
-            with open(os.path.join(self.basepath, LOCAL_FILENAME), 'w') as f:
+        if self.save_local: # clear out file if needed
+            with open(os.path.join(self.basepath, self.local_filename), 'w') as f:
                 f.write('')
 
     @pyqtSlot()
@@ -472,7 +495,7 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
     def start_calculation(self):
         n_slices = len(self.mask_list)
         n_rois = len(next(iter(self.mask_list.values()))) # get the number of rois from an arbitrary slice
-        accept = QMessageBox.question(self, "Run validation?", f'Running validation for model {CLASSIFICATION} on {len(self.timestamps_to_download)} models\nwith {n_rois} ROIs over {n_slices} slices. Continue?', QMessageBox.Yes | QMessageBox.No)
+        accept = QMessageBox.question(self, "Run validation?", f'Running validation for model {self.classification} on {len(self.timestamps_to_download)} models\nwith {n_rois} ROIs over {n_slices} slices. Continue?', QMessageBox.Yes | QMessageBox.No)
         if accept == QMessageBox.No:
             return
         if not self.batch_mode:
@@ -505,7 +528,7 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
         for timestamp in self.timestamps_to_download:
             self.signal_overall_progress(current_model_n, n_models)
 
-            model = self.model_provider.load_model(CLASSIFICATION,
+            model = self.model_provider.load_model(self.classification,
                                                   lambda value, maximum: self.signal_progress(value, maximum, f'Downloading {timestamp}'),
                                                   timestamp=timestamp)
 
@@ -517,7 +540,7 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
             for slice, mask_dict in self.mask_list.items():
                 self.signal_progress(current_slice, n_slices, f'Evaluating {timestamp}')
                 input_dict = {'image': self.im_list[slice],
-                              'classification': CLASSIFICATION,
+                              'classification': self.classification,
                               'resolution': self.resolution[0:2],
                               'split_laterality': split_laterality}
 
@@ -541,11 +564,11 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
 
             message = f'Average dice - {comment} - model {timestamp}: {average_dice}'
             print(message)
-            if UPLOAD_STATS:
+            if self.upload_stats:
                 self.model_provider.log(message)
 
-            if SAVE_LOCAL:  # clear out file if needed
-                with open(os.path.join(self.basepath, LOCAL_FILENAME), 'a') as f:
+            if self.save_local:  # clear out file if needed
+                with open(os.path.join(self.basepath, self.local_filename), 'a') as f:
                     f.write(f'{timestamp},{average_dice}\n')
 
             current_model_n += 1
@@ -562,7 +585,7 @@ class BatchValidateWindow(QWidget, Ui_ValidateUI):
         self.setEnabled(True)
 
 
-def run(path = None, roi = None):
+def run(path = None, roi = None, **kwargs):
     app = QApplication(sys.argv)
     window = QMainWindow()
     widget = BatchValidateWindow()
