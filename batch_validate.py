@@ -7,9 +7,6 @@ import os
 import sys
 import importlib
 
-print(os.getenv('XDG_CONFIG_HOME', os.path.expanduser("~/.config")))
-
-
 src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'src'))
 if src_path not in sys.path:
     sys.path.append(src_path)
