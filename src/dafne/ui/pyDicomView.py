@@ -34,14 +34,14 @@ import traceback
 try:
     CursorShape = matplotlib.backends.backend_qt.QtCore.Qt.CursorShape
 except:
-    print("CursorShape not found")
+    #print("CursorShape not found")
     class CursorShape:
         ArrowCursor = 0
 
 try:
     from matplotlib.backend_bases import MouseButton
 except:
-    print("Mousebutton not found")
+    #print("Mousebutton not found")
     class MouseButton:
         LEFT = 1
         RIGHT = 3

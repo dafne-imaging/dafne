@@ -40,14 +40,11 @@ if DEBUG_ENVIRONMENT:
     app_dirs.user_cache_dir = APP_DIR
     app_dirs.user_log_dir = APP_DIR
 else:
-    print('Using system directories for configuration')
+    #print('Using system directories for configuration')
     app_dirs = AppDirs(APP_NAME, APP_DEVELOPER)
-    print(app_dirs.user_config_dir)
 
 CONFIG_DIR = app_dirs.user_config_dir
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.pickle')
-
-print(CONFIG_FILE)
 
 ## Defaults
 ## This dictionary is used also for interface visualization
