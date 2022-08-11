@@ -40,6 +40,8 @@ from PyQt5.QtWidgets import *
 import shutil
 from datetime import datetime
 from ..utils.ROIManager import ROIManager
+from .. import utils
+sys.modules['utils'] = utils # to make pickle work
 
 import numpy as np
 import scipy.ndimage as ndimage
@@ -1790,9 +1792,9 @@ class MuscleSegmentation(ImageShow, QObject):
         roiManager = None
         classifications = self.classifications
 
-        if type(dumpObj) == ROIManager:
+        if isinstance(dumpObj, (ROIManager, utils.ROIManager.ROIManager)):
             roiManager = dumpObj
-        elif type(dumpObj) == dict:
+        elif isinstance(dumpObj, dict):
             try:
                 classifications = dumpObj['classifications']
                 roiManager = dumpObj['roiManager']
@@ -1802,8 +1804,8 @@ class MuscleSegmentation(ImageShow, QObject):
 
         try:
             # print(self.allROIs)
-            assert type(roiManager) == ROIManager
-        except:
+            assert isinstance(roiManager, (ROIManager, utils.ROIManager.ROIManager))
+        except AssertionError:
             self.alert("Unrecognized saved ROI type")
             return
 

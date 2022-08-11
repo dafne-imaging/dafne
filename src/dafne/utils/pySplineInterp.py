@@ -19,7 +19,7 @@ from numpy import linalg
 from scipy.interpolate import splprep, splev
 import numpy as np
 import matplotlib as mpl
-from ..utils.polyToMask import polyToMask
+from .polyToMask import polyToMask
 import scipy.ndimage as ndimage
 import time
 #import similaritymeasures

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 #  Copyright (c) 2021 Dafne-Imaging Team
 #
 #  This program is free software: you can redistribute it and/or modify
@@ -18,7 +17,7 @@
 
 import sys
 
-from ..ui.BatchValidate import run
+from ..ui.BatchValidateWindow import run
 
 def main():
     run()

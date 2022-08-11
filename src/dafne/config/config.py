@@ -42,9 +42,12 @@ if DEBUG_ENVIRONMENT:
 else:
     print('Using system directories for configuration')
     app_dirs = AppDirs(APP_NAME, APP_DEVELOPER)
+    print(app_dirs.user_config_dir)
 
 CONFIG_DIR = app_dirs.user_config_dir
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.pickle')
+
+print(CONFIG_FILE)
 
 ## Defaults
 ## This dictionary is used also for interface visualization
