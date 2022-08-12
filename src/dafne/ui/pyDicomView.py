@@ -48,7 +48,7 @@ except:
 
 try:
     from ..utils.dicomUtils.misc import dosma_volume_from_path
-except:
+except Exception:
     from dicomUtils.misc import dosma_volume_from_path
 
 DEFAULT_INTERPOLATION = 'spline36'
