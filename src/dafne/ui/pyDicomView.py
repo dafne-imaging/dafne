@@ -160,7 +160,7 @@ class ImageShow:
         dispImage[dispImage > 1] = 1
         if self.imPlot is None:
             self.imPlot = self.axes.imshow(dispImage, interpolation=self.interpolation,
-                                           aspect=self.resolution[1] / self.resolution[0])
+                                           aspect=self.resolution[0] / self.resolution[1])
         else:
             self.imPlot.set_data(dispImage)
         self.redraw()
@@ -234,7 +234,7 @@ class ImageShow:
             self.imPlot = self.axes.imshow(self.image, interpolation=self.interpolation,
                                            vmin=ImageShow.contrastWindow[0],
                                            vmax=ImageShow.contrastWindow[1],
-                                           cmap=self.cmap, zorder=-1, aspect=self.resolution[1] / self.resolution[0])
+                                           cmap=self.cmap, zorder=-1, aspect=self.resolution[0] / self.resolution[1])
         else:
             self.imPlot.set_data(self.image)
 

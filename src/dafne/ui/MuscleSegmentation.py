@@ -16,9 +16,10 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import matplotlib
+from muscle_bids.dosma_io import NiftiWriter
 from skimage.morphology import area_opening, area_closing
 
-from ..utils.dicomUtils.misc import realign_medical_volume, dosma_volume_from_path
+from ..utils.dicomUtils.misc import realign_medical_volume, dosma_volume_from_path, reorient_data_ui
 from . import GenericInputDialog
 
 matplotlib.use("Qt5Agg")
@@ -356,6 +357,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.roi_import.connect(self.loadROIPickle)
         self.toolbox_window.roi_export.connect(self.saveROIPickle)
         self.toolbox_window.data_open.connect(self.loadDirectory)
+        self.toolbox_window.data_save_as_nifti.connect(self.save_data_as_reoriented_nifti)
         self.toolbox_window.masks_export.connect(self.saveResults)
 
         self.toolbox_window.roi_copy.connect(self.copyRoi)
@@ -1247,7 +1249,7 @@ class MuscleSegmentation(ImageShow, QObject):
             original_ylim = self.axes.get_ylim()
             self.maskImPlot = self.axes.imshow(active_mask, cmap=self.mask_layer_colormap,
                                                alpha=GlobalConfig['MASK_LAYER_ALPHA'],
-                                               vmin=0, vmax=1, zorder=100, aspect=self.resolution[1]/self.resolution[0])
+                                               vmin=0, vmax=1, zorder=100, aspect=self.resolution[0]/self.resolution[1])
             try:
                 self.axes.set_xlim(original_xlim)
                 self.axes.set_ylim(original_ylim)
@@ -1265,7 +1267,7 @@ class MuscleSegmentation(ImageShow, QObject):
             relativeAlphaROI = GlobalConfig['ROI_OTHER_COLOR'][3] / GlobalConfig['ROI_COLOR'][3]
             self.maskOtherImPlot = self.axes.imshow(other_mask, cmap=self.mask_layer_other_colormap,
                                                     alpha=relativeAlphaROI*GlobalConfig['MASK_LAYER_ALPHA'],
-                                                    vmin=0, vmax=1, zorder=101, aspect=self.resolution[1]/self.resolution[0])
+                                                    vmin=0, vmax=1, zorder=101, aspect=self.resolution[0]/self.resolution[1])
             try:
                 self.axes.set_xlim(original_xlim)
                 self.axes.set_ylim(original_ylim)
@@ -1650,7 +1652,6 @@ class MuscleSegmentation(ImageShow, QObject):
                     self.addPoint(roi, event)
                 else:
                     self.currentPoint = knotIndex
-                print('LeftCB: currentPoint', self.currentPoint)
 
     def leftReleaseCB(self, event):
         self.currentPoint = None  # reset the state
@@ -1915,7 +1916,7 @@ class MuscleSegmentation(ImageShow, QObject):
             if accepted:
                 self.resolution = [output[0], output[1], output[2]]
                 self.resolution_valid = True
-                self.axes.set_aspect(aspect=self.resolution[1]/self.resolution[0])
+                self.axes.set_aspect(aspect=self.resolution[0]/self.resolution[1])
 
         # this is in case appendimage was never called
         if len(self.classifications) == 0:
@@ -2340,6 +2341,14 @@ class MuscleSegmentation(ImageShow, QObject):
             self.setSplash(False, 0, 0, "")
             return
 
+    @pyqtSlot(str)
+    def save_data_as_reoriented_nifti(self, path):
+        self.setSplash(True, 1, 3, "Saving data")
+        reoriented_volume = reorient_data_ui(self.medical_volume, self.fig.canvas, inplace=False)
+        nifti_writer = NiftiWriter()
+        nifti_name = os.path.abspath(path)
+        nifti_writer.save(reoriented_volume, nifti_name)
+        self.setSplash(False, 0, 0, "")
 
 
     ########################################################################################

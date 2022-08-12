@@ -722,6 +722,7 @@
      <addaction name="actionImport_multiple_masks"/>
     </widget>
     <addaction name="actionLoad_data"/>
+    <addaction name="actionSave_data_as_Nifti"/>
     <addaction name="separator"/>
     <addaction name="actionImport_ROIs"/>
     <addaction name="actionExport_ROIs"/>
@@ -904,6 +905,11 @@
   <action name="actionShowLogs">
    <property name="text">
     <string>Show Logs...</string>
+   </property>
+  </action>
+  <action name="actionSave_data_as_Nifti">
+   <property name="text">
+    <string>Reorient/Save data as Nifti...</string>
    </property>
   </action>
  </widget>

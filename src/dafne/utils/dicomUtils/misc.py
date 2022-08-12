@@ -84,6 +84,30 @@ def create_affine(sorted_dicoms):
     return affine
 
 
+def get_nifti_orientation(descriptor):
+    if descriptor == 'Axial':
+        nifti_orient = ('AP', 'RL', 'IS')
+    elif descriptor == 'Sagittal':
+        nifti_orient = ('SI', 'PA', 'RL')
+    else:
+        nifti_orient = ('SI', 'RL', 'AP')
+
+    return nifti_orient
+
+
+def reorient_data_ui(medical_volume, parent_qobject = None, inplace = False):
+    desired_orientation, accept = QInputDialog.getItem(parent_qobject,
+                                                       "Nifti loader",
+                                                       "Select orientation",
+                                                       ['Axial', 'Sagittal', 'Coronal'],
+                                                       editable=False)
+    if not accept: return None
+
+    mv_out = medical_volume.reformat(get_nifti_orientation(desired_orientation), inplace=inplace)
+
+    return mv_out
+
+
 def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
     medical_volume = None
     affine_valid = False
@@ -109,20 +133,9 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
         niiReader = NiftiReader()
         medical_volume = niiReader.load(path)
         if reorient_data:
-            desired_orientation, accept = QInputDialog.getItem(parent_qobject,
-                                                               "Nifti loader",
-                                                               "Select orientation",
-                                                               ['Axial', 'Sagittal', 'Coronal'],
-                                                               editable=False)
-            if not accept: return
-            if desired_orientation == 'Axial':
-                nifti_orient = ('AP', 'RL', 'IS')
-            elif desired_orientation == 'Sagittal':
-                nifti_orient = ('SI', 'PA', 'RL')
-            else:
-                nifti_orient = ('SI', 'RL', 'AP')
-
-            medical_volume.reformat(nifti_orient, inplace=True)
+            medical_volume = reorient_data_ui(medical_volume, parent_qobject, inplace=False)
+            if medical_volume is None:
+                return
 
         affine_valid = True
         title = os.path.basename(path)
@@ -232,7 +245,6 @@ def realign_medical_volume(source: MedicalVolume, destination: MedicalVolume, in
     """
 
     target = destination.volume
-    print("Alignment target shape:", target.shape)
 
     # disregard our own slice thickness for the moment
     # calculate the difference from the center of each 3D "partition" and the real center of the 2D slice

@@ -172,6 +172,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     mask_import = pyqtSignal(str)
 
     data_open = pyqtSignal(str, str)
+    data_save_as_nifti = pyqtSignal(str)
 
     statistics_calc = pyqtSignal(str)
     radiomics_calc = pyqtSignal(str, bool, int, int)
@@ -304,6 +305,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionExport_ROIs.triggered.connect(self.exportROI_clicked)
 
         self.actionLoad_data.triggered.connect(self.loadData_clicked)
+        self.actionSave_data_as_Nifti.triggered.connect(self.saveData_as_nifti_clicked)
 
         self.actionSave_as_Dicom.triggered.connect(lambda: self.export_masks_dir('dicom'))
         self.actionSave_as_Compact_Dicom.triggered.connect(lambda: self.export_masks_dir('compact_dicom'))
@@ -339,6 +341,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionCombine_roi.setEnabled(False)
         self.actionMultiple_combine.setEnabled(False)
         self.actionRemove_overlap.setEnabled(False)
+        self.actionSave_data_as_Nifti.setEnabled(False)
 
         self.action_Upload_data.triggered.connect(self.do_upload_data)
 
@@ -384,11 +387,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionCalculate_statistics.setEnabled(enabled)
         self.actionPyRadiomics.setEnabled(enabled)
         self.actionIncremental_Learn.setEnabled(enabled)
+        self.actionSave_data_as_Nifti.setEnabled(enabled)
 
     @pyqtSlot()
     def reload_config(self):
         # all config-dependent UI elements go here
         self.actionSave_as_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
+        self.actionSave_data_as_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
         self.actionSave_as_Compact_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
         self.actionImport_model.setVisible(config.GlobalConfig['MODEL_PROVIDER'] == 'Local')
         if config.GlobalConfig['ENABLE_DATA_UPLOAD'] and (config.GlobalConfig['MODEL_PROVIDER'] == 'Remote' or
@@ -866,6 +871,15 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.data_open.emit(dataFile, chosen_class[0])
 
     @pyqtSlot()
+    def saveData_as_nifti_clicked(self):
+        filter = 'Nifti files (*.nii *.nii.gz);;All files ()'
+
+        dataFile, _ = QFileDialog.getSaveFileName(self, caption='Select dataset to save',
+                                                  filter=filter)
+        if dataFile:
+            self.data_save_as_nifti.emit(dataFile)
+
+    @pyqtSlot()
     def importROI_clicked(self):
         roiFile, _ = QFileDialog.getOpenFileName(self, caption='Select ROI file to import',
                                                  filter='ROI Pickle files (*.p);;All files ()')
@@ -885,6 +899,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.menuSave_as_Numpy.setEnabled(numpy)
         self.actionSave_as_Nifti.setEnabled(nifti)
         self.actionSave_as_Compact_Nifti.setEnabled(nifti)
+        self.actionSave_data_as_Nifti.setEnabled(nifti)
 
     @pyqtSlot(str)
     def export_masks_dir(self, output_type):
