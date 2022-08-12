@@ -7,7 +7,7 @@ import os
 import sys
 import importlib
 
-src_path = os.path.abspath('src')
+src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'src'))
 if src_path not in sys.path:
     sys.path.append(src_path)
 
