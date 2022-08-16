@@ -84,13 +84,15 @@ def create_affine(sorted_dicoms):
     return affine
 
 
-def get_nifti_orientation(descriptor):
-    if descriptor == 'Axial':
+def get_nifti_orientation(descriptor: str):
+    if descriptor.lower() == 'axial':
         nifti_orient = ('AP', 'RL', 'IS')
-    elif descriptor == 'Sagittal':
+    elif descriptor.lower() == 'sagittal':
         nifti_orient = ('SI', 'PA', 'RL')
-    else:
+    elif descriptor.lower() == 'coronal':
         nifti_orient = ('SI', 'RL', 'AP')
+    else:
+        raise ValueError(f'Unknown orientation descriptor: {descriptor}')
 
     return nifti_orient
 

@@ -461,6 +461,7 @@ class ImageShow:
         if np.max(data.flat) <= 10: data *= 100
         self.affine = None
         self.resolution_valid = False
+        self.medical_volume = None
         self.resolution = [1, 1, 1]
 
         # print data.shape
@@ -469,7 +470,7 @@ class ImageShow:
 
     def load_dosma_volume(self, medical_volume):
         if np.max(medical_volume.volume) < 10:
-            medical_volume *= 100
+            medical_volume.volume *= 100
         while np.max(medical_volume.volume) > 10000:
             medical_volume.volume /= 10
         self.medical_volume = medical_volume

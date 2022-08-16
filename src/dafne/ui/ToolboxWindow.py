@@ -173,6 +173,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     data_open = pyqtSignal(str, str)
     data_save_as_nifti = pyqtSignal(str)
+    data_reorient = pyqtSignal(str)
 
     statistics_calc = pyqtSignal(str)
     radiomics_calc = pyqtSignal(str, bool, int, int)
@@ -306,6 +307,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionLoad_data.triggered.connect(self.loadData_clicked)
         self.actionSave_data_as_Nifti.triggered.connect(self.saveData_as_nifti_clicked)
+        self.action_reorient_axial.triggered.connect(lambda: self.reorient_data('Axial'))
+        self.action_reorient_sagittal.triggered.connect(lambda: self.reorient_data('Sagittal'))
+        self.action_reorient_coronal.triggered.connect(lambda: self.reorient_data('Coronal'))
 
         self.actionSave_as_Dicom.triggered.connect(lambda: self.export_masks_dir('dicom'))
         self.actionSave_as_Compact_Dicom.triggered.connect(lambda: self.export_masks_dir('compact_dicom'))
@@ -382,6 +386,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionImport_ROIs.setEnabled(enabled)
         self.actionExport_ROIs.setEnabled(enabled)
         self.menuImport.setEnabled(enabled)
+        self.menuReorient_data.setEnabled(enabled)
         self.menuSave_masks.setEnabled(enabled)
         self.action_Upload_data.setEnabled(enabled)
         self.actionCalculate_statistics.setEnabled(enabled)
@@ -393,7 +398,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def reload_config(self):
         # all config-dependent UI elements go here
         self.actionSave_as_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
-        self.actionSave_data_as_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
+        self.actionSave_data_as_Nifti.setVisible(False) # Disable save data as Nifti
         self.actionSave_as_Compact_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
         self.actionImport_model.setVisible(config.GlobalConfig['MODEL_PROVIDER'] == 'Local')
         if config.GlobalConfig['ENABLE_DATA_UPLOAD'] and (config.GlobalConfig['MODEL_PROVIDER'] == 'Remote' or
@@ -879,6 +884,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         if dataFile:
             self.data_save_as_nifti.emit(dataFile)
 
+    @pyqtSlot(str)
+    @ask_confirm('This will delete all the ROIs and settings!')
+    def reorient_data(self, orientation):
+        self.data_reorient.emit(orientation)
+
     @pyqtSlot()
     def importROI_clicked(self):
         roiFile, _ = QFileDialog.getOpenFileName(self, caption='Select ROI file to import',
@@ -900,6 +910,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionSave_as_Nifti.setEnabled(nifti)
         self.actionSave_as_Compact_Nifti.setEnabled(nifti)
         self.actionSave_data_as_Nifti.setEnabled(nifti)
+        self.menuReorient_data.setEnabled(nifti)
 
     @pyqtSlot(str)
     def export_masks_dir(self, output_type):

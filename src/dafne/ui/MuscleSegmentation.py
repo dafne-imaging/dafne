@@ -19,7 +19,8 @@ import matplotlib
 from muscle_bids.dosma_io import NiftiWriter
 from skimage.morphology import area_opening, area_closing
 
-from ..utils.dicomUtils.misc import realign_medical_volume, dosma_volume_from_path, reorient_data_ui
+from ..utils.dicomUtils.misc import realign_medical_volume, dosma_volume_from_path, reorient_data_ui, \
+    get_nifti_orientation
 from . import GenericInputDialog
 
 matplotlib.use("Qt5Agg")
@@ -358,6 +359,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.roi_export.connect(self.saveROIPickle)
         self.toolbox_window.data_open.connect(self.loadDirectory)
         self.toolbox_window.data_save_as_nifti.connect(self.save_data_as_reoriented_nifti)
+        self.toolbox_window.data_reorient.connect(self.reorient_data)
         self.toolbox_window.masks_export.connect(self.saveResults)
 
         self.toolbox_window.roi_copy.connect(self.copyRoi)
@@ -1032,11 +1034,13 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @pyqtSlot(int)
     def maskDespeckle(self, radius):
-        self._currentMaskOperation(lambda mask: area_opening(mask, radius**2))
+        #self._currentMaskOperation(lambda mask: area_opening(mask, radius**2))
+        self._currentMaskOperation(functools.partial(area_opening, area_threshold=radius ** 2))
 
     @pyqtSlot(int)
     def maskFillHoles(self, radius):
-        self._currentMaskOperation(lambda mask: area_closing(mask, radius ** 2))
+        #self._currentMaskOperation(lambda mask: area_closing(mask, radius ** 2))
+        self._currentMaskOperation(functools.partial(area_closing, area_threshold=radius ** 2))
 
 
     #####################################################################################################
@@ -2349,6 +2353,39 @@ class MuscleSegmentation(ImageShow, QObject):
         nifti_name = os.path.abspath(path)
         nifti_writer.save(reoriented_volume, nifti_name)
         self.setSplash(False, 0, 0, "")
+
+    @pyqtSlot(str)
+    def reorient_data(self, orientation):
+        if self.medical_volume is None:
+            return
+        medical_volume = self.medical_volume
+        self.resetInternalState()
+        self.resetInterface()
+        new_medical_volume = medical_volume.reformat(get_nifti_orientation(orientation))
+        new_medical_volume._headers = None
+        self.load_dosma_volume(new_medical_volume)
+        self.roiManager = ROIManager(self.imList[0].shape)
+        self.registrationManager = RegistrationManager(self.imList,
+                                                       None,
+                                                       os.getcwd(),
+                                                       GlobalConfig['TEMP_DIR'])
+        self.registrationManager.set_standard_transforms_name(self.basepath, self.basename)
+        # self.loadROIPickle()
+        self.updateRoiList()
+        self.override_class = None
+        self.update_all_classifications()
+        self.toolbox_window.set_exports_enabled(numpy= True,
+                                                dicom= (self.dicomHeaderList is not None),
+                                                nifti= (self.affine is not None)
+                                                )
+        self.axes.set_xlim(auto=True)
+        self.axes.set_ylim(auto=True)
+        self.displayImage(0)
+        self.axes.set_xlim(auto=False)
+        self.axes.set_ylim(auto=False)
+
+
+
 
 
     ########################################################################################
