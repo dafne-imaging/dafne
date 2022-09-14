@@ -136,6 +136,13 @@ class MuscleSegmentation(ImageShow, QObject):
         self.suppressRedraw = False
         ImageShow.__init__(self, *args, **kwargs)
         QObject.__init__(self)
+
+        self.shortcuts = {
+            'z': self.undo_signal.emit,
+            'y': self.redo_signal.emit,
+            'g': self.gotoImageDialog
+        }
+
         self.fig.canvas.mpl_connect('close_event', self.closeCB)
         # self.instructions = "Shift+click: add point, Shift+dblclick: optimize/simplify, Ctrl+click: remove point, Ctrl+dblclick: delete ROI, n: propagate fw, b: propagate back"
         self.setupToolbar()
@@ -682,14 +689,14 @@ class MuscleSegmentation(ImageShow, QObject):
 
                 if roi.any():
                     slices_with_rois.add(imageIndex) # add the slice to the set if any voxel is nonzero
-                    if imageIndex not in originalSegmentationMasks:
+                    if imageIndex not in originalSegmentationMasks and self.classifications[imageIndex] != 'None':
                         #print(imageIndex)
                         originalSegmentationMasks[imageIndex] = self.getSegmentedMasks(imageIndex, False, True)
 
                 masklist.append(roi)
                 try:
                     originalSegmentation = originalSegmentationMasks[imageIndex][roiName]
-                except:
+                except KeyError:
                     originalSegmentation = None
 
                 if originalSegmentation is not None:
@@ -1187,6 +1194,12 @@ class MuscleSegmentation(ImageShow, QObject):
     ###
     ###############################################################################################################
 
+    def gotoImageDialog(self):
+        accepted, output = GenericInputDialog.show_dialog("Go to image", [
+            GenericInputDialog.IntSpinInput("Image number", self.curImage, 0, len(self.imList) - 1),
+        ], self.fig.canvas)
+        if accepted:
+            self.displayImage(output[0], redraw=True)
 
     def removeMasks(self):
         """ Remove the masks from the plot """
@@ -1714,10 +1727,8 @@ class MuscleSegmentation(ImageShow, QObject):
             return
 
         if modifier_status['ctrl']:
-            if pressed_key_without_modifiers == 'z':
-                self.undo_signal.emit()
-            elif pressed_key_without_modifiers == 'y':
-                self.redo_signal.emit()
+            if pressed_key_without_modifiers in self.shortcuts:
+                self.shortcuts[pressed_key_without_modifiers]()
             return
 
         if event.key == 'n':

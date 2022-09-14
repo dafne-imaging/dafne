@@ -218,7 +218,7 @@ class RegistrationManager:
         transformixImageFilter.SetOutputDirectory(".")
         transformixImageFilter.Execute()
 
-        outputCoordRE = re.compile("OutputPoint\s*=\s*\[\s*([\d.]+)\s+([\d.]+)\s*\]")
+        outputCoordRE = re.compile(r"OutputPoint\s*=\s*\[\s*([\d.-]+)\s+([\d.-]+)\s*]")
 
         knotsOut = []
 

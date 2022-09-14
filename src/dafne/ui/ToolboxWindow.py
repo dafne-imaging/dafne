@@ -70,7 +70,8 @@ SHORTCUT_HELP = [
     ('Increase Brush Size', '+, x, [Ctrl/Cmd]+[Scroll up]'),
     ('Remove ROI overlap', 'r'),
     ('Undo', '[Ctrl/Cmd]+z'),
-    ('Redo', '[Ctrl/Cmd]+y')
+    ('Redo', '[Ctrl/Cmd]+y'),
+    ('Go to Image', '[Ctrl/Cmf]+g')
 ]
 
 class AboutDialog(QDialog):
