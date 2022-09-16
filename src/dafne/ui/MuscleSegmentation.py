@@ -68,7 +68,7 @@ from ..utils.RegistrationManager import RegistrationManager
 import requests
 
 try:
-    import SimpleITK as sitk # this requires simpleelastix! It is NOT available through PIP
+    import SimpleITK as sitk # this requires simpleelastix!
 except:
     sitk = None
 
@@ -145,7 +145,15 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.fig.canvas.mpl_connect('close_event', self.closeCB)
         # self.instructions = "Shift+click: add point, Shift+dblclick: optimize/simplify, Ctrl+click: remove point, Ctrl+dblclick: delete ROI, n: propagate fw, b: propagate back"
+
+        if 'Elastix' in dir(sitk):
+            self.registration_available = True
+        else:
+            print("Elastix is not available")
+            self.registration_available = False
+
         self.setupToolbar()
+
 
         self.roiManager = None
 
@@ -323,14 +331,7 @@ class MuscleSegmentation(ImageShow, QObject):
     ##############################################################################################
 
     def setupToolbar(self):
-
-        if 'Elastix' in dir(sitk):
-            showRegistrationGui = True
-        else:
-            print("Elastix is not available")
-            showRegistrationGui = False
-
-        self.toolbox_window = ToolboxWindow(self, activate_registration=showRegistrationGui, activate_radiomics= (radiomics is not None))
+        self.toolbox_window = ToolboxWindow(self, activate_registration=self.registration_available, activate_radiomics= (radiomics is not None))
         self.toolbox_window.show()
 
         self.toolbox_window.editmode_changed.connect(self.changeEditMode)
@@ -1732,9 +1733,11 @@ class MuscleSegmentation(ImageShow, QObject):
             return
 
         if event.key == 'n':
-            self.propagate()
+            if self.registration_available:
+                self.propagate()
         elif event.key == 'b':
-            self.propagateBack()
+            if self.registration_available:
+                self.propagateBack()
         elif event.key == '-' or event.key == 'y' or event.key == 'z':
             self.reduce_brush_size.emit()
         elif event.key == '+' or event.key == 'x':
