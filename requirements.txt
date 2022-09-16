@@ -9,11 +9,10 @@ pypotrace-windows ; sys_platform == "win32"
 pypotrace ; sys_platform != "win32"
 dill
 progress
-tensorflow-gpu
 appdirs
 requests
 scikit-image
-SimpleITK-SimpleElastix # Own distribution including elastix
 muscle-bids
 importlib_resources ; python_version < "3.10"
 dafne-dl
+flexidep
