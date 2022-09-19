@@ -228,6 +228,12 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
                 medical_volume = MedicalVolume(data, affine, header_list)
                 affine_valid = True
 
+    # more informative title
+    if len(path) > 60:
+        title = '...' + path[-60:]
+    else:
+        title = path
+
     return medical_volume, affine_valid, title, basepath, basename
 
 
