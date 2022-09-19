@@ -1608,7 +1608,7 @@ class MuscleSegmentation(ImageShow, QObject):
             ImageShow.mouseMoveCB(self, event)
 
     def leftMoveCB(self, event):
-        if self.getState() == 'MUSCLE':
+        if self.getState() == 'MUSCLE' and event.xdata is not None and event.ydata is not None:
             roi = self.getCurrentROI()
             if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:  # event.key == 'shift' or checkCapsLock():
                 self.movePoint(roi, event)
