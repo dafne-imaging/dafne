@@ -4,41 +4,56 @@ import xml.etree.ElementTree as ET
 from urllib.parse import urlparse
 
 import requests
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QObject, pyqtSlot, QThread, pyqtSignal
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QPushButton, QLabel, QSizePolicy
 
 from ..config import GlobalConfig, save_config
 
+MAX_NEWS_ITEMS = 3
+BLOG_INDEX = '/blog/index/'
+BLOG_ADDRESS = '/blog/'
+
 
 class WhatsNewDialog(QDialog):
-    def __init__(self, date, link, title, excerpt, *args, **kwargs):
+    def __init__(self, news_list, index_address, *args, **kwargs):
         QDialog.__init__(self, *args, **kwargs)
-        myLayout = QVBoxLayout(self)
-        self.setLayout(myLayout)
+        my_layout = QVBoxLayout(self)
+        self.setLayout(my_layout)
         self.setWindowTitle(f"Dafne News")
         self.setWindowModality(Qt.ApplicationModal)
-        date_label = QLabel(f'<b>{date}</b>')
-        date_label.sizePolicy().setVerticalStretch(0)
-        myLayout.addWidget(date_label)
-        title_label = QLabel(f'<h2><a href="{link}">{title}</a></h2>')
-        title_label.setOpenExternalLinks(True)
-        title_label.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
-        title_label.sizePolicy().setVerticalStretch(0)
-        title_label.setWordWrap(True)
-        myLayout.addWidget(title_label)
-        body_label = QLabel(excerpt)
-        body_label.setWordWrap(True)
-        sizePolicy = QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(1)
-        sizePolicy.setHeightForWidth(body_label.sizePolicy().hasHeightForWidth())
-        body_label.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignTop)
-        body_label.setSizePolicy(sizePolicy)
-        myLayout.addWidget(body_label)
+
+        for news in news_list[:MAX_NEWS_ITEMS]:
+            title_label = QLabel(f'<h2><a href="{news["link"]}">{news["title"]}</a></h2>')
+            title_label.setOpenExternalLinks(True)
+            title_label.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
+            title_label.sizePolicy().setVerticalStretch(0)
+            title_label.setWordWrap(True)
+            my_layout.addWidget(title_label)
+            date_label = QLabel(f'<b>{news["date"]}</b>')
+            date_label.sizePolicy().setVerticalStretch(0)
+            my_layout.addWidget(date_label)
+            body_label = QLabel(news["excerpt"])
+            body_label.setWordWrap(True)
+            size_policy = QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+            size_policy.setHorizontalStretch(0)
+            size_policy.setVerticalStretch(1)
+            size_policy.setHeightForWidth(body_label.sizePolicy().hasHeightForWidth())
+            body_label.setAlignment(Qt.AlignLeading | Qt.AlignLeft | Qt.AlignTop)
+            body_label.setSizePolicy(size_policy)
+            my_layout.addWidget(body_label)
+
+        more_news_label = QLabel(f'<a href="{index_address}">All news...</a>')
+        more_news_label.setOpenExternalLinks(True)
+        more_news_label.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
+        more_news_label.sizePolicy().setVerticalStretch(0)
+        my_layout.addWidget(more_news_label)
+
+        n_news = min(MAX_NEWS_ITEMS, len(news_list))
+
         btn = QPushButton("Close")
         btn.clicked.connect(self.close)
-        myLayout.addWidget(btn)
-        self.resize(300,200)
+        my_layout.addWidget(btn)
+        self.resize(300,110*n_news+60)
         self.show()
 
 
@@ -75,7 +90,7 @@ def check_for_updates():
     for entry in feed.findall('atom:entry', xml_ns):
         link = entry.find('atom:link', xml_ns).attrib['href']
         # skip the index
-        if link == '/blog/index/':
+        if link == BLOG_INDEX:
             continue
 
         news_time = xml_timestamp_to_datetime(entry.find('atom:updated', xml_ns).text)
@@ -88,13 +103,15 @@ def check_for_updates():
                 newest_time = news_time
 
     GlobalConfig['LAST_NEWS'] = datetime_to_xml_timestamp(newest_time)
+    news_list.sort(key=lambda x: x['date'], reverse=True)
     save_config()
-    return news_list
+    return news_list, base_url + BLOG_ADDRESS
 
 
 def show_news():
-    for news in check_for_updates():
-        d = WhatsNewDialog(**news)
+    news_list, index_address = check_for_updates()
+    if news_list:
+        d = WhatsNewDialog(news_list, index_address)
         d.exec()
 
 

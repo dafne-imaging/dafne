@@ -55,7 +55,7 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.pickle')
 defaults = {
     'SERVER_URL': ('https://www.dafne.network/api/', 'string', None),
     'NEWS_URL': ('https://www.dafne.network/feed/blog.xml', 'string', None),
-    'LAST_NEWS': ('2021-11-10T00:00:00+00:00', 'string', None),
+    'LAST_NEWS': ('2010-11-10T00:00:00+00:00', 'string', None),
     'USE_CLASSIFIER': (False, 'bool', None),
     'MODEL_PROVIDER': ('Local', 'option', ['Local', 'Remote'], 'Model location'),
     'API_KEY': ('', 'string', 'Personal server access key'),
@@ -97,7 +97,7 @@ static_config = {
     'ENABLE_NIFTI': True,
     'OUTPUT_LOG_FILE': os.path.join(app_dirs.user_log_dir, 'dafne_output.log'),
     'ERROR_LOG_FILE': os.path.join(app_dirs.user_log_dir, 'dafne_error.log'),
-    'REDIRECT_OUTPUT': True # redirect stdout/stderr to logfiles
+    'REDIRECT_OUTPUT': False # redirect stdout/stderr to logfiles
 }
 
 ## Initialization
