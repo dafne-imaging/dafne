@@ -71,8 +71,9 @@ SHORTCUT_HELP = [
     ('Remove ROI overlap', 'r'),
     ('Undo', '[Ctrl/Cmd]+z'),
     ('Redo', '[Ctrl/Cmd]+y'),
-    ('Go to Image', '[Ctrl/Cmf]+g')
+    ('Go to Image', '[Ctrl/Cmd]+g')
 ]
+
 
 class AboutDialog(QDialog):
     def __init__(self, *args, **kwargs):
@@ -89,6 +90,7 @@ class AboutDialog(QDialog):
         myLayout.addWidget(btn)
         self.resize(640,480)
         self.show()
+
 
 class ShortcutDialog(QDialog):
     def __init__(self, *args, **kwargs):

@@ -49,6 +49,7 @@ except:
 try:
     from ..utils.dicomUtils.misc import dosma_volume_from_path
 except Exception:
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     from dicomUtils.misc import dosma_volume_from_path
 
 DEFAULT_INTERPOLATION = 'spline36'

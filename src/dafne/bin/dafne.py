@@ -17,6 +17,8 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
+
+from ..ui.WhatsNew import show_news
 # Hide tensorflow warnings; set to 1 to see warnings
 from ..utils import log
 
@@ -83,6 +85,7 @@ def main():
         imFig.saveResults()
     
     if not args.quit:
+        show_news()
         plt.show()
     
     

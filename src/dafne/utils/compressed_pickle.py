@@ -33,7 +33,6 @@ def loads(byte_array, **kwargs):
     except OSError:
         print("Loading uncompressed pickle")
         return pickle.loads(byte_array, **kwargs)
-    return None
 
 
 def load(file, **kwargs):
@@ -49,7 +48,6 @@ def load(file, **kwargs):
         except:
             pass
         return pickle.load(file, **kwargs)
-    return None
 
 
 dump = compressed_dump

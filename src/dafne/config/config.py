@@ -54,6 +54,8 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.pickle')
 
 defaults = {
     'SERVER_URL': ('https://www.dafne.network/api/', 'string', None),
+    'NEWS_URL': ('https://www.dafne.network/feed/blog.xml', 'string', None),
+    'LAST_NEWS': ('2021-11-10T00:00:00+00:00', 'string', None),
     'USE_CLASSIFIER': (False, 'bool', None),
     'MODEL_PROVIDER': ('Local', 'option', ['Local', 'Remote'], 'Model location'),
     'API_KEY': ('', 'string', 'Personal server access key'),
