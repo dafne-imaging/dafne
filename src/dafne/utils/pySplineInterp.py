@@ -25,7 +25,6 @@ import scipy.ndimage as ndimage
 import time
 #import similaritymeasures
 import random
-import potrace
 
 
 def polyToMaskFast(poly_verts, imageSize):

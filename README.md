@@ -19,9 +19,6 @@ Decompress the .zip file and run the `dafne` program from the unzipped folder.
 
 Remember to `git push --recurse-submodules` if you change the dl folder!
 
-Install dependencies for pypotrace  
-`sudo apt-get install build-essential python-dev libagg-dev libpotrace-dev pkg-config`
-
 ## dafne
 
 Run: 
@@ -76,7 +73,5 @@ So `len(training_data['image_list']) == len(training_outputs)`.
 
 # Acknowledgments
 Input/Output is based on [DOSMA](https://github.com/ad12/DOSMA) - GPLv3 license
-
-This repository contains a precompiled version of [potrace](http://potrace.sourceforge.net/) and [pypotrace](https://github.com/flupke/pypotrace), with parts of [AGG](http://agg.sourceforge.net/antigrain.com/index.html) - Licensed under GPL.
 
 Other packages required for this project are listed in requirements.txt
