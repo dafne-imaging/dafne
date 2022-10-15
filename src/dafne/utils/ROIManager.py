@@ -14,6 +14,8 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import numpy as np
+
+from .mask_to_spline import mask_to_splines
 from .pySplineInterp import SplineInterpROIClass
 import functools
 from copy import deepcopy
@@ -120,7 +122,7 @@ class RoiAndMaskPair:
     def mask_to_subroi(self):
         if self.mask is None: return
         if self.subroi_stack is not None: return # do not recalculate subrois if they are valid
-        splineInterpList = SplineInterpWithNotification.FromMask(self.mask)  # run mask tracing
+        splineInterpList = mask_to_splines(self.mask)  # run mask tracing
         #print(splineInterpList)
         self.subroi_stack = []
         for roi in splineInterpList:

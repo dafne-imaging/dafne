@@ -20,7 +20,6 @@ from scipy.interpolate import splprep, splev
 import numpy as np
 import matplotlib as mpl
 
-from .mask_to_spline import mask_to_splines
 from .polyToMask import polyToMask
 import scipy.ndimage as ndimage
 import time
@@ -512,7 +511,3 @@ class SplineInterpROIClass:
         self.__init__()
         #self.addKnots(knotlist)
         self.knots = knotlist
-        
-    @staticmethod
-    def FromMask(maskImage):
-        return mask_to_splines(maskImage)
