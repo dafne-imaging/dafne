@@ -19,6 +19,8 @@ from numpy import linalg
 from scipy.interpolate import splprep, splev
 import numpy as np
 import matplotlib as mpl
+
+from .mask_to_spline import mask_to_splines
 from .polyToMask import polyToMask
 import scipy.ndimage as ndimage
 import time
@@ -134,9 +136,13 @@ class SplineInterpROIClass:
             newIndex = len(self.knots)
         else:
             newIndex = index+1
-        self.isCurveValid = False
+        self.invalidate_precalculations()
         self.knots.insert(newIndex,point)
         return newIndex # return the index of the new point
+
+    def insertKnot(self, index, point):
+        self.invalidate_precalculations()
+        self.knots.insert(index, point)
     
     def findNearestKnot(self, knot):
         minDistSq = 1e6
@@ -169,6 +175,7 @@ class SplineInterpROIClass:
         self.invalidate_precalculations()
         xy = self.knots[index]
         self.replaceKnot(index, (xy[0]+delta[0], xy[1]+delta[1]))
+
     
     def removeAllKnots(self):
         # remove all the knots
@@ -227,7 +234,7 @@ class SplineInterpROIClass:
     def isValid(self):
         return len(self.knots) >= 4             
     
-    def getCurve(self):
+    def getCurve(self, shift_curve=False):
         # cannot make a closed curve with less than 4 knots
         if len(self.knots) < 4:
             self.points = None
@@ -255,10 +262,13 @@ class SplineInterpROIClass:
         ynew.extend(ypart)
         self.pointSegments.append(uniquify(np.round(list(zip(xpart,ypart))), lambda x: (x[0],x[1])))
         xpart, ypart = self.getSplinePart([self.knots[len(self.knots)-1], self.knots[0], self.knots[1], self.knots[2]])
+        knot0_position = len(xnew)
         xnew.extend(xpart)
         ynew.extend(ypart)
         self.pointSegments.append(uniquify(np.round(list(zip(xpart,ypart))), lambda x: (x[0],x[1])))
         self.points = list(zip(xnew, ynew))
+        if shift_curve:
+            self.points = self.points[knot0_position:] + self.points[:knot0_position]
         if not self.smooth:
             # pixelate the result
             self.points = np.round(self.points)
@@ -407,7 +417,11 @@ class SplineInterpROIClass:
         # knots need to be 3
         xpoints = [knot[0] for knot in knots]
         ypoints = [knot[1] for knot in knots]
-        tckp, u = splprep([xpoints, ypoints])
+        try:
+            tckp, u = splprep([xpoints, ypoints])
+        except ValueError:
+            print("Error fitting", xpoints, ypoints)
+            print(self.knots)
 #        xx,yy = splev(np.linspace(0,1,100), tckp)
 #        plt.plot(xx,yy)
         npoints = int(abs(ypoints[2] - ypoints[1]) + abs(xpoints[2] - xpoints[1]))
@@ -501,28 +515,4 @@ class SplineInterpROIClass:
         
     @staticmethod
     def FromMask(maskImage):
-        outputSplines = []
-        bmp = potrace.Bitmap(maskImage.astype(np.float))
-        
-        # Trace the bitmap to a path
-        path = bmp.trace(alphamax = 1.33, opticurve = 1, opttolerance = 1)
-        
-        # Iterate over path curves
-        for curve in path:
-            contour = curve.tesselate(potrace.Curve.regular, 4)
-            sp = SplineInterpROIClass()
-            sp.addKnots(np.round(contour), False)
-            outputSplines.append(sp)
-        
-        return outputSplines
-        
-            
-if __name__ == "__main__":
-    sp = SplineInterpROIClass()
-    sp.addKnot((10,5))
-    sp.addKnot((10,20))
-    sp.addKnot((30,20))
-    sp.addKnot((20,10))
-    sp.addKnot((20,15))
-    sp.addKnot((12,15))
-    print(sp.getOrientation())
+        return mask_to_splines(maskImage)
