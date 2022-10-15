@@ -18,6 +18,7 @@ import numpy as np
 from muscle_bids.dosma_io import DicomWriter, NiftiWriter
 from muscle_bids import MedicalVolume
 from matplotlib import pyplot as plt
+from scipy import ndimage
 
 
 def save_dicom_masks(base_path: str, mask_dict: dict, affine, dicom_headers: list):
@@ -130,3 +131,10 @@ def save_single_dicom_dataset(base_path, mask_dict, affine, dicom_headers: list)
     snap_legend_name = os.path.join(base_path, 'legend_itk-snap.txt')
     write_legend(legend_name, name_list)
     write_itksnap_legend(snap_legend_name, name_list)
+
+
+def distance_mask(mask):
+    mask = mask.astype(np.uint8)
+    internal_distance = ndimage.distance_transform_edt(mask)
+    external_distance = ndimage.distance_transform_edt(1-mask)
+    return internal_distance - external_distance

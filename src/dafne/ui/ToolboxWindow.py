@@ -221,6 +221,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.muscle_segmentation_window = muscle_segmentation_window
 
+        with get_resource_path('dafne_logo.png') as logo_path:
+            self.setWindowIcon(QIcon(logo_path))
+
         self.setWindowFlag(Qt.WindowCloseButtonHint, False)
 
         if platform.system() == 'Darwin':
@@ -239,7 +242,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
 
         
-        self.setWindowTitle("Segmentation Toolbox")
+        self.setWindowTitle("Dafne Toolbox")
         self.splashWidget.setVisible(False)
         self.all_rois = {}
         self.current_roi = ""

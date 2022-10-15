@@ -22,6 +22,7 @@ from skimage.morphology import area_opening, area_closing
 from ..utils.dicomUtils.misc import realign_medical_volume, dosma_volume_from_path, reorient_data_ui, \
     get_nifti_orientation
 from . import GenericInputDialog
+from ..utils.resource_utils import get_resource_path
 
 matplotlib.use("Qt5Agg")
 
@@ -154,6 +155,10 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.setupToolbar()
 
+        main_window = self.fig.canvas.parent()
+        main_window.setWindowTitle("Dafne Main Window")
+        with get_resource_path('dafne_logo.png') as logo_path:
+            main_window.setWindowIcon(QIcon(logo_path))
 
         self.roiManager = None
 
