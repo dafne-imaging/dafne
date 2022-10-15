@@ -5,9 +5,10 @@ from urllib.parse import urlparse
 
 import requests
 from PyQt5.QtCore import Qt, QObject, pyqtSlot, QThread, pyqtSignal
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QPushButton, QLabel, QSizePolicy
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QPushButton, QLabel, QSizePolicy, QMainWindow, QWidget
 
 from ..config import GlobalConfig, save_config
+from ..utils.ThreadHelpers import separate_thread_decorator
 
 MAX_NEWS_ITEMS = 3
 BLOG_INDEX = '/blog/index/'
@@ -67,6 +68,7 @@ def datetime_to_xml_timestamp(dt):
 
 def check_for_updates():
     last_news_time = xml_timestamp_to_datetime(GlobalConfig['LAST_NEWS'])
+    #last_news_time = xml_timestamp_to_datetime('2010-11-10T00:00:00+00:00')
     try:
         r = requests.get(GlobalConfig['NEWS_URL'])
     except requests.exceptions.ConnectionError:
@@ -107,6 +109,18 @@ def check_for_updates():
     save_config()
     return news_list, base_url + BLOG_ADDRESS
 
+
+class NewsChecker(QObject):
+    news_ready = pyqtSignal(list, str)
+
+    def __init__(self, *args, **kwargs):
+        QObject.__init__(self, *args, **kwargs)
+
+    @separate_thread_decorator
+    def check_news(self):
+        news_list, index_address = check_for_updates()
+        if news_list:
+            self.news_ready.emit(news_list, index_address)
 
 def show_news():
     news_list, index_address = check_for_updates()

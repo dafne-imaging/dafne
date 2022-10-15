@@ -85,7 +85,6 @@ def main():
         imFig.saveResults()
     
     if not args.quit:
-        show_news()
         plt.show()
     
     

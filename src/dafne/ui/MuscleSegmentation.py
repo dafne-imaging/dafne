@@ -19,6 +19,7 @@ import matplotlib
 from muscle_bids.dosma_io import NiftiWriter
 from skimage.morphology import area_opening, area_closing
 
+from .WhatsNew import NewsChecker, WhatsNewDialog
 from ..utils.dicomUtils.misc import realign_medical_volume, dosma_volume_from_path, reorient_data_ui, \
     get_nifti_orientation
 from . import GenericInputDialog
@@ -120,6 +121,7 @@ def snapshotSaver(func):
     return wrapper
 
 
+
 class MuscleSegmentation(ImageShow, QObject):
 
     undo_possible = pyqtSignal(bool)
@@ -143,6 +145,11 @@ class MuscleSegmentation(ImageShow, QObject):
             'y': self.redo_signal.emit,
             'g': self.gotoImageDialog
         }
+
+        self.news_checker = NewsChecker()
+        self.news_checker.news_ready.connect(self.show_news)
+        self.news_checker.check_news()
+
 
         self.fig.canvas.mpl_connect('close_event', self.closeCB)
         # self.instructions = "Shift+click: add point, Shift+dblclick: optimize/simplify, Ctrl+click: remove point, Ctrl+dblclick: delete ROI, n: propagate fw, b: propagate back"
@@ -194,6 +201,11 @@ class MuscleSegmentation(ImageShow, QObject):
         for key in list(plt.rcParams):
             if 'keymap' in key and 'zoom' not in key and 'pan' not in key:
                 plt.rcParams[key] = []
+
+    @pyqtSlot(list, str)
+    def show_news(self, news, index_address):
+        d = WhatsNewDialog(news, index_address)
+        d.exec()
 
     def get_app(self):
         if not self.app:
