@@ -174,7 +174,34 @@ class SplineInterpROIClass:
         xy = self.knots[index]
         self.replaceKnot(index, (xy[0]+delta[0], xy[1]+delta[1]))
 
-    
+    def reduceKnots(self, n_knots):
+        """
+        Reduces the number of knots to n_knots by uniformly removing knots.
+        """
+        if n_knots >= len(self.knots):
+            return
+
+        self.invalidate_precalculations()
+        self.knots = self.knots[::len(self.knots)//n_knots]
+        if len(self.knots) > n_knots:
+            knots_to_remove = len(self.knots) - n_knots
+            new_knots = []
+            remove_every = np.ceil(float(len(self.knots)) / knots_to_remove)
+            for i,k in enumerate(self.knots):
+                if i % remove_every != 0:
+                    new_knots.append(k)
+
+            self.knots = new_knots
+
+        if len(self.knots) > n_knots:
+            self.knots = self.knots[:n_knots]
+
+    def rotateKnotList(self, shift):
+        self.invalidate_precalculations()
+        self.knots = self.knots[shift:] + self.knots[:shift]
+
+
+
     def removeAllKnots(self):
         # remove all the knots
         while len(self.knots) > 0:
@@ -274,31 +301,40 @@ class SplineInterpROIClass:
         self.isCurveValid = True # unless nothing changes, this curve stays valid
         self.points = np.array(self.points)
         return self.points
-        
-    # get a modified spline with a specified number of knots or a specified spacing between knots
-    def getSimplifiedSpline(self, nPoints = None, spacing = None):
-        assert(nPoints or spacing)
-        simplifiedPoints = np.round(self.points)
-        simplifiedPoints = uniquify(simplifiedPoints, lambda x: (x[0],x[1]))
-        
-        if nPoints:
-            assert(nPoints >= 4)
-            step = int(len(simplifiedPoints) / nPoints)
-            if step < 1: step = 1
-        else:
-            step = spacing
-            if step*4 > len(simplifiedPoints): step = int(len(simplifiedPoints)/4)
-            
-            
-        simplifiedPoints = simplifiedPoints[0:(-step+1):step]
-        newSpline = SplineInterpROIClass()
-        for p in simplifiedPoints:
-            newSpline.addKnot(p)
-        return newSpline
     
-    def calcSimilarity(self, otherSpline):
-        
-        sim = similaritymeasures.area_between_two_curves(self.getCurve(), otherSpline.getCurve())
+    def calcDistance(self, otherSpline, shift=0, minimize_distance=False):
+        """
+        Calculates the distance between this spline and another spline.
+        If minimize_distance is True, the distance is minimized by shifting the order of the knots of the other spline.
+        The two splines must have the same number of knots
+
+        :param otherSpline: the other spline
+        :param shift: the shift of the order of the knots of the other spline
+        :param minimize_distance: if True, the distance is minimized by shifting the order of the knots of the other spline
+
+        :return: the distance (current or minimum) between the two splines
+        """
+        assert len(self.knots) == len(otherSpline.knots), "Splines must have the same number of knots"
+
+        def knot_distance(knot1, knot2):
+            return np.sqrt((knot1[0] - knot2[0])**2 + (knot1[1] - knot2[1])**2)
+
+        if minimize_distance:
+            min_distance = 10000
+            min_shift = 0
+            for shift in range(len(self.knots)):
+                d = self.calcDistance(otherSpline, shift, minimize_distance=False)
+                if d < min_distance:
+                    min_distance = d
+                    min_shift = shift
+            return min_distance, min_shift
+
+        # we are not trying to minimize the distance
+        distance = 0
+        for i in range(len(self.knots)):
+            distance += knot_distance(self.knots[i], otherSpline.knots[(i+shift)%len(self.knots)])
+
+        return distance,shift
         
         print("Similarity", sim)
         
@@ -310,55 +346,9 @@ class SplineInterpROIClass:
         m1 = self.toMask(imageSize)
         m2 = otherSpline.toMask(imageSize)
         return np.sum(np.logical_xor(m1,m2))
-    
-    def getSimplifiedSpline2(self): # simplifies the spline based on useful knots
-        t = time.time()
-        sim_th = np.sum(self.toMask().astype(np.uint16))/100 # set threshold to 1% of area
-        sim_th = min(sim_th, 20)
-        print("Sim Threshold", sim_th)
-        newSpline = SplineInterpROIClass()
-        curve = self.getCurve()
-        newSpline.addKnots(curve)
-        #newSpline.addKnots(self.knots)
-        optimizeFurther = True
-        while optimizeFurther:
-            optimizeFurther = False
-            if len(newSpline.knots) < 5: return newSpline
-            for i,k in enumerate(newSpline.knots):
-                otherSpline = SplineInterpROIClass()
-                otherKnots = newSpline.knots[:]
-                otherKnots.pop(i)
-                otherSpline.addKnots(otherKnots)
-                if self.calcSimilarity(otherSpline) <= sim_th:
-                    print("Removing knot", i)
-                    optimizeFurther = True
-                    newSpline.removeKnot(i)
-                    break
-        print("Simplifying time:", time.time() - t)
-        return newSpline
-    
-    def getSimplifiedSpline3_slow(self): # simplifies the spline based on useful knots
-        t = time.time()
-        newSpline = SplineInterpROIClass()
-        newSpline.addKnots(self.knots)
-        optimizeFurther = True
-        while optimizeFurther:
-            optimizeFurther = False
-            if len(newSpline.knots) < 5: return newSpline
-            for i,k in enumerate(newSpline.knots):
-                otherSpline = SplineInterpROIClass()
-                otherKnots = newSpline.knots[:]
-                otherKnots.pop(i)
-                otherSpline.addKnots(otherKnots)
-                if otherSpline.isPointNearPath(k, 1):
-                    print("Removing knot", i)
-                    optimizeFurther = True
-                    newSpline.removeKnot(i)
-                    break
-        print("Simplifying time:", time.time() - t)
-        return newSpline
-            
-    def getSimplifiedSpline3(self): # simplifies the spline based on useful knots
+
+
+    def getSimplifiedSpline(self): # simplifies the spline based on useful knots
     
         def isNear(point, splinePart, tolerance):
             x = splinePart[0]
@@ -415,17 +405,18 @@ class SplineInterpROIClass:
         # knots need to be 3
         xpoints = [knot[0] for knot in knots]
         ypoints = [knot[1] for knot in knots]
+        npoints = int(abs(ypoints[2] - ypoints[1]) + abs(xpoints[2] - xpoints[1]))
         try:
             tckp, u = splprep([xpoints, ypoints])
+            #xx,yy = splev(np.linspace(0,1,100), tckp)
+            xnew,ynew = splev(np.linspace(u[1],u[2],npoints), tckp) # produce 100 points between the first and second knot
         except ValueError:
-            print("Error fitting", xpoints, ypoints)
-            print(self.knots)
-#        xx,yy = splev(np.linspace(0,1,100), tckp)
-#        plt.plot(xx,yy)
-        npoints = int(abs(ypoints[2] - ypoints[1]) + abs(xpoints[2] - xpoints[1]))
-        #print("npoints", npoints)
+            # fall back to linear interpolation between the two middle points
+            k1 = knots[1]
+            k2 = knots[2]
+            xnew = np.linspace(k1[0], k2[0], npoints)
+            ynew = np.linspace(k1[1], k2[1], npoints)
 
-        xnew,ynew = splev(np.linspace(u[1],u[2],npoints), tckp) # produce 100 points between the first and second knot
         return (xnew, ynew)
 
     def moveCenterTo(self, new_center):
@@ -501,6 +492,13 @@ class SplineInterpROIClass:
         rotate_angle = angle - current_orientation
         self.rotateByAngle(rotate_angle)
 
+    def copy(self):
+        newSpline = SplineInterpROIClass()
+        newSpline.addKnots(self.knots, checkProximity=False)
+        return newSpline
+
+    def __len__(self):
+        return len(self.knots)
 
     # for pickling/unpickling, to avoid dumping all the internal representations
     def __getstate__(self):

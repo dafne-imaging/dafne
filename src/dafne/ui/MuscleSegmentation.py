@@ -817,9 +817,7 @@ class MuscleSegmentation(ImageShow, QObject):
     @snapshotSaver
     def simplify(self):
         r = self.getCurrentROI()
-        # self.setCurrentROI(r.getSimplifiedSpline(GlobalConfig['SIMPLIFIED_ROI_POINTS']))
-        # self.setCurrentROI(r.getSimplifiedSpline(spacing=GlobalConfig['SIMPLIFIED_ROI_SPACING']))
-        self.setCurrentROI(r.getSimplifiedSpline3())
+        self.setCurrentROI(r.getSimplifiedSpline())
         self.redraw() # this also updates the contour painters
 
     @snapshotSaver

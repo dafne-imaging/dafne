@@ -173,6 +173,13 @@ def contour_to_spline(contour, precision=1):
 
 
 def mask_to_splines(mask, precision=1):
+    """
+    Convert a mask to a list of splines
+    :param mask: 2D numpy array
+    :param precision: precision of the spline (average distance between the spline and the contour of the mask)
+
+    :return: list of SplineInterpROIClass
+    """
     contours = find_all_contours(mask)
     # if no contours are found, try if there are only some thin structures
     if not contours:
@@ -187,3 +194,95 @@ def mask_to_splines(mask, precision=1):
         splines_out.append(contour_to_spline(contour_for_spline, precision=precision))
 
     return splines_out
+
+def mask_to_trivial_splines(mask):
+    """
+    Convert a mask to a list of trivial splines. These splines have as many knots as the number of pixels in the contour.
+    :param mask: 2D numpy array
+
+    :return: list of SplineInterpROIClass
+    """
+    contours = find_all_contours(mask)
+    # if no contours are found, try if there are only some thin structures
+    if not contours:
+        contours = find_all_contours(mask, erode=False)
+    splines_out = []
+
+    for contour_points in contours:
+        # we need to invert because the spline wants coordinates in the "graphics" format, which is
+        # transposed with respect to the numpy format
+        contour_for_spline = [invert_point(p) for p in contour_points]
+        contour_for_spline.reverse()
+        spline_out = SplineInterpROIClass()
+        spline_out.addKnots(contour_for_spline, checkProximity=False)
+        splines_out.append(spline_out)
+
+    return splines_out
+
+def mask_average(mask_list, weight_list=None):
+    """
+    Average a list of masks by converting them to splines and averaging the knots
+    :param mask_list: list of 2D numpy arrays
+    :return: 2D numpy array
+    """
+    # splines is a list of list. The outer list is the list of masks, the inner list is the list of splines for each mask
+    splines = []
+    for mask in mask_list:
+        splines.append(mask_to_trivial_splines(mask))
+
+    # check that every mask has the same number of splines
+    n_splines = [len(s) for s in splines]
+    if not all([n == n_splines[0] for n in n_splines]):
+        raise ValueError('All masks must have the same number of contours')
+
+    def find_closest_other_spline(base_spline, other_spline_list):
+        # find the spline with the minimum number of knots
+        min_n_knots = min([len(s) for s in other_spline_list] + [len(base_spline)])
+        base_spline.reduceKnots(min_n_knots)
+        min_spline_index = 0
+        test_spline = other_spline_list[0].copy()
+        test_spline.reduceKnots(min_n_knots)
+        min_d, min_shift = base_spline.calcDistance(test_spline)
+        for spline_index, spline in enumerate(other_spline_list[1:]):
+            test_spline = spline.copy()
+            print(len(test_spline))
+            print(min_n_knots)
+            test_spline.reduceKnots(min_n_knots)
+            print(len(test_spline))
+            d, shift = base_spline.calcDistance(test_spline)
+            if d < min_d:
+                min_d = d
+                min_shift = shift
+                min_spline_index = spline_index + 1
+        min_spline = other_spline_list.pop(min_spline_index)
+        min_spline.reduceKnots(min_n_knots)
+        min_spline.rotateKnotList(min_shift)
+        return min_spline
+
+    outer_spline_list = []
+    for spline_index in range(len(splines[0])):
+        current_spline_list = [splines[0][spline_index]]
+        base_spline = splines[0][spline_index]
+        for mask_index, mask_spline_list in enumerate(splines[1:]):
+            closest_spline = find_closest_other_spline(base_spline, mask_spline_list)
+            current_spline_list.append(closest_spline)
+        outer_spline_list.append(current_spline_list)
+
+    if weight_list is None:
+        weight_list = [1] * len(mask_list)
+
+    def average_spline(spline_list, weight_list):
+        spline_out = SplineInterpROIClass()
+        for knot_index in range(len(spline_list[0])):
+            knot_list = [spline_list[s].getKnot(knot_index) for s in range(len(spline_list))]
+            knot_out = np.average(knot_list, axis=0, weights=weight_list)
+            spline_out.addKnot((knot_out[0], knot_out[1]), checkProximity=False)
+        return spline_out
+
+    mask_out = np.zeros_like(mask_list[0])
+    for spline_list in outer_spline_list:
+        average = average_spline(spline_list, weight_list)
+        mask_out += average.toMask(mask_out.shape, fast=True)
+
+    mask_out = mask_out > 0
+    return mask_out
