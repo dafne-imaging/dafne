@@ -17,12 +17,15 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import matplotlib
 from muscle_bids.dosma_io import NiftiWriter
+from scipy.interpolate import interp1d
 from skimage.morphology import area_opening, area_closing
 
 from .WhatsNew import NewsChecker, WhatsNewDialog
 from ..utils.dicomUtils.misc import realign_medical_volume, dosma_volume_from_path, reorient_data_ui, \
     get_nifti_orientation
 from . import GenericInputDialog
+from ..utils.mask_to_spline import mask_average, mask_to_trivial_splines, masks_splines_to_splines_masks
+from ..utils.pySplineInterp import SplineInterpROIClass
 from ..utils.resource_utils import get_resource_path
 
 matplotlib.use("Qt5Agg")
@@ -119,7 +122,6 @@ def snapshotSaver(func):
         func(self, *args, **kwargs)
 
     return wrapper
-
 
 
 class MuscleSegmentation(ImageShow, QObject):
@@ -379,6 +381,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.calculate_transforms.connect(self.calcTransforms)
         self.toolbox_window.contour_propagate_fw.connect(self.propagate)
         self.toolbox_window.contour_propagate_bw.connect(self.propagateBack)
+
+        self.toolbox_window.interpolate_mask.connect(self.interpolate)
 
         self.toolbox_window.roi_import.connect(self.loadROIPickle)
         self.toolbox_window.roi_export.connect(self.saveROIPickle)
@@ -1203,6 +1207,165 @@ class MuscleSegmentation(ImageShow, QObject):
         self.redraw()
 
         self.setSplash(False, 3, 3)
+
+    def _calculateInterpolatedMask(self):
+        # find ROIs above and below the current image
+
+        indices_for_interpolation = []
+        masks_for_interpolation = []
+        # rois above
+        for i in range(len(self.imList)):
+            mask = self.getCurrentMask(i - self.curImage)
+            if i != int(self.curImage) and np.any(mask):
+                indices_for_interpolation.append(i)
+                masks_for_interpolation.append(mask)
+
+        print(len(indices_for_interpolation))
+
+        if len(indices_for_interpolation) == 0:
+            return np.zeros(self.image.shape, dtype=np.uint8)
+        if len(indices_for_interpolation) == 1:
+            return masks_for_interpolation[0]
+        if len(indices_for_interpolation) == 2 or len(indices_for_interpolation) == 3:
+            # linear interpolation
+            closest_roi_indices = np.argsort(np.abs(np.array(indices_for_interpolation) - self.curImage))
+
+            spline_list_1 = mask_to_trivial_splines(masks_for_interpolation[closest_roi_indices[0]], spacing=4)
+            spline_list_2 = mask_to_trivial_splines(masks_for_interpolation[closest_roi_indices[1]], spacing=4)
+            #print('Number of splines', len(spline_list_1))
+            index1 = indices_for_interpolation[closest_roi_indices[0]]
+            index2 = indices_for_interpolation[closest_roi_indices[1]]
+            if len(spline_list_1) != len(spline_list_2):
+                self.alert('Different number of subrois in neighboring regions')
+                return np.zeros(self.image.shape, dtype=np.uint8)
+
+            splines_list = masks_splines_to_splines_masks([spline_list_1, spline_list_2])
+            out_mask = np.zeros(self.image.shape, dtype=np.uint8)
+            for subroi_spline in splines_list:
+                out_spline = SplineInterpROIClass()
+                spline1 = subroi_spline[0]
+                spline2 = subroi_spline[1]
+
+                current_index = self.curImage
+                for knot1, knot2 in zip(spline1.knots, spline2.knots):
+                    out_spline.addKnot(((knot1[0] * (index2 - current_index) + knot2[0] * (current_index - index1)) / (index2 - index1),
+                                       (knot1[1] * (index2 - current_index) + knot2[1] * (current_index - index1)) / (index2 - index1)))
+                out_mask += out_spline.toMask(self.image.shape)
+                out_mask = (out_mask > 0).astype(np.uint8)
+                out_mask = binary_dilation(out_mask)
+            return out_mask
+        else:
+            # cubic interpolation
+            closest_roi_indices = np.argsort(np.abs(np.array(indices_for_interpolation) - self.curImage))
+
+            spline_list_1 = mask_to_trivial_splines(masks_for_interpolation[closest_roi_indices[0]], spacing=4)
+            spline_list_2 = mask_to_trivial_splines(masks_for_interpolation[closest_roi_indices[1]], spacing=4)
+            spline_list_3 = mask_to_trivial_splines(masks_for_interpolation[closest_roi_indices[2]], spacing=4)
+            spline_list_4 = mask_to_trivial_splines(masks_for_interpolation[closest_roi_indices[3]], spacing=4)
+            # print('Number of splines', len(spline_list_1))
+            index1 = indices_for_interpolation[closest_roi_indices[0]]
+            index2 = indices_for_interpolation[closest_roi_indices[1]]
+            index3 = indices_for_interpolation[closest_roi_indices[2]]
+            index4 = indices_for_interpolation[closest_roi_indices[3]]
+            if any([len(spline_list_1) != len(spline_list_2), len(spline_list_1) != len(spline_list_3), len(spline_list_1) != len(spline_list_4)]):
+                self.alert('Different number of subrois in neighboring regions')
+                return np.zeros(self.image.shape, dtype=np.uint8)
+
+            splines_list = masks_splines_to_splines_masks([spline_list_1, spline_list_2, spline_list_3, spline_list_4])
+            out_mask = np.zeros(self.image.shape, dtype=np.uint8)
+            for subroi_spline in splines_list:
+                out_spline = SplineInterpROIClass()
+                spline1 = subroi_spline[0]
+                spline2 = subroi_spline[1]
+                spline3 = subroi_spline[2]
+                spline4 = subroi_spline[3]
+
+                current_index = self.curImage
+                for knot1, knot2, knot3, knot4 in zip(spline1.knots, spline2.knots, spline3.knots, spline4.knots):
+                    f_x = interp1d([index1, index2, index3, index4], [knot1[0], knot2[0], knot3[0], knot4[0]], kind='cubic')
+                    f_y = interp1d([index1, index2, index3, index4], [knot1[1], knot2[1], knot3[1], knot4[1]], kind='cubic')
+                    out_spline.addKnot((f_x(current_index), f_y(current_index)))
+
+                out_mask += out_spline.toMask(self.image.shape)
+                out_mask = (out_mask > 0).astype(np.uint8)
+                out_mask = binary_dilation(out_mask)
+
+            return out_mask
+
+    def _registerMask(self):
+        if self.registrationManager is None:
+            return np.zeros(self.image.shape, dtype=np.uint8)
+
+        # find if there is a mask above
+        self.curImage = int(self.curImage)
+        mask_above = None
+        mask_above_index = None
+        for i in range(self.curImage-1, -1, -1):
+            m = self.getCurrentMask(i-self.curImage)
+            if np.any(m):
+                mask_above = m
+                mask_above_index = i
+                break
+
+        mask_below = None
+        mask_below_index = None
+        for i in range(self.curImage+1, len(self.imList)):
+            m = self.getCurrentMask(i-self.curImage)
+            if np.any(m):
+                mask_below = m
+                mask_below_index = i
+                break
+
+        if mask_above is None and mask_below is None:
+            return np.zeros(self.image.shape, dtype=np.uint8)
+
+        registered_mask_above = None
+        if mask_above is not None:
+            registered_mask_above = mask_above
+            for i in range(mask_above_index, self.curImage):
+                # Note: we are using the inverse transform, because the transforms are originally calculated to
+                # transform points, which is the inverse as transforming images
+                registered_mask_above = self.registrationManager.run_transformix_mask(registered_mask_above,
+                                                                    self.registrationManager.get_inverse_transform(i+1))
+
+        registered_mask_below = None
+        if mask_below is not None:
+            registered_mask_below = mask_below
+            for i in range(mask_below_index, self.curImage, -1):
+                # Note: we are using the inverse transform, because the transforms are originally calculated to
+                # transform points, which is the inverse as transforming images
+                registered_mask_below = self.registrationManager.run_transformix_mask(registered_mask_below,
+                                                                         self.registrationManager.get_transform(
+                                                                             i - 1))
+
+        if registered_mask_above is None:
+            return registered_mask_below
+        elif registered_mask_below is None:
+            return registered_mask_above
+        else:
+            print('averaging masks')
+            return binary_dilation(mask_average([registered_mask_above, registered_mask_below],
+                                [self.curImage-mask_below_index, mask_above_index-self.curImage]))
+
+
+    @pyqtSlot(str)
+    def interpolate(self, interpolation_method):
+        if self.editMode == ToolboxWindow.EDITMODE_CONTOUR: return
+        if interpolation_method == ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE:
+            interpolated_mask = self._calculateInterpolatedMask()
+            self.setCurrentMask(interpolated_mask)
+            self.redraw()
+        if interpolation_method == ToolboxWindow.INTERPOLATE_MASK_REGISTER:
+            registered_mask = self._registerMask()
+            self.setCurrentMask(registered_mask)
+            self.redraw()
+        if interpolation_method == ToolboxWindow.INTERPOLATE_MASK_BOTH:
+            interpolated_mask = self._calculateInterpolatedMask()
+            registered_mask = self._registerMask()
+            self.setCurrentMask(binary_dilation(mask_average([interpolated_mask, registered_mask])))
+            self.redraw()
+
+
 
     ##############################################################################################################
     ###

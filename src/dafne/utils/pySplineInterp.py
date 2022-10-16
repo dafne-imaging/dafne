@@ -121,13 +121,13 @@ class SplineInterpROIClass:
         for k in knotList:
             self.addKnot(k, checkProximity)
             
-    def addKnot(self,point, checkProximity = True):
+    def addKnot(self,point, checkProximity = True, tolerance = 2):
         #check if the knot already exists
         existingIndex = self.findExistingKnot(point)
         if existingIndex is not None: return existingIndex
         # see if the knot should be added between two existing knots: this happens if we are close to the path
         if checkProximity:
-            index = self.isPointNearPath(point)
+            index = self.isPointNearPath(point, tolerance)
         else:
             index = None
         if index is None:
@@ -199,7 +199,6 @@ class SplineInterpROIClass:
     def rotateKnotList(self, shift):
         self.invalidate_precalculations()
         self.knots = self.knots[shift:] + self.knots[:shift]
-
 
 
     def removeAllKnots(self):

@@ -58,8 +58,36 @@ def get_next_coord(context_coords, context):
 
 
 def find_contour(mask):
-    first_point = np.unravel_index(np.argmax(mask > 0), mask.shape)
+    # the first point needs to be more reproducible
+    #first_point = np.unravel_index(np.argmax(mask > 0), mask.shape)
+    #contour_list = [first_point]
+
+    # calculate center of mass
+    label = skimage.measure.label(mask, connectivity=1)
+    props = skimage.measure.regionprops(label)
+    centerx = int(props[0].centroid[0])
+    centery = int(props[0].centroid[1])
+    first_point = None
+    last_x = centerx
+    last_y = centery
+    active_point_found = False
+    for x in range(centerx, mask.shape[0]):
+        for y in range(centery, mask.shape[1]):
+            if mask[x, y]:
+                active_point_found = True
+            else:
+                if active_point_found:
+                    first_point = (last_x, last_y) # the first point is the last coordinate where there was a signal
+                    break
+            last_x = x
+            last_y = y
+    if first_point is None:
+        first_point = np.unravel_index(np.argmax(mask > 0), mask.shape)
+
     contour_list = [first_point]
+
+
+
     context_coords, context = get_point_context(mask, first_point)
     next_point = get_next_coord(context_coords, context)
     mask[next_point] = True # reset the first point so we can find it again
@@ -195,7 +223,7 @@ def mask_to_splines(mask, precision=1):
 
     return splines_out
 
-def mask_to_trivial_splines(mask):
+def mask_to_trivial_splines(mask, spacing=1):
     """
     Convert a mask to a list of trivial splines. These splines have as many knots as the number of pixels in the contour.
     :param mask: 2D numpy array
@@ -213,28 +241,15 @@ def mask_to_trivial_splines(mask):
         # transposed with respect to the numpy format
         contour_for_spline = [invert_point(p) for p in contour_points]
         contour_for_spline.reverse()
+        if spacing != 1 and len(contour_for_spline) > 4*spacing:
+            contour_for_spline = contour_for_spline[::spacing]
         spline_out = SplineInterpROIClass()
         spline_out.addKnots(contour_for_spline, checkProximity=False)
         splines_out.append(spline_out)
 
     return splines_out
 
-def mask_average(mask_list, weight_list=None):
-    """
-    Average a list of masks by converting them to splines and averaging the knots
-    :param mask_list: list of 2D numpy arrays
-    :return: 2D numpy array
-    """
-    # splines is a list of list. The outer list is the list of masks, the inner list is the list of splines for each mask
-    splines = []
-    for mask in mask_list:
-        splines.append(mask_to_trivial_splines(mask))
-
-    # check that every mask has the same number of splines
-    n_splines = [len(s) for s in splines]
-    if not all([n == n_splines[0] for n in n_splines]):
-        raise ValueError('All masks must have the same number of contours')
-
+def masks_splines_to_splines_masks(splines):
     def find_closest_other_spline(base_spline, other_spline_list):
         # find the spline with the minimum number of knots
         min_n_knots = min([len(s) for s in other_spline_list] + [len(base_spline)])
@@ -268,6 +283,26 @@ def mask_average(mask_list, weight_list=None):
             current_spline_list.append(closest_spline)
         outer_spline_list.append(current_spline_list)
 
+    return outer_spline_list
+
+def mask_average(mask_list, weight_list=None):
+    """
+    Average a list of masks by converting them to splines and averaging the knots
+    :param mask_list: list of 2D numpy arrays
+    :return: 2D numpy array
+    """
+    # splines is a list of list. The outer list is the list of masks, the inner list is the list of splines for each mask
+    splines = []
+    for mask in mask_list:
+        splines.append(mask_to_trivial_splines(mask))
+
+    # check that every mask has the same number of splines
+    n_splines = [len(s) for s in splines]
+    if not all([n == n_splines[0] for n in n_splines]):
+        raise ValueError('All masks must have the same number of contours')
+
+    outer_spline_list = masks_splines_to_splines_masks(splines)
+
     if weight_list is None:
         weight_list = [1] * len(mask_list)
 
@@ -278,6 +313,7 @@ def mask_average(mask_list, weight_list=None):
             knot_out = np.average(knot_list, axis=0, weights=weight_list)
             spline_out.addKnot((knot_out[0], knot_out[1]), checkProximity=False)
         return spline_out
+
 
     mask_out = np.zeros_like(mask_list[0])
     for spline_list in outer_spline_list:

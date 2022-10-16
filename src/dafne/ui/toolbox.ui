@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>311</width>
-    <height>1246</height>
+    <height>1317</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -618,6 +618,54 @@
              <widget class="QPushButton" name="simplifyButton">
               <property name="text">
                <string>Simplify</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="maskInterpolationGroup">
+         <property name="title">
+          <string>Mask interpolation</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_10">
+          <item>
+           <widget class="QPushButton" name="interpolateButton">
+            <property name="text">
+             <string>Interpolate</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_14">
+            <item>
+             <widget class="QRadioButton" name="interpolation_style_int">
+              <property name="text">
+               <string>Interpolation</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="interpolation_style_reg">
+              <property name="text">
+               <string>Registration</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_17">
+            <item>
+             <widget class="QRadioButton" name="interpolation_style_both">
+              <property name="text">
+               <string>Both</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
               </property>
              </widget>
             </item>

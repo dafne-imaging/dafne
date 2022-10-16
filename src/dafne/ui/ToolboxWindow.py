@@ -147,6 +147,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     contour_propagate_bw = pyqtSignal()
     calculate_transforms = pyqtSignal()
 
+    INTERPOLATE_MASK_REGISTER = 'register'
+    INTERPOLATE_MASK_INTERPOLATE = 'interpolate'
+    INTERPOLATE_MASK_BOTH = 'both'
+
+    interpolate_mask = pyqtSignal(str)
+
     roi_added = pyqtSignal(str)
     roi_deleted = pyqtSignal(str)
     subroi_added = pyqtSignal(int)
@@ -286,8 +292,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.propagateForwardButton.clicked.connect(self.contour_propagate_fw.emit)
         self.propagateBackButton.clicked.connect(self.contour_propagate_bw.emit)
 
+        self.interpolateButton.clicked.connect(self.interpolate_emit)
+
         if not activate_registration:
             self.registrationGroup.setVisible(False)
+            self.interpolation_style_reg.setVisible(False)
+            self.interpolation_style_both.setVisible(False)
+            self.interpolation_style_int.setChecked(True)
 
         self.editmode_combo.currentTextChanged.connect(lambda : self.set_edit_mode(self.editmode_combo.currentText()))
         self.editmode_combo.setCurrentText('Mask')
@@ -614,6 +625,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.eraseFromAllROIs_checkbox.setVisible(self.edit_state == self.REMOVE_STATE)
             self.intensityAware_checkbox.setVisible(True)
             self.intensityThreshold_widget.setVisible(self.get_intensity_aware())
+            self.maskInterpolationGroup.setVisible(True)
             self.editmode_changed.emit(self.EDITMODE_MASK)
         else:
             self.subroi_widget.setVisible(True)
@@ -626,6 +638,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.eraseFromAllROIs_checkbox.setVisible(False)
             self.intensityAware_checkbox.setVisible(False)
             self.intensityThreshold_widget.setVisible(False)
+            self.maskInterpolationGroup.setVisible(False)
             self.editmode_changed.emit(self.EDITMODE_CONTOUR)
 
     @pyqtSlot(bool)
@@ -966,3 +979,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
                  f'It might take a few minutes. Continue?')
     def do_incremental_learn(self):
         self.incremental_learn.emit()
+
+    def interpolate_emit(self):
+        if self.interpolation_style_both.isChecked():
+            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_BOTH
+        elif self.interpolation_style_reg.isChecked():
+            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_REGISTER
+        else:
+            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE
+        self.interpolate_mask.emit(interpolation_style)
