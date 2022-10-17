@@ -1241,7 +1241,7 @@ class MuscleSegmentation(ImageShow, QObject):
             # all the masks are either above or below the current image: don't interpolate as the results are bad
             print('Nearest neighbor')
             return (masks_above + masks_below)[0]
-        if len(masks_above) < 2 or len(masks_below) < 2:
+        else: # len(masks_above) < 2 or len(masks_below) < 2: Let's disable cubic interpolation
             print('Linear interpolation')
             # We have fewer than 2 masks above and below. Can't use cubic interpolation. Just do linear
             # interpolation between the closest masks
@@ -1271,7 +1271,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 out_mask = (out_mask > 0).astype(np.uint8)
                 out_mask = binary_dilation(out_mask)
             return out_mask
-        else:
+        if 0: # cubic interpolation disabled
             # we have at least 2 slices above and 2 slices below: cubic interpolation
             print('Cubic interpolation')
             spline_list_1 = mask_to_trivial_splines(masks_above[1], spacing=4)
@@ -1313,6 +1313,8 @@ class MuscleSegmentation(ImageShow, QObject):
         if self.registrationManager is None:
             return np.zeros(self.image.shape, dtype=np.uint8)
 
+        self.setSplash(True, 0, 1, 'Calculating registration')
+
         masks_above, masks_above_index, masks_below, masks_below_index = self._get_masks_above_below()
 
         if not masks_above and not masks_below:
@@ -1343,6 +1345,7 @@ class MuscleSegmentation(ImageShow, QObject):
                                                                          self.registrationManager.get_transform(
                                                                              i - 1))
 
+        self.setSplash(False)
         if registered_mask_above is None:
             return registered_mask_below
         elif registered_mask_below is None:
@@ -1351,9 +1354,12 @@ class MuscleSegmentation(ImageShow, QObject):
             return binary_dilation(mask_average([registered_mask_above, registered_mask_below],
                                 [self.curImage-mask_below_index, mask_above_index-self.curImage]))
 
-
     @pyqtSlot(str)
+    @separate_thread_decorator
     def interpolate(self, interpolation_method):
+        self.do_interpolate(interpolation_method)
+
+    def do_interpolate(self, interpolation_method):
         if self.editMode == ToolboxWindow.EDITMODE_CONTOUR: return
         if interpolation_method == ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE:
             interpolated_mask = self._calculateInterpolatedMask()
@@ -1370,6 +1376,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.redraw()
 
     @pyqtSlot(str)
+    @separate_thread_decorator
     def interpolate_block(self, interpolation_method):
         if self.editMode == ToolboxWindow.EDITMODE_CONTOUR: return
 
@@ -1385,7 +1392,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.displayImage(self.curImage)
             self.redraw()
             plt.pause(0.001)
-            self.interpolate(interpolation_method)
+            self.do_interpolate(interpolation_method)
             plt.pause(0.001)
 
 
