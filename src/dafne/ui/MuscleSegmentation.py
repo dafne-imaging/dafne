@@ -1211,30 +1211,38 @@ class MuscleSegmentation(ImageShow, QObject):
     def _calculateInterpolatedMask(self):
         # find ROIs above and below the current image
 
-        indices_for_interpolation = []
-        masks_for_interpolation = []
-        # rois above
-        for i in range(len(self.imList)):
-            mask = self.getCurrentMask(i - self.curImage)
-            if i != int(self.curImage) and np.any(mask):
-                indices_for_interpolation.append(i)
-                masks_for_interpolation.append(mask)
+        self.curImage = int(self.curImage)
+        masks_above = []
+        masks_above_index = []
+        for i in range(self.curImage - 1, -1, -1):
+            m = self.getCurrentMask(i - self.curImage)
+            if np.any(m):
+                masks_above.append(m)
+                masks_above_index.append(i)
 
-        print(len(indices_for_interpolation))
+        masks_below = []
+        masks_below_index = []
+        for i in range(self.curImage + 1, len(self.imList)):
+            m = self.getCurrentMask(i - self.curImage)
+            if np.any(m):
+                masks_below.append(m)
+                masks_below_index.append(i)
 
-        if len(indices_for_interpolation) == 0:
+        if not masks_above and not masks_below:
             return np.zeros(self.image.shape, dtype=np.uint8)
-        if len(indices_for_interpolation) == 1:
-            return masks_for_interpolation[0]
-        if len(indices_for_interpolation) == 2 or len(indices_for_interpolation) == 3:
-            # linear interpolation
-            closest_roi_indices = np.argsort(np.abs(np.array(indices_for_interpolation) - self.curImage))
+        if not masks_above or not masks_below:
+            # all the masks are either above or below the current image: don't interpolate as the results are bad
+            return (masks_above + masks_below)[0]
+        if len(masks_above) < 2 or len(masks_below) < 2:
+            print('Linear interpolation')
+            # We have fewer than 2 masks above and below. Can't use cubic interpolation. Just do linear
+            # interpolation between the closest masks
 
-            spline_list_1 = mask_to_trivial_splines(masks_for_interpolation[closest_roi_indices[0]], spacing=4)
-            spline_list_2 = mask_to_trivial_splines(masks_for_interpolation[closest_roi_indices[1]], spacing=4)
+            spline_list_1 = mask_to_trivial_splines(masks_above[0], spacing=4)
+            spline_list_2 = mask_to_trivial_splines(masks_below[0], spacing=4)
             #print('Number of splines', len(spline_list_1))
-            index1 = indices_for_interpolation[closest_roi_indices[0]]
-            index2 = indices_for_interpolation[closest_roi_indices[1]]
+            index1 = masks_above_index[0]
+            index2 = masks_below_index[0]
             if len(spline_list_1) != len(spline_list_2):
                 self.alert('Different number of subrois in neighboring regions')
                 return np.zeros(self.image.shape, dtype=np.uint8)
@@ -1248,25 +1256,25 @@ class MuscleSegmentation(ImageShow, QObject):
 
                 current_index = self.curImage
                 for knot1, knot2 in zip(spline1.knots, spline2.knots):
-                    out_spline.addKnot(((knot1[0] * (index2 - current_index) + knot2[0] * (current_index - index1)) / (index2 - index1),
-                                       (knot1[1] * (index2 - current_index) + knot2[1] * (current_index - index1)) / (index2 - index1)))
+                    f_x = interp1d([index1, index2], [knot1[0], knot2[0]], kind='linear')
+                    f_y = interp1d([index1, index2], [knot1[1], knot2[1]], kind='linear')
+                    out_spline.addKnot((f_x(current_index), f_y(current_index)))
                 out_mask += out_spline.toMask(self.image.shape)
                 out_mask = (out_mask > 0).astype(np.uint8)
                 out_mask = binary_dilation(out_mask)
             return out_mask
         else:
-            # cubic interpolation
-            closest_roi_indices = np.argsort(np.abs(np.array(indices_for_interpolation) - self.curImage))
-
-            spline_list_1 = mask_to_trivial_splines(masks_for_interpolation[closest_roi_indices[0]], spacing=4)
-            spline_list_2 = mask_to_trivial_splines(masks_for_interpolation[closest_roi_indices[1]], spacing=4)
-            spline_list_3 = mask_to_trivial_splines(masks_for_interpolation[closest_roi_indices[2]], spacing=4)
-            spline_list_4 = mask_to_trivial_splines(masks_for_interpolation[closest_roi_indices[3]], spacing=4)
+            # we have at least 2 slices above and 2 slices below: cubic interpolation
+            print('Cubic interpolation')
+            spline_list_1 = mask_to_trivial_splines(masks_above[1], spacing=4)
+            spline_list_2 = mask_to_trivial_splines(masks_above[0], spacing=4)
+            spline_list_3 = mask_to_trivial_splines(masks_below[0], spacing=4)
+            spline_list_4 = mask_to_trivial_splines(masks_below[1], spacing=4)
             # print('Number of splines', len(spline_list_1))
-            index1 = indices_for_interpolation[closest_roi_indices[0]]
-            index2 = indices_for_interpolation[closest_roi_indices[1]]
-            index3 = indices_for_interpolation[closest_roi_indices[2]]
-            index4 = indices_for_interpolation[closest_roi_indices[3]]
+            index1 = masks_above_index[1]
+            index2 = masks_above_index[0]
+            index3 = masks_below_index[0]
+            index4 = masks_below_index[1]
             if any([len(spline_list_1) != len(spline_list_2), len(spline_list_1) != len(spline_list_3), len(spline_list_1) != len(spline_list_4)]):
                 self.alert('Different number of subrois in neighboring regions')
                 return np.zeros(self.image.shape, dtype=np.uint8)

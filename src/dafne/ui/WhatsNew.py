@@ -4,8 +4,8 @@ import xml.etree.ElementTree as ET
 from urllib.parse import urlparse
 
 import requests
-from PyQt5.QtCore import Qt, QObject, pyqtSlot, QThread, pyqtSignal
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QPushButton, QLabel, QSizePolicy, QMainWindow, QWidget
+from PyQt5.QtCore import Qt, QObject, pyqtSignal
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QPushButton, QLabel, QSizePolicy
 
 from ..config import GlobalConfig, save_config
 from ..utils.ThreadHelpers import separate_thread_decorator
@@ -54,7 +54,7 @@ class WhatsNewDialog(QDialog):
         btn = QPushButton("Close")
         btn.clicked.connect(self.close)
         my_layout.addWidget(btn)
-        self.resize(300,110*n_news+60)
+        self.resize(300, 110 * n_news + 60)
         self.show()
 
 
@@ -68,7 +68,7 @@ def datetime_to_xml_timestamp(dt):
 
 def check_for_updates():
     last_news_time = xml_timestamp_to_datetime(GlobalConfig['LAST_NEWS'])
-    #last_news_time = xml_timestamp_to_datetime('2010-11-10T00:00:00+00:00')
+    # last_news_time = xml_timestamp_to_datetime('2010-11-10T00:00:00+00:00')
     try:
         r = requests.get(GlobalConfig['NEWS_URL'])
     except requests.exceptions.ConnectionError:
@@ -121,6 +121,7 @@ class NewsChecker(QObject):
         news_list, index_address = check_for_updates()
         if news_list:
             self.news_ready.emit(news_list, index_address)
+
 
 def show_news():
     news_list, index_address = check_for_updates()
