@@ -383,6 +383,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.contour_propagate_bw.connect(self.propagateBack)
 
         self.toolbox_window.interpolate_mask.connect(self.interpolate)
+        self.toolbox_window.interpolate_block.connect(self.interpolate_block)
 
         self.toolbox_window.roi_import.connect(self.loadROIPickle)
         self.toolbox_window.roi_export.connect(self.saveROIPickle)
@@ -1208,9 +1209,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.setSplash(False, 3, 3)
 
-    def _calculateInterpolatedMask(self):
-        # find ROIs above and below the current image
-
+    def _get_masks_above_below(self):
         self.curImage = int(self.curImage)
         masks_above = []
         masks_above_index = []
@@ -1228,10 +1227,19 @@ class MuscleSegmentation(ImageShow, QObject):
                 masks_below.append(m)
                 masks_below_index.append(i)
 
+        return masks_above, masks_above_index, masks_below, masks_below_index
+
+    def _calculateInterpolatedMask(self):
+        # find ROIs above and below the current image
+
+        masks_above, masks_above_index, masks_below, masks_below_index = self._get_masks_above_below()
+
         if not masks_above and not masks_below:
+            print('No masks to interpolate')
             return np.zeros(self.image.shape, dtype=np.uint8)
         if not masks_above or not masks_below:
             # all the masks are either above or below the current image: don't interpolate as the results are bad
+            print('Nearest neighbor')
             return (masks_above + masks_below)[0]
         if len(masks_above) < 2 or len(masks_below) < 2:
             print('Linear interpolation')
@@ -1300,32 +1308,21 @@ class MuscleSegmentation(ImageShow, QObject):
 
             return out_mask
 
+
     def _registerMask(self):
         if self.registrationManager is None:
             return np.zeros(self.image.shape, dtype=np.uint8)
 
-        # find if there is a mask above
-        self.curImage = int(self.curImage)
-        mask_above = None
-        mask_above_index = None
-        for i in range(self.curImage-1, -1, -1):
-            m = self.getCurrentMask(i-self.curImage)
-            if np.any(m):
-                mask_above = m
-                mask_above_index = i
-                break
+        masks_above, masks_above_index, masks_below, masks_below_index = self._get_masks_above_below()
 
-        mask_below = None
-        mask_below_index = None
-        for i in range(self.curImage+1, len(self.imList)):
-            m = self.getCurrentMask(i-self.curImage)
-            if np.any(m):
-                mask_below = m
-                mask_below_index = i
-                break
-
-        if mask_above is None and mask_below is None:
+        if not masks_above and not masks_below:
             return np.zeros(self.image.shape, dtype=np.uint8)
+
+        mask_above = masks_above[0]
+        mask_below = masks_below[0]
+
+        mask_above_index = masks_above_index[0]
+        mask_below_index = masks_below_index[0]
 
         registered_mask_above = None
         if mask_above is not None:
@@ -1372,6 +1369,27 @@ class MuscleSegmentation(ImageShow, QObject):
             registered_mask = self._registerMask()
             self.setCurrentMask(binary_dilation(mask_average([interpolated_mask, registered_mask])))
             self.redraw()
+
+    @pyqtSlot(str)
+    def interpolate_block(self, interpolation_method):
+        if self.editMode == ToolboxWindow.EDITMODE_CONTOUR: return
+
+        # there needs to be at least one segmented slice above and one segmented slice below
+        masks_above, masks_above_index, masks_below, masks_below_index = self._get_masks_above_below()
+        if not masks_above and not masks_below:
+            self.alert('Block interpolation only works if there is at least one segmented slice above and one segmented slice below')
+            return
+        initial_index = masks_above_index[0] + 1
+        final_index = masks_below_index[0] - 1
+        for i in range(initial_index, final_index+1):
+            self.curImage = i
+            self.displayImage(self.curImage)
+            self.redraw()
+            plt.pause(0.001)
+            self.interpolate(interpolation_method)
+            plt.pause(0.001)
+
+
 
 
 

@@ -152,6 +152,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     INTERPOLATE_MASK_BOTH = 'both'
 
     interpolate_mask = pyqtSignal(str)
+    interpolate_block = pyqtSignal(str)
 
     roi_added = pyqtSignal(str)
     roi_deleted = pyqtSignal(str)
@@ -293,6 +294,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.propagateBackButton.clicked.connect(self.contour_propagate_bw.emit)
 
         self.interpolateButton.clicked.connect(self.interpolate_emit)
+        self.interpolateBlockButton.clicked.connect(self.interpolate_block_emit)
 
         if not activate_registration:
             self.registrationGroup.setVisible(False)
@@ -988,3 +990,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         else:
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE
         self.interpolate_mask.emit(interpolation_style)
+
+    def interpolate_block_emit(self):
+        if self.interpolation_style_both.isChecked():
+            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_BOTH
+        elif self.interpolation_style_reg.isChecked():
+            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_REGISTER
+        else:
+            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE
+        self.interpolate_block.emit(interpolation_style)
