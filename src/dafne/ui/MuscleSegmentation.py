@@ -1348,7 +1348,6 @@ class MuscleSegmentation(ImageShow, QObject):
         elif registered_mask_below is None:
             return registered_mask_above
         else:
-            print('averaging masks')
             return binary_dilation(mask_average([registered_mask_above, registered_mask_below],
                                 [self.curImage-mask_below_index, mask_above_index-self.curImage]))
 
@@ -1388,9 +1387,6 @@ class MuscleSegmentation(ImageShow, QObject):
             plt.pause(0.001)
             self.interpolate(interpolation_method)
             plt.pause(0.001)
-
-
-
 
 
     ##############################################################################################################
