@@ -162,6 +162,8 @@ class MuscleSegmentation(ImageShow, QObject):
             print("Elastix is not available")
             self.registration_available = False
 
+        self.app = None
+
         self.setupToolbar()
 
         main_window = self.fig.canvas.parent()
@@ -180,7 +182,6 @@ class MuscleSegmentation(ImageShow, QObject):
         self.dl_segmenters = {}
 
         # self.fig.canvas.setCursor(Qt.BlankCursor)
-        self.app = None
 
         # self.setCmap('viridis')
         self.extraOutputParams = []
@@ -423,6 +424,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.brush_changed.connect(self.updateBrush)
 
         self.alert_signal.connect(self.toolbox_window.alert)
+        self.toolbox_window.quit.connect(self.close_slot)
 
         self.toolbox_window.reblit.connect(self.do_reblit)
 
@@ -1360,7 +1362,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.do_interpolate(interpolation_method)
 
     def do_interpolate(self, interpolation_method):
-        if self.editMode == ToolboxWindow.EDITMODE_CONTOUR: return
+        #if self.editMode == ToolboxWindow.EDITMODE_CONTOUR: return
         if interpolation_method == ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE:
             interpolated_mask = self._calculateInterpolatedMask()
             self.setCurrentMask(interpolated_mask)
@@ -1378,11 +1380,11 @@ class MuscleSegmentation(ImageShow, QObject):
     @pyqtSlot(str)
     @separate_thread_decorator
     def interpolate_block(self, interpolation_method):
-        if self.editMode == ToolboxWindow.EDITMODE_CONTOUR: return
+        #if self.editMode == ToolboxWindow.EDITMODE_CONTOUR: return
 
         # there needs to be at least one segmented slice above and one segmented slice below
         masks_above, masks_above_index, masks_below, masks_below_index = self._get_masks_above_below()
-        if not masks_above and not masks_below:
+        if not masks_above or not masks_below:
             self.alert('Block interpolation only works if there is at least one segmented slice above and one segmented slice below')
             return
         initial_index = masks_above_index[0] + 1
@@ -1391,9 +1393,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.curImage = i
             self.displayImage(self.curImage)
             self.redraw()
-            plt.pause(0.001)
             self.do_interpolate(interpolation_method)
-            plt.pause(0.001)
 
 
     ##############################################################################################################
@@ -1661,6 +1661,10 @@ class MuscleSegmentation(ImageShow, QObject):
         else:
             self.get_app().setOverrideCursor(Qt.ArrowCursor)
 
+    @pyqtSlot()
+    def close_slot(self):
+        plt.close(self.fig)
+        #self.closeCB(None)
 
     def closeCB(self, event):
         self.toolbox_window.close()

@@ -22,7 +22,7 @@ import os
 import sys
 
 from ..ui.ToolboxUI import Ui_SegmentationToolbox
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QSize
 from PyQt5.QtGui import QMovie, QIcon, QPixmap
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog, QApplication, QDialog, \
                             QVBoxLayout, QPushButton, QTableWidget, QTableWidgetItem
@@ -162,6 +162,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     roi_clear = pyqtSignal()
     classification_changed = pyqtSignal(str)
     classification_change_all = pyqtSignal(str)
+
+    quit = pyqtSignal()
 
     editmode_changed = pyqtSignal(str)
 
@@ -374,6 +376,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionShowLogs.triggered.connect(self.show_logs)
 
+        self.actionQuit.triggered.connect(self.quit.emit)
+
         if not config.GlobalConfig['REDIRECT_OUTPUT']:
             self.actionShowLogs.setEnabled(False)
             self.actionShowLogs.setVisible(False)
@@ -386,7 +390,18 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.general_enable(False)
 
-        self.resize(self.mainUIWidget.sizeHint())
+        print(self.sizeHint())
+        self.setMinimumSize(self.sizeHint().width(), 0)
+
+        self.resize(self.sizeHint())
+        # move window to side of main screen
+        self.move(QApplication.primaryScreen().geometry().x(),
+                  int(QApplication.primaryScreen().geometry().height()/2 - self.rect().center().y()))
+
+    def sizeHint(self):
+        return QSize(self.scrollAreaWidgetContents.minimumSize().width() + 16,
+                     max(self.scrollAreaWidgetContents.sizeHint().height()+50,
+                         QApplication.primaryScreen().geometry().height()-100))
 
     @pyqtSlot()
     def show_logs(self):
@@ -627,7 +642,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.eraseFromAllROIs_checkbox.setVisible(self.edit_state == self.REMOVE_STATE)
             self.intensityAware_checkbox.setVisible(True)
             self.intensityThreshold_widget.setVisible(self.get_intensity_aware())
-            self.maskInterpolationGroup.setVisible(True)
+            #self.maskInterpolationGroup.setVisible(True)
             self.editmode_changed.emit(self.EDITMODE_MASK)
         else:
             self.subroi_widget.setVisible(True)
@@ -640,7 +655,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.eraseFromAllROIs_checkbox.setVisible(False)
             self.intensityAware_checkbox.setVisible(False)
             self.intensityThreshold_widget.setVisible(False)
-            self.maskInterpolationGroup.setVisible(False)
+            #self.maskInterpolationGroup.setVisible(False)
             self.editmode_changed.emit(self.EDITMODE_CONTOUR)
 
     @pyqtSlot(bool)
