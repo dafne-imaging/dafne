@@ -108,6 +108,13 @@ except:
 
 INTENSITY_AWARE_THRESHOLD = 0.5
 
+def make_excepthook(muscle_segmentation_instance):
+    def excepthook(exctype, value, traceback):
+        muscle_segmentation_instance.alert(f"An error occurred. Please check the logs in {GlobalConfig.log_dir} for more information. The current ROIs will be saved.")
+        muscle_segmentation_instance.saveROIPickle()
+        muscle_segmentation_instance.close_slot()
+        return sys.__excepthook__(exctype, value, traceback)
+    return excepthook
 
 def makeMaskLayerColormap(color):
     return matplotlib.colors.ListedColormap(np.array([
@@ -204,6 +211,7 @@ class MuscleSegmentation(ImageShow, QObject):
         for key in list(plt.rcParams):
             if 'keymap' in key and 'zoom' not in key and 'pan' not in key:
                 plt.rcParams[key] = []
+        sys.excepthook = make_excepthook(self)
 
     @pyqtSlot(list, str)
     def show_news(self, news, index_address):

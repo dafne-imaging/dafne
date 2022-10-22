@@ -23,7 +23,12 @@ def get_point_context(img, point):
     context_coords.append((x + 1, y))
     context_coords.append((x + 1, y - 1))
     context_coords.append((x, y - 1))
-    context = [img[c] for c in context_coords]
+    context = []
+    for c in context_coords:
+        try:
+            context.append(img[c])
+        except IndexError:
+            context.append(0)
     # img[point] = 0 # unsure about this
     return context_coords, context
 
