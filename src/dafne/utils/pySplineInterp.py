@@ -369,7 +369,6 @@ class SplineInterpROIClass:
                     nearest = (x[p], y[p])
             return nearest
 
-        t = time.time()
         newSpline = SplineInterpROIClass()
         #curve = self.getCurve()
         #newSpline.addKnots(curve)
@@ -396,7 +395,6 @@ class SplineInterpROIClass:
                     optimizeFurther = True
                     newSpline.removeKnot(i)
                     break
-        print("Simplifying time:", time.time() - t)
         return newSpline
     
     # this is usually 4 knots

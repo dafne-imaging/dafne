@@ -837,7 +837,6 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @snapshotSaver
     def optimize(self):
-        print("Optimizing ROI")
         r = self.getCurrentROI()
         center = r.getCenterOfMass()
         if center is None:
@@ -1132,7 +1131,6 @@ class MuscleSegmentation(ImageShow, QObject):
                 nextROI.removeAllKnots()
                 nextROI.addKnots(knotsOut)
             else:
-                print("Optimizing existing knots")
                 for k in knotsOut:
                     i = nextROI.findNearestKnot(k)
                     oldK = nextROI.getKnot(i)
@@ -1186,7 +1184,6 @@ class MuscleSegmentation(ImageShow, QObject):
                 nextROI.removeAllKnots()
                 nextROI.addKnots(knotsOut)
             else:
-                print("Optimizing existing knots")
                 for k in knotsOut:
                     i = nextROI.findNearestKnot(k)
                     oldK = nextROI.getKnot(i)
@@ -1249,10 +1246,10 @@ class MuscleSegmentation(ImageShow, QObject):
             return np.zeros(self.image.shape, dtype=np.uint8)
         if not masks_above or not masks_below:
             # all the masks are either above or below the current image: don't interpolate as the results are bad
-            print('Nearest neighbor')
+            #print('Nearest neighbor')
             return (masks_above + masks_below)[0]
         else: # len(masks_above) < 2 or len(masks_below) < 2: Let's disable cubic interpolation
-            print('Linear interpolation')
+            #print('Linear interpolation')
             # We have fewer than 2 masks above and below. Can't use cubic interpolation. Just do linear
             # interpolation between the closest masks
 
@@ -1283,7 +1280,7 @@ class MuscleSegmentation(ImageShow, QObject):
             return out_mask
         if 0: # cubic interpolation disabled
             # we have at least 2 slices above and 2 slices below: cubic interpolation
-            print('Cubic interpolation')
+            #print('Cubic interpolation')
             spline_list_1 = mask_to_trivial_splines(masks_above[1], spacing=4)
             spline_list_2 = mask_to_trivial_splines(masks_above[0], spacing=4)
             spline_list_3 = mask_to_trivial_splines(masks_below[0], spacing=4)
@@ -2000,7 +1997,7 @@ class MuscleSegmentation(ImageShow, QObject):
             showWarning = False # don't show a empty roi warning if autosaving
             async_write = True
 
-        print("Saving ROIs", roiPickleName)
+        #print("Saving ROIs", roiPickleName)
         if self.roiManager and not self.roiManager.is_empty():  # make sure ROIs are not empty
             dumpObj = {'classifications': self.classifications,
                        'roiManager': self.roiManager }
@@ -2016,7 +2013,7 @@ class MuscleSegmentation(ImageShow, QObject):
     def loadROIPickle(self, roiPickleName=None):
         if not roiPickleName:
             roiPickleName = self.getRoiFileName()
-        print("Loading ROIs", roiPickleName)
+        #print("Loading ROIs", roiPickleName)
         try:
             dumpObj = pickle.load(open(roiPickleName, 'rb'))
         except UnicodeDecodeError:
@@ -2052,7 +2049,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.alert("ROI for wrong dataset")
             return
 
-        print('Rois loaded')
+        #print('Rois loaded')
         self.clearAllROIs()
         self.roiManager = roiManager
         available_classes = self.toolbox_window.get_available_classes()
@@ -2064,10 +2061,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.updateRoiList()
         self.updateMasksFromROIs()
         self.updateContourPainters()
-        print("Contour updated")
         self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
         self.redraw()
-        print("Redraw done")
 
     @pyqtSlot(str, str)
     @pyqtSlot(str)
