@@ -236,7 +236,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.setWindowFlag(Qt.WindowCloseButtonHint, False)
 
         if platform.system() == 'Darwin':
-            self.menubar.setNativeMenuBar(False) # native menu bar behaves weirdly in Mac OS
+            #self.menubar.setNativeMenuBar(False) # native menu bar behaves weirdly in Mac OS
+            self.actionPreferences.setText('Dafne Preferences...')
+            self.actionAbout.setText('Abοut Dafne...')
             self.setWindowFlag(Qt.CustomizeWindowHint, True) # disable window decorations
 
         # reload the brush icons so that it works in with pyinstaller too. Check under windows!
