@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>400</width>
-    <height>176</height>
+    <width>412</width>
+    <height>218</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -53,6 +53,46 @@
      <property name="value">
       <number>0</number>
      </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="orientationBox">
+     <property name="title">
+      <string>Orientation</string>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout_2">
+      <item>
+       <widget class="QRadioButton" name="original_radio">
+        <property name="text">
+         <string>Original</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="axial_radio">
+        <property name="text">
+         <string>Axial</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="sagittal_radio">
+        <property name="text">
+         <string>Sagittal</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="coronal_radio">
+        <property name="text">
+         <string>Coronal</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </widget>
    </item>
    <item>

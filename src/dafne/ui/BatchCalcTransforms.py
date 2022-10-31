@@ -22,7 +22,7 @@ from .CalcTransformsUI import Ui_CalcTransformsUI
 import os
 import numpy as np
 from ..utils.RegistrationManager import RegistrationManager
-from ..utils.dicomUtils.misc import dosma_volume_from_path
+from ..utils.dicomUtils.misc import dosma_volume_from_path, get_nifti_orientation
 from ..utils.ThreadHelpers import separate_thread_decorator
 from ..config import GlobalConfig
 import sys
@@ -42,6 +42,8 @@ class CalcTransformWindow(QWidget, Ui_CalcTransformsUI):
         self.calculate_button.clicked.connect(self.calculate)
         self.success.connect(self.show_success_box)
         self.data = None
+        self.basepath = ''
+        self.basename = ''
 
     @pyqtSlot()
     def load_data(self):
@@ -67,11 +69,11 @@ class CalcTransformWindow(QWidget, Ui_CalcTransformsUI):
         medical_volume = None
         basename = ''
         try:
-            medical_volume, affine_valid, title, basepath, basename = dosma_volume_from_path(path, self)
+            medical_volume, affine_valid, title, self.basepath, self.basename = dosma_volume_from_path(path, self)
             self.data = medical_volume.volume
         except:
             pass
-        print("Basepath", basepath)
+        print("Basepath", self.basepath)
 
         if self.data is None:
             self.progressBar.setValue(0)
@@ -80,14 +82,10 @@ class CalcTransformWindow(QWidget, Ui_CalcTransformsUI):
             QMessageBox.warning(self, 'Warning', 'Invalid dataset!')
             return
 
-        self.data = medical_volume.volume
-        data = list(np.transpose(self.data, [2, 0, 1]))
+        self.data = medical_volume
 
-        self.progressBar.setMaximum(len(data))
         self.progressBar.setEnabled(True)
-        self.registrationManager = RegistrationManager(data, None, os.getcwd(),
-                                                       GlobalConfig['TEMP_DIR'])
-        self.registrationManager.set_standard_transforms_name(basepath, basename)
+        self.registrationManager = None
         self.location_Text.setText(containing_dir if not basename else basename)
         self.calculate_button.setEnabled(True)
 
@@ -104,6 +102,22 @@ class CalcTransformWindow(QWidget, Ui_CalcTransformsUI):
     def calculate(self):
         self.choose_Button.setEnabled(False)
         self.calculate_button.setEnabled(False)
+
+        if self.axial_radio.isChecked():
+            self.data = self.data.reformat(get_nifti_orientation('axial'))
+        elif self.sagittal_radio.isChecked():
+            self.data = self.data.reformat(get_nifti_orientation('sagittal'))
+        elif self.coronal_radio.isChecked():
+            self.data = self.data.reformat(get_nifti_orientation('coronal'))
+
+
+        data = list(np.transpose(self.data.volume, [2, 0, 1]))
+        self.progressBar.setMaximum(len(data))
+
+        self.registrationManager = RegistrationManager(data, None, os.getcwd(),
+                                                       GlobalConfig['TEMP_DIR'])
+        self.registrationManager.set_standard_transforms_name(self.basepath, self.basename)
+
         self.registrationManager.calc_transforms(lambda value: self.update_progress.emit(value))
         self.choose_Button.setEnabled(True)
         self.calculate_button.setEnabled(False)

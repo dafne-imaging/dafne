@@ -107,6 +107,7 @@ except:
 
 
 INTENSITY_AWARE_THRESHOLD = 0.5
+ACTIONS_TO_REMOVE = 'Subplots', 'Customize', 'Save'
 
 def make_excepthook(muscle_segmentation_instance):
     def excepthook(exctype, value, traceback):
@@ -206,6 +207,13 @@ class MuscleSegmentation(ImageShow, QObject):
         self.redo_signal.connect(self.redo)
 
         self.separate_thread_running = False
+
+        toolbar = self.fig.canvas.toolbar
+        actions = toolbar.actions()
+        for action in actions:
+            if action.text() in ACTIONS_TO_REMOVE:
+                toolbar.removeAction(action)
+
 
         # disable keymapping from matplotlib - avoid pan and zoom
         for key in list(plt.rcParams):
