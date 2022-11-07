@@ -97,7 +97,7 @@ static_config = {
     'ENABLE_NIFTI': True,
     'OUTPUT_LOG_FILE': os.path.join(app_dirs.user_log_dir, 'dafne_output.log'),
     'ERROR_LOG_FILE': os.path.join(app_dirs.user_log_dir, 'dafne_error.log'),
-    'REDIRECT_OUTPUT': False # redirect stdout/stderr to logfiles
+    'REDIRECT_OUTPUT': True # redirect stdout/stderr to logfiles
 }
 
 ## Initialization
