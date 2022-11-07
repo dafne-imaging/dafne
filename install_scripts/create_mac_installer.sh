@@ -6,15 +6,12 @@
 # note: checking signature/notarization: spctl -a -vvv
 
 git pull
-cd dl
 git checkout master
-git pull
-cd ..
 
 APPNAME=Dafne
 VERSION=`python update_version.py | tail -n 1`
 DMG_NAME=dafne_mac_$VERSION.dmg
-CODESIGN_IDENTITY="Francesco"
+CODESIGN_IDENTITY="Francesco Santini"
 
 echo $VERSION
 pyinstaller dafne_mac.spec --noconfirm
