@@ -10,7 +10,8 @@ git checkout master
 
 APPNAME=Dafne
 VERSION=`python update_version.py | tail -n 1`
-DMG_NAME=dafne_mac_$VERSION.dmg
+ARCH=`uname -a | sed -E -n 's/.*(arm64|x86_64)$/\1/p'`
+DMG_NAME=dafne_mac_$VERSION_$ARCH.dmg
 CODESIGN_IDENTITY="Francesco Santini"
 
 echo $VERSION
@@ -29,7 +30,7 @@ codesign --force -o runtime --entitlements ../entitlements.plist -v -s "$CODESIG
 
 echo "Creating DMG"
 create-dmg --volname "Dafne" --volicon $APPNAME.app/Contents/Resources/dafne_icon.icns \
-	 --eula $APPNAME.app/Contents/Resources/LICENSE --background ../icons/mac_installer_bg.png \
+	 --eula $APPNAME.app/Contents/Resources/LICENSE --background ../../icons/mac_installer_bg.png \
 	 --window-size 420 220 --icon-size 64 --icon $APPNAME.app 46 31 \
 	 --app-drop-link 236 90 "$DMG_NAME" $APPNAME.app
 codesign -s "$CODESIGN_IDENTITY" "$DMG_NAME"
