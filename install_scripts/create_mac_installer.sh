@@ -9,10 +9,11 @@ git pull
 git checkout master
 
 APPNAME=Dafne
-VERSION=`python update_version.py | tail -n 1`
-ARCH=`uname -a | sed -E -n 's/.*(arm64|x86_64)$/\1/p'`
+VERSION=$(python update_version.py | tail -n 1)
+ARCH=$(uname -a | sed -E -n 's/.*(arm64|x86_64)$/\1/p')
 DMG_NAME=dafne_mac_$VERSION_$ARCH.dmg
 CODESIGN_IDENTITY="Francesco Santini"
+USE_ALTOOL=True
 
 echo $VERSION
 pyinstaller dafne_mac.spec --noconfirm
@@ -35,17 +36,30 @@ create-dmg --volname "Dafne" --volicon $APPNAME.app/Contents/Resources/dafne_ico
 	 --app-drop-link 236 90 "$DMG_NAME" $APPNAME.app
 codesign -s "$CODESIGN_IDENTITY" "$DMG_NAME"
 echo "Notarizing app"
-# make sure that the credentials are stored in keychain with
-# xcrun altool --store-password-in-keychain-item "AC_PASSWORD" -u "<username>" -p "<password>"
-# Note: password is a "app-specific password" created in the appleID site to bypass 2FA
-xcrun altool --notarize-app \
-	--primary-bundle-id "network.dafne.dafne" --password "@keychain:AC_PASSWORD" \
-	--file "$DMG_NAME"
 
-echo "Check the status in 1 hour or so with:"
-echo 'xcrun altool --notarization-history 0 -p "@keychain:AC_PASSWORD"'
-echo 'If there are any errors check'
-echo 'xcrun altool --notarization-info <UUID> -p "@keychain:AC_PASSWORD"'
-#rm /tmp/dafne.dmg
-#cp calc_transforms/calc_transforms dafne
-#zip -r dafne_mac_$VERSION.zip dafne
+if [ "$USE_ALTOOL" = "True" ]
+then
+  # make sure that the credentials are stored in keychain with
+  # xcrun altool --store-password-in-keychain-item "AC_PASSWORD" -u "<username>" -p "<password>"
+  # Note: password is a "app-specific password" created in the appleID site to bypass 2FA
+  xcrun altool --notarize-app \
+    --primary-bundle-id "network.dafne.dafne" --password "@keychain:AC_PASSWORD" \
+    --file "$DMG_NAME"
+
+  echo "Check the status in 1 hour or so with:"
+  echo 'xcrun altool --notarization-history 0 -p "@keychain:AC_PASSWORD"'
+  echo 'If there are any errors check'
+  echo 'xcrun altool --notarization-info <UUID> -p "@keychain:AC_PASSWORD"'
+  echo 'if successful, staple the ticket running'
+  echo "xcrun stapler staple $DMG_NAME"
+else
+  # alternative with notarytool
+  # store credentials:
+  # xcrun notarytool store-credentials "AC_PASSWORD" --apple-id <apple_id> --password <password> --team-id <team_id>
+  echo "This can take up to 1 hour"
+  xcrun notarytool submit "$DMG_NAME" --wait --keychain-profile "AC_PASSWORD"
+  # This will wait for the notarization to complete
+  echo 'If failed, save log file with:'
+  echo 'xcrun notarytool log <request_uuid> --keychain-profile "AC_PASSWORD" notarization.log'
+  xcrun stapler staple "$DMG_NAME"
+fi
