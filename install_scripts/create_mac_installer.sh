@@ -11,7 +11,7 @@ git checkout master
 APPNAME=Dafne
 VERSION=$(python update_version.py | tail -n 1)
 ARCH=$(uname -a | sed -E -n 's/.*(arm64|x86_64)$/\1/p')
-DMG_NAME=dafne_mac_$VERSION_$ARCH.dmg
+DMG_NAME=dafne_mac_${VERSION}_$ARCH.dmg
 CODESIGN_IDENTITY="Francesco Santini"
 USE_ALTOOL=True
 
