@@ -195,6 +195,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     mask_shrink = pyqtSignal()
     mask_fill_holes = pyqtSignal(int)
     mask_despeckle = pyqtSignal(int)
+    mask_auto_threshold = pyqtSignal(bool)
 
     brush_changed = pyqtSignal()
 
@@ -318,6 +319,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.shrink_button.clicked.connect(self.mask_shrink.emit)
         self.despeckle_button.clicked.connect(lambda : self.mask_despeckle.emit(self.despeckle_radius_slider.value()))
         self.fillholes_button.clicked.connect(lambda : self.mask_fill_holes.emit(self.despeckle_radius_slider.value()))
+        self.autoThreshold_button.clicked.connect(lambda : self.mask_auto_threshold.emit(self.autoThreshold_allMasks_checkbox.isChecked()))
 
         with get_resource_path(SPLASH_ANIMATION_FILE) as f:
             self.splash_movie = QMovie(f)
@@ -392,7 +394,6 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.general_enable(False)
 
-        print(self.sizeHint())
         self.setMinimumSize(self.sizeHint().width(), 0)
 
         self.resize(self.sizeHint())
