@@ -81,6 +81,14 @@
           <bool>true</bool>
          </property>
          <widget class="QWidget" name="scrollAreaWidgetContents">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>-566</y>
+            <width>439</width>
+            <height>1267</height>
+           </rect>
+          </property>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -633,6 +641,27 @@
                   </property>
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_19">
+                <item>
+                 <widget class="QPushButton" name="autoThreshold_button">
+                  <property name="text">
+                   <string>Auto Threshold</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="autoThreshold_allMasks_checkbox">
+                  <property name="text">
+                   <string>Apply to all masks</string>
+                  </property>
+                  <property name="checked">
+                   <bool>true</bool>
                   </property>
                  </widget>
                 </item>

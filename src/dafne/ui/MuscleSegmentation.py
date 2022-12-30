@@ -16,6 +16,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import matplotlib
+from dafne_dl.common.biascorrection import biascorrection_image
 from muscle_bids.dosma_io import NiftiWriter
 from scipy.interpolate import interp1d
 from skimage.morphology import area_opening, area_closing
@@ -429,6 +430,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.mask_shrink.connect(self.maskShrink)
         self.toolbox_window.mask_fill_holes.connect(self.maskFillHoles)
         self.toolbox_window.mask_despeckle.connect(self.maskDespeckle)
+        self.toolbox_window.mask_auto_threshold.connect(self.maskAutoThreshold)
 
         self.toolbox_window.config_changed.connect(self.configChanged)
         self.toolbox_window.data_upload.connect(self.uploadData)
@@ -1086,6 +1088,42 @@ class MuscleSegmentation(ImageShow, QObject):
     def maskFillHoles(self, radius):
         #self._currentMaskOperation(lambda mask: area_closing(mask, radius ** 2))
         self._currentMaskOperation(functools.partial(area_closing, area_threshold=radius ** 2))
+
+    @pyqtSlot(bool)
+    @snapshotSaver
+    @separate_thread_decorator
+    def maskAutoThreshold(self, apply_to_all=False):
+        if not self.editMode == ToolboxWindow.EDITMODE_MASK or \
+                not self.roiManager:
+            return
+        self.setSplash(True, 0, 2, "Calculating threshold mask...")
+        # Calculate the mask after bias correction
+        bias_corrected_image = biascorrection_image(self.image)
+        threshold_mask = sitk.GetArrayFromImage(
+                            sitk.OtsuThreshold(
+                            sitk.GetImageFromArray(bias_corrected_image), 0, 1, 200))
+
+        self.setSplash(True, 1, 2, "Applying threshold...")
+        if apply_to_all:
+            for mask_key_tuple, mask in self.roiManager.all_masks(image_number=self.curImage):
+                roi_name = mask_key_tuple[0]
+                print("Processing", roi_name)
+                new_mask = np.logical_and(mask, threshold_mask)
+                self.roiManager.set_mask(roi_name, self.curImage, new_mask)
+        else:
+            mask = self.getCurrentMask()
+            if mask is None:
+                self.setSplash(False)
+                return
+            new_mask = np.logical_and(mask, threshold_mask)
+            self.setCurrentMask(new_mask)
+
+        self.setSplash(True, 2, 2, "Done!")
+        self.updateMasksFromROIs()
+        self.reblit()
+        self.setSplash(False)
+
+
 
 
     #####################################################################################################
