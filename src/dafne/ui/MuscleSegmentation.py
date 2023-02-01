@@ -2141,7 +2141,7 @@ class MuscleSegmentation(ImageShow, QObject):
         if ext.lower() == '.npz':
             # data and mask bundle
             bundle = np.load(path, allow_pickle=False)
-            if 'data' not in bundle:
+            if 'data' not in bundle and 'image' not in bundle:
                 self.alert('No data in bundle!')
                 self.setSplash(False, 1, 2, "")
                 return
@@ -2150,13 +2150,20 @@ class MuscleSegmentation(ImageShow, QObject):
 
             self.basepath = os.path.dirname(path)
             try:
-                self.loadNumpyArray(bundle['data'])
+                if 'data' in bundle:
+                    self.image = self.loadNumpyArray(bundle['data'])
+                elif 'image' in bundle:
+                    self.image = self.loadNumpyArray(bundle['image'])
+                else:
+                    __error('No data in bundle!') # should never happen because we are checking above
             except Exception as e:
                 __error(e)
                 return
 
             if 'resolution' in bundle:
                 self.resolution = list(bundle['resolution'])
+                if len(self.resolution) == 2:
+                    self.resolution.append(1.0)
                 self.resolution_valid = True
                 print('Resolution', self.resolution)
 

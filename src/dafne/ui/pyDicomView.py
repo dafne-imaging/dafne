@@ -465,9 +465,11 @@ class ImageShow:
         self.medical_volume = None
         self.resolution = [1, 1, 1]
 
-        # print data.shape
-        for sl in range(data.shape[2]):
-            self.appendImage(data[:, :, sl])
+        if len(data.shape) == 2:
+            self.appendImage(data)
+        elif len(data.shape) == 3:
+            for sl in range(data.shape[2]):
+                self.appendImage(data[:, :, sl])
 
     def load_dosma_volume(self, medical_volume):
         if np.max(medical_volume.volume) < 10:
