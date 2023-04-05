@@ -84,7 +84,7 @@
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>-566</y>
+            <y>0</y>
             <width>439</width>
             <height>1267</height>
            </rect>
@@ -920,6 +920,7 @@
       </property>
       <addaction name="actionSaveNPZ"/>
       <addaction name="actionSaveNPY"/>
+      <addaction name="actionSaveNumpyBundle"/>
      </widget>
      <widget class="QMenu" name="menuSave_as_compact">
       <property name="title">
@@ -1158,6 +1159,11 @@
   <action name="actionQuit">
    <property name="text">
     <string>Quit</string>
+   </property>
+  </action>
+  <action name="actionSaveNumpyBundle">
+   <property name="text">
+    <string>Data and mask bundle</string>
    </property>
   </action>
  </widget>

@@ -182,6 +182,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     masks_export = pyqtSignal(str, str)
     mask_import = pyqtSignal(str)
+    bundle_export = pyqtSignal(str, str)
 
     data_open = pyqtSignal(str, str)
     data_save_as_nifti = pyqtSignal(str)
@@ -341,6 +342,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionSaveNPY.triggered.connect(lambda: self.export_masks_dir('npy'))
         self.actionSave_as_Nifti.triggered.connect(lambda: self.export_masks_dir('nifti'))
         self.actionSaveNPZ.triggered.connect(self.export_masks_npz)
+        self.actionSaveNumpyBundle.triggered.connect(self.export_masks_numpy_bundle)
         self.actionSave_as_Compact_Nifti.triggered.connect(self.export_masks_compact_nifti)
 
         self.actionAbout.triggered.connect(self.about)
@@ -963,6 +965,18 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
                                                   filter='Numpy array archive (*.npz);;All files ()')
         if file_out:
             self.masks_export.emit(file_out, 'npz')
+
+    @pyqtSlot()
+    def export_masks_numpy_bundle(self):
+        file_out, _ = QFileDialog.getSaveFileName(self, caption='Select npz file to export',
+                                                  filter='Numpy array archive (*.npz);;All files ()')
+
+        if file_out:
+            accept, values = GenericInputDialog.show_dialog('Add a comment', [
+                GenericInputDialog.TextLineInput('Comment/description of the dataset')
+            ], self)
+            if accept:
+                self.bundle_export.emit(file_out, values[0])
 
     @pyqtSlot()
     def export_masks_compact_nifti(self):

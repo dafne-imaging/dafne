@@ -409,6 +409,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.data_save_as_nifti.connect(self.save_data_as_reoriented_nifti)
         self.toolbox_window.data_reorient.connect(self.reorient_data)
         self.toolbox_window.masks_export.connect(self.saveResults)
+        self.toolbox_window.bundle_export.connect(self.saveBundle)
 
         self.toolbox_window.roi_copy.connect(self.copyRoi)
         self.toolbox_window.roi_combine.connect(self.combineRoi)
@@ -2268,6 +2269,14 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @pyqtSlot(str, str)
     @separate_thread_decorator
+    def saveBundle(self, path_out: str, comment: str):
+        self.setSplash(True, 0, 1, "Saving bundle...")
+        bundle = self.prepare_numpy_bundle(comment)
+        np.savez_compressed(path_out, **bundle)
+        self.setSplash(False)
+
+    @pyqtSlot(str, str)
+    @separate_thread_decorator
     def saveResults(self, pathOut: str, outputType: str):
         # outputType is 'dicom', 'npy', 'npz', 'nifti', 'compact_dicom', 'compact_nifti'
         print("Saving results...")
@@ -2409,15 +2418,19 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.setSplash(False, 2, 2, "Finished")
 
-    @pyqtSlot(str)
-    def uploadData(self, comment = ''):
-        print('Uploading data')
+    def prepare_numpy_bundle(self, comment = ''):
         dataset = self.getDatasetAsNumpy()
         allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
         resolution = np.array(self.resolution)
         out_data = {'data': dataset, 'resolution': resolution, 'comment': comment}
         for mask_name, mask in allMasks.items():
             out_data[f'mask_{mask_name}'] = mask
+        return out_data
+
+    @pyqtSlot(str)
+    def uploadData(self, comment = ''):
+        print('Uploading data')
+        out_data = self.prepare_numpy_bundle(comment)
         self.model_provider.upload_data(out_data)
         self.setSplash(False, 2, 2, "Finished")
 
