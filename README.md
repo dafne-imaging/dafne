@@ -1,3 +1,7 @@
+[![PyPI version](https://badge.fury.io/py/dafne.svg)](https://badge.fury.io/py/dafne)
+[![PDF Documentation](https://img.shields.io/badge/Docs-pdf-brightgreen)](https://www.dafne.network/files/documentation.pdf)
+[![HTML Documentation](https://img.shields.io/badge/Docs-html-brightgreen)](https://www.dafne.network/documentation/)
+
 # Dafne
 Deep Anatomical Federated Network is a program for the segmentation of medical images. It relies on a server to provide deep learning models to aid the segmentation, and incremental learning is used to improve the performance. See https://www.dafne.network/ for documentation and user information.
 
@@ -6,18 +10,22 @@ Please install the Visual Studio Redistributable Package under windows: https://
 Then, run the provided installer
 
 ## Mac binary installation
-Decompress the .zip file and run the `dafne` program from the unzipped folder.
+Install the Dafne App from the downloaded .dmg file as usual. Make sure to download the archive appropriate for your architecture (x86 or arm).
 
-**Important note for Mac users:** if you download the zip file from github, the system will ask to enter security exceptions for every binary file included in the distribution, because the binaries are not signed. This is too much to do by hand. Either install Dafne from source, or temporarily disable the access control with the following procedure:
-1. Open a terminal window.
-2. Run the command `sudo spctl --master-disable` (it will ask for your password).
-3. Run Dafne once by executing the `dafne` file.
-4. Run the `calc_transforms` command as well.
-4. Re-enable the protection by running the following command in a terminal: `sudo spctl --master-enable`
+## Linux binary installation
+The Linux distribution is a self-contained executable file. Simply download it, make it executable, and run it.
+
+## pip installation
+Dafne can also be installed with pip
+`pip install dafne`
+
+# Citing
+If you are writing a scientific paper, and you used Dafne for your data evaluation, please cite the following paper:
+
+> Santini F, Wasserthal J, Agosti A, et al. *Deep Anatomical Federated Network (Dafne): an open client/server framework for the continuous collaborative improvement of deep-learning-based medical image segmentation*. 2023 doi: [10.48550/arXiv.2302.06352](https://doi.org/10.48550/arXiv.2302.06352).
+
 
 # Notes for developers
-
-Remember to `git push --recurse-submodules` if you change the dl folder!
 
 ## dafne
 
