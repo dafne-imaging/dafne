@@ -112,7 +112,7 @@ ACTIONS_TO_REMOVE = 'Subplots', 'Customize', 'Save'
 
 def make_excepthook(muscle_segmentation_instance):
     def excepthook(exctype, value, traceback):
-        muscle_segmentation_instance.alert(f"An error occurred. Please check the logs in {GlobalConfig.log_dir} for more information. The current ROIs will be saved.")
+        muscle_segmentation_instance.alert(f"An error occurred. Please check the logs in {os.path.dirname(GlobalConfig.ERROR_LOG_FILE)} for more information. The current ROIs will be saved.")
         muscle_segmentation_instance.saveROIPickle()
         muscle_segmentation_instance.close_slot()
         return sys.__excepthook__(exctype, value, traceback)
@@ -2593,6 +2593,7 @@ class MuscleSegmentation(ImageShow, QObject):
                     names = read_names_from_legend(legend_name)
                 except FileNotFoundError:
                     fail('No legend file found')
+                    return
                 load_accumulated_mask(names, mask)
             else:
                 load_mask_validate(name, mask)

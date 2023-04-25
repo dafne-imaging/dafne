@@ -183,7 +183,7 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
 
         if load_dicom_dir:
             try:
-                dr = DicomReader(num_workers=0, group_by=None, ignore_ext=True)
+                dr = DicomReader(num_workers=0, group_by=None, sort_by="InstanceNumber", ignore_ext=True)
                 medical_volume = dr.load(basepath)[0]
                 affine_valid = True
             except:
