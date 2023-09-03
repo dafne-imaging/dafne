@@ -2,7 +2,7 @@ from PyQt5 import Qt
 from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtWidgets import QDialog
 
-from ..ui.LogWindowUI import Ui_LogWindow
+from .LogWindowUI import Ui_LogWindow
 
 from ..utils.log import log_objects
 

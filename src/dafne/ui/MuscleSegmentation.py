@@ -189,6 +189,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.model_provider = None
         self.dl_classifier = None
         self.dl_segmenters = {}
+        self.model_details = {}
 
         # self.fig.canvas.setCursor(Qt.BlankCursor)
 
@@ -242,6 +243,8 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def resetModelProvider(self):
         available_models = None
+        filter_classes = False
+        self.model_details = {}
         if GlobalConfig['MODEL_PROVIDER'] == 'Local':
             model_provider = LocalModelProvider(GlobalConfig['MODEL_PATH'], GlobalConfig['TEMP_UPLOAD_DIR'])
             available_models = model_provider.available_models()
@@ -253,6 +256,7 @@ class MuscleSegmentation(ImageShow, QObject):
             fallback = False
             try:
                 available_models = model_provider.available_models()
+                filter_classes = True
             except PermissionError:
                 self.alert("Error in using Remote Model. Please check your API key. Falling back to Local")
                 fallback = True
@@ -270,12 +274,13 @@ class MuscleSegmentation(ImageShow, QObject):
             if fallback:
                 GlobalConfig['MODEL_PROVIDER'] = 'Local'
                 model_provider = LocalModelProvider(GlobalConfig['MODEL_PATH'], GlobalConfig['TEMP_UPLOAD_DIR'])
+                filter_classes = False
                 available_models = model_provider.available_models()
 
         self.setModelProvider(model_provider)
 
         print(available_models)
-        self.setAvailableClasses(available_models)
+        self.setAvailableClasses(available_models, filter_classes)
 
     @pyqtSlot()
     def configChanged(self):
@@ -2719,18 +2724,23 @@ class MuscleSegmentation(ImageShow, QObject):
         else:
             self.dl_classifier = None
 
-    def setAvailableClasses(self, classList):
+    def setAvailableClasses(self, classList, filter_classes = False):
         try:
             classList.remove('Classifier')
         except ValueError: # Classifier doesn't exist. It doesn't matter
             pass
 
         new_class_list = []
+        self.model_details = {}
         for c in classList:
             if self.model_provider is None:
                 new_class_list.append(c)
             else:
                 model_details = self.model_provider.model_details(c)
+                self.model_details[c] = model_details
+                # if filter_classes, only show explicitly enabled models
+                if filter_classes and c not in GlobalConfig['ENABLED_MODELS']:
+                    continue
                 try:
                     variants = model_details['variants']
                 except:

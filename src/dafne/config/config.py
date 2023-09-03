@@ -86,6 +86,7 @@ defaults = {
     'DELETE_OLD_MODELS': (True, 'bool', None),
     'ECHO_OUTPUT': (False, 'bool', None),
     'ADVANCED_CONFIG': (False, 'bool', 'Show advanced configuration'),
+    'ENABLED_MODELS': (['Leg', 'Thigh'], 'none', None)
 }
 
 # This part of the config is only stored here and can be changed by new software releases
@@ -155,6 +156,9 @@ def show_config_dialog(parent=None, show_all=False):
                 continue
             display_string = key
         type = value[1]
+        # don't show the options with no type
+        if type == 'none':
+            continue
         display_key_map[display_string] = key # remember the mapping between the
         if type == 'bool':
             option = GenericInputDialog.BooleanInput(display_string, current_value)
