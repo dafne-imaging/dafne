@@ -72,15 +72,15 @@ def check_for_updates():
     try:
         r = requests.get(GlobalConfig['NEWS_URL'])
     except requests.exceptions.ConnectionError:
-        return []
+        return [], []
 
     if r.status_code != 200:
-        return []
+        return [], []
     try:
         feed = ET.fromstring(r.text)
     except ET.ParseError:
         print("Error parsing news feed")
-        return []
+        return [], []
 
     parsed_uri = urlparse(GlobalConfig['NEWS_URL'])
     base_url = f'{parsed_uri.scheme}://{parsed_uri.netloc}'

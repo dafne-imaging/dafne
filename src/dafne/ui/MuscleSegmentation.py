@@ -142,7 +142,7 @@ class MuscleSegmentation(ImageShow, QObject):
     redraw_signal = pyqtSignal()
     reduce_brush_size = pyqtSignal()
     increase_brush_size = pyqtSignal()
-    alert_signal = pyqtSignal(str)
+    alert_signal = pyqtSignal(str, str)
     undo_signal = pyqtSignal()
     redo_signal = pyqtSignal()
 
@@ -504,8 +504,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.updateContourPainters()
         self.updateMasksFromROIs()
 
-    def alert(self, text):
-        self.alert_signal.emit(text)
+    def alert(self, text, type="Warning"):
+        self.alert_signal.emit(text, type)
 
     #############################################################################################
     ###
@@ -2068,7 +2068,7 @@ class MuscleSegmentation(ImageShow, QObject):
             dumpObj = pickle.load(open(roiPickleName, 'rb'), encoding='latin1')
         except:
             traceback.print_exc()
-            self.alert("Unspecified error")
+            self.alert("Unspecified error", "Error")
             return
 
         roiManager = None
@@ -2131,7 +2131,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         def __error(error = None):
             print(error, file=sys.stderr)
-            self.alert("Error loading dataset. See the log for details")
+            self.alert("Error loading dataset. See the log for details", "Error")
             __cleanup()
             self.displayImage(None)
             self.redraw()
@@ -2143,11 +2143,11 @@ class MuscleSegmentation(ImageShow, QObject):
             # data and mask bundle
             bundle = np.load(path, allow_pickle=False)
             if 'data' not in bundle and 'image' not in bundle:
-                self.alert('No data in bundle!')
+                self.alert('No data in bundle!', 'Error')
                 self.setSplash(False, 1, 2, "")
                 return
             if 'comment' in bundle:
-                self.alert('Loading bundle with comment:\n' + str(bundle['comment']))
+                self.alert('Loading bundle with comment:\n' + str(bundle['comment']), 'Info')
 
             self.basepath = os.path.dirname(path)
             try:
@@ -2490,7 +2490,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         def fail(text):
             self.setSplash(False, 0, 2, "Loading mask")
-            self.alert(text)
+            self.alert(text, "Error")
 
         def load_mask_validate(name, mask):
             if name.lower().endswith('.nii'):
@@ -2700,12 +2700,12 @@ class MuscleSegmentation(ImageShow, QObject):
         try:
             self.model_provider.import_model(modelFile, modelName)
         except Exception as err:
-            self.alert('Error while importing model. Probably invalid model')
+            self.alert('Error while importing model. Probably invalid model', 'Error')
             self.setSplash(False, 0, 1, 'Importing model...')
             traceback.print_exc()
             return
         self.setSplash(True, 1, 1, 'Importing model...')
-        self.alert('Model imported successfully')
+        self.alert('Model imported successfully', 'Info')
         self.setSplash(False, 1, 1, 'Importing model...')
         self.setAvailableClasses(self.model_provider.available_models())
 
@@ -2780,7 +2780,7 @@ class MuscleSegmentation(ImageShow, QObject):
     def getSegmentedMasks(self, imIndex, setSplash=False, downloadModel=True):
         class_str = self.classifications[imIndex]
         if class_str == 'None':
-            self.alert('Segmentation with "None" model is impossible!')
+            self.alert('Segmentation with "None" model is impossible!', 'Error')
             return
 
         model_str = class_str.split(',')[0].strip()  # get the base model string in case of multiple variants.
@@ -2802,7 +2802,7 @@ class MuscleSegmentation(ImageShow, QObject):
                                                        force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
                 if segmenter is None:
                     self.setSplash(False, 0, 3, "Loading model...")
-                    self.alert(f"Error loading model {model_str}")
+                    self.alert(f"Error loading model {model_str}", 'Error')
                     return None
                 self.dl_segmenters[class_str] = segmenter
             else:
@@ -2864,7 +2864,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 model = self.model_provider.load_model(model_str, force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
                 if model is None:
                     self.setSplash(False, 0, 3, "Loading model...")
-                    self.alert(f"Error loading model {model_str}")
+                    self.alert(f"Error loading model {model_str}", 'Error')
                     return
                 self.dl_segmenters[model_str] = model
             training_data = []

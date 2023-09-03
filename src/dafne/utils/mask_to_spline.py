@@ -8,7 +8,7 @@ import numpy as np
 
 from .pySplineInterp import SplineInterpROIClass
 
-MAX_POINTS = 1000
+MAX_POINTS = 10000
 MAX_CONTOURS = 100
 
 
