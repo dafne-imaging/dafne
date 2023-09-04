@@ -35,13 +35,13 @@ class ModelBrowser(QDialog, Ui_ModelBrowser):
 
     def populate(self):
         for model_name, model_details in self.details_dict.items():
-            if 'classification' not in model_details:
-                model_details['classification'] = [['Unknown']]
+            if 'categories' not in model_details:
+                model_details['categories'] = [['Unknown']]
 
-            for classification in model_details['classification']:
+            for category in model_details['categories']:
                 # Add or find the root item
-                group_item = self.find_or_create_root_item(classification[0])
-                for subgroup in classification[1:]:
+                group_item = self.find_or_create_root_item(category[0])
+                for subgroup in category[1:]:
                     # Add or find the sub-group
                     group_item = self.find_or_create_child_item(group_item, subgroup)
 
@@ -213,10 +213,12 @@ class ModelBrowser(QDialog, Ui_ModelBrowser):
         # set the output
         pass
 
+
 def show_model_browser(selected_list, details_dict, parent=None):
     dialog = ModelBrowser(selected_list, details_dict, parent)
     dialog.exec_()
     return dialog.accepted, sorted(list(dialog.selected_set))
+
 
 def show_model_info(model_name, details_dict, parent=None):
     dialog = ModelBrowser([], details_dict, parent, model_name)
@@ -227,7 +229,7 @@ def test():
     app.setQuitOnLastWindowClosed(True)
     model_details = {
         'Leg': {
-            'classification': [['MSK', 'Muscle', 'Lower limbs'], ['MRI', 'Axial']],
+            'categories': [['MSK', 'Muscle', 'Lower limbs'], ['MRI', 'Axial']],
             'info': {
                 'Description': 'Leg model',
                 'Author': 'Dafne team',
@@ -237,7 +239,7 @@ def test():
             'variants': ['', 'Left', 'Right']
         },
         'Kidney': {
-            'classification': [['Abdomen'], ['MRI', 'Coronal']],
+            'categories': [['Abdomen'], ['MRI', 'Coronal']],
             'info': {
                 'Description': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec a diam lectus. Sed sit amet ipsum mauris. Maecenas congue ligula ac quam viverra nec consectetur ante hendrerit. Donec et mollis dolor.',
                 'Author': 'Sheffield team',

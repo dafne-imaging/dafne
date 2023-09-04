@@ -27,7 +27,7 @@ from PyQt5.QtGui import QMovie, QIcon, QPixmap
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog, QApplication, QDialog, \
                             QVBoxLayout, QPushButton, QTableWidget, QTableWidgetItem
 from PyQt5.QtSvg import QSvgWidget
-from . import GenericInputDialog
+from . import GenericInputDialog, ModelBrowser
 from .. import config
 import platform
 from . import BatchCalcTransforms
@@ -262,6 +262,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.current_subroi = 0
         self.suppress_roi_change_emit = False
         self.valid_roi_selected = False
+        self.model_details = {}
         self.roi_combo.currentTextChanged.connect(self.send_roi_changed)
         self.roi_combo.currentTextChanged.connect(self.repopulate_subrois)
         self.subroi_combo.currentTextChanged.connect(self.send_roi_changed)
@@ -287,6 +288,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.classification_combo.currentTextChanged.connect(self.on_classification_changed)
         self.classification_all_button.clicked.connect(self.on_classification_change_all)
+        self.model_info_button.clicked.connect(self.show_model_info)
         self.autosegment_button.clicked.connect(self.on_do_segmentation)
 
         self.undoButton.clicked.connect(self.undo.emit)
@@ -362,6 +364,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionPreferences.triggered.connect(self.edit_preferences)
         self.action_Restore_factory_settings.triggered.connect(self.clear_preferences)
+        self.actionModel_browser.triggered.connect(self.open_model_browser)
 
         self.actionCopy_roi.triggered.connect(self.do_copy_roi)
         self.actionCombine_roi.triggered.connect(self.do_combine_roi)
@@ -446,6 +449,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         else:
             self.action_Upload_data.setVisible(False)
 
+        if config.GlobalConfig['MODEL_PROVIDER'] == 'Remote':
+            self.actionModel_browser.setVisible(True)
+        else:
+            self.actionModel_browser.setVisible(False)
+
     @pyqtSlot()
     def open_transform_calculator(self):
         #process = multiprocessing.Process(target=BatchCalcTransforms.run)
@@ -493,6 +501,15 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         if values[0]:
             config.GlobalConfig['API_KEY'] = api_key
             config.save_config()
+        self.config_changed.emit()
+
+    @pyqtSlot()
+    def open_model_browser(self):
+        accepted, new_model_list = ModelBrowser.show_model_browser(self.get_available_classes(filter_variants=True), self.model_details, self)
+        if not accepted:
+            return
+
+        config.GlobalConfig['ENABLED_MODELS'] = new_model_list
         self.config_changed.emit()
 
 
@@ -685,14 +702,25 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         elif type == "Info":
             QMessageBox.information(self, "Info", text, QMessageBox.Ok)
 
-    @pyqtSlot(list)
-    def set_available_classes(self, classes):
+    @pyqtSlot(list, dict)
+    def set_available_classes(self, classes, model_details):
         self.classification_combo.clear()
         self.classification_combo.addItems(classes)
         self.classification_combo.addItem("None") # always add the "None" class
+        self.model_details = model_details
 
-    def get_available_classes(self):
-        return [self.classification_combo.itemText(i) for i in range(self.classification_combo.count())]
+    def get_available_classes(self, filter_variants=False):
+        classes = [self.classification_combo.itemText(i) for i in range(self.classification_combo.count())]
+        if not filter_variants:
+            return classes
+
+        # filter out variants
+        filtered_classes = [c for c in classes if ',' not in c]
+        return filtered_classes
+
+    def show_model_info(self):
+        current_model = self.classification_combo.currentText()
+        ModelBrowser.show_model_info(current_model, self.model_details, self)
 
     @pyqtSlot(str)
     def set_class(self, class_str):
@@ -859,8 +887,10 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         cur_class = self.classification_combo.currentText()
         if cur_class == 'None':
             self.autosegment_button.setEnabled(False)
+            self.model_info_button.setEnabled(False)
         else:
             self.autosegment_button.setEnabled(True)
+            self.model_info_button.setEnabled(True)
         self.classification_changed.emit(cur_class)
 
     @pyqtSlot()

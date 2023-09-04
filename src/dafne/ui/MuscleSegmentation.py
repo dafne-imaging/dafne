@@ -241,6 +241,8 @@ class MuscleSegmentation(ImageShow, QObject):
     def resetBlitBg(self):
         self.blitBg = None
 
+
+    @pyqtSlot()
     def resetModelProvider(self):
         available_models = None
         filter_classes = False
@@ -2725,6 +2727,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.dl_classifier = None
 
     def setAvailableClasses(self, classList, filter_classes = False):
+        original_classifications = self.classifications[:]
         try:
             classList.remove('Classifier')
         except ValueError: # Classifier doesn't exist. It doesn't matter
@@ -2752,12 +2755,13 @@ class MuscleSegmentation(ImageShow, QObject):
                     else:
                         new_class_list.append(f'{c}, {variant}')
 
-        for i, classification in enumerate(self.classifications[:]):
+        for i, classification in enumerate(original_classifications[:]):
             if classification not in new_class_list:
-                self.classifications[i] = 'None'
-        self.toolbox_window.set_available_classes(new_class_list)
+                original_classifications[i] = 'None'
+        self.toolbox_window.set_available_classes(new_class_list, self.model_details)
+
         try:
-            self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
+            self.toolbox_window.set_class(original_classifications[int(self.curImage)])  # update the classification combo
         except IndexError:
             pass
 
