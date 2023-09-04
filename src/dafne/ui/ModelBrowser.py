@@ -234,7 +234,7 @@ def test():
                 'Description': 'Leg model',
                 'Author': 'Dafne team',
                 'Modality': 'MRI',
-                'Acquisition': 'Axial'
+                'Orientation': 'Axial'
             },
             'variants': ['', 'Left', 'Right']
         },
@@ -244,7 +244,7 @@ def test():
                 'Description': 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec a diam lectus. Sed sit amet ipsum mauris. Maecenas congue ligula ac quam viverra nec consectetur ante hendrerit. Donec et mollis dolor.',
                 'Author': 'Sheffield team',
                 'Modality': 'MRI',
-                'Acquisition': 'Coronal',
+                'Orientation': 'Coronal',
                 'Link': 'https://www.google.com/'
             }
         },
