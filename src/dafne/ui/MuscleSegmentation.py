@@ -2533,9 +2533,11 @@ class MuscleSegmentation(ImageShow, QObject):
             return mask
 
         def load_accumulated_mask(names, accumulated_mask):
+            accumulated_mask = accumulated_mask.astype(np.uint16)
             for index, name in names.items():
+                print("Loading mask", name, "with index", index)
                 mask = np.zeros_like(accumulated_mask)
-                mask[accumulated_mask == index] = 1
+                mask[accumulated_mask == int(index)] = 1
                 load_mask_validate(name, mask)
 
         def read_names_from_legend(legend_file):
@@ -2545,6 +2547,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 header = next(reader)
                 for row in reader:
                     name_dict[row[0]] = row[1]
+                    print(row[0], row[1])
             return name_dict
 
 
