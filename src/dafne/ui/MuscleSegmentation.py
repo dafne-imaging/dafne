@@ -2534,6 +2534,18 @@ class MuscleSegmentation(ImageShow, QObject):
 
         def load_accumulated_mask(names, accumulated_mask):
             accumulated_mask = accumulated_mask.astype(np.uint16)
+            if names is None:
+                # load data without legend
+                mask_values = np.unique(accumulated_mask)
+                for index in mask_values:
+                    if index == 0:
+                        continue
+                    print("Loading mask", index)
+                    mask = np.zeros_like(accumulated_mask)
+                    mask[accumulated_mask == index] = 1
+                    load_mask_validate(str(index), mask)
+                return
+
             for index, name in names.items():
                 print("Loading mask", name, "with index", index)
                 mask = np.zeros_like(accumulated_mask)
@@ -2582,7 +2594,8 @@ class MuscleSegmentation(ImageShow, QObject):
                 try:
                     names = read_names_from_legend(legend_name)
                 except FileNotFoundError:
-                    fail(f'legend file {legend_name} not found')
+                    self.alert(f'Legend file not found. Loading mask without legend.', 'Warning')
+                    names = None
                 load_accumulated_mask(names, mask)
             else:
                 load_mask_validate(name, mask)
@@ -2602,8 +2615,8 @@ class MuscleSegmentation(ImageShow, QObject):
                 try:
                     names = read_names_from_legend(legend_name)
                 except FileNotFoundError:
-                    fail('No legend file found')
-                    return
+                    self.alert(f'Legend file not found. Loading mask without legend.', 'Warning')
+                    names = None
                 load_accumulated_mask(names, mask)
             else:
                 load_mask_validate(name, mask)
