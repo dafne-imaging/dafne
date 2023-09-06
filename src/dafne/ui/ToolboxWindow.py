@@ -399,9 +399,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.general_enable(False)
 
-        self.setMinimumSize(self.sizeHint().width(), 0)
+        self.setMinimumSize(self.sizeHint().width()+5, 0)
 
-        self.resize(self.sizeHint())
+        self.resize(self.sizeHint().width()+5, self.sizeHint().height())
         # move window to side of main screen
         self.move(QApplication.primaryScreen().geometry().x(),
                   int(QApplication.primaryScreen().geometry().height()/2 - self.rect().center().y()))
