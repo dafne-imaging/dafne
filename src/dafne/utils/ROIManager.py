@@ -40,12 +40,32 @@ class SplineInterpWithNotification(SplineInterpROIClass):
         SplineInterpROIClass.__init__(self, smooth)
         self.maskpair_parent = maskpair_parent
 
+def pack_mask(mask):
+    """
+    Pack a mask into a byte array
+    :param mask: the mask to pack
+    :return: the packed mask
+    """
+    if mask is None:
+        return None
+    return np.packbits(mask.astype(bool), axis=-1)
+
+
+def unpack_mask(packed_mask, mask_size):
+    """
+    Unpack a mask from a byte array
+    :param packed_mask: the packed mask
+    :param mask_size: the size of the unpacked mask
+    :return: the unpacked mask
+    """
+    return np.unpackbits(packed_mask)[:mask_size[0]*mask_size[1]].reshape(mask_size)
 
 class RoiAndMaskPair:
     def __init__(self, mask_size):
         self.subroi_stack = None
         self.mask = None
         self.mask_size = mask_size
+        self.version = 2 # version of the ROI format. From version one, the mask is now packed
 
     # if the passed roi is not a member of the Spline-Notifier class, make it so
     def __wrap_roi(self, roi):
@@ -59,7 +79,7 @@ class RoiAndMaskPair:
         return r
 
     def clear_mask(self):
-        self.mask = np.zeros(self.mask_size)
+        self.mask = pack_mask(np.zeros(self.mask_size))
         self.invalidate_roi()
 
     def clear_subrois(self):
@@ -96,7 +116,7 @@ class RoiAndMaskPair:
         # self.invalidate_mask() # this was already invalidated in clear_subrois
 
     def set_mask(self, mask):
-        self.mask = mask.astype(np.uint8)
+        self.mask = pack_mask(mask)
         self.invalidate_roi()
 
     def invalidate_roi(self):
@@ -111,18 +131,19 @@ class RoiAndMaskPair:
         if not self.mask_size: return
         if self.subroi_stack is None: return
         if self.mask is not None: return # do not recalculate mask if it is valid
-        self.mask = np.zeros(self.mask_size, dtype=np.uint8)
+        mask = np.zeros(self.mask_size, dtype=np.uint8)
         for subroi in self.subroi_stack:
             try:
-                self.mask = np.logical_xor(self.mask, subroi.toMask(self.mask_size, False))
+                mask = np.logical_xor(mask, subroi.toMask(self.mask_size, False))
             except:
                 pass
-        self.mask = self.mask.astype(np.uint8)
+        self.mask = pack_mask(mask)
+        return mask
 
     def mask_to_subroi(self):
         if self.mask is None: return
         if self.subroi_stack is not None: return # do not recalculate subrois if they are valid
-        splineInterpList = mask_to_splines(self.mask)  # run mask tracing
+        splineInterpList = mask_to_splines(unpack_mask(self.mask, self.mask_size))  # run mask tracing
         #print(splineInterpList)
         self.subroi_stack = []
         for roi in splineInterpList:
@@ -141,10 +162,13 @@ class RoiAndMaskPair:
     def get_mask(self):
         if self.mask is None:
             if self.subroi_stack is None:
-                self.set_mask(np.zeros(self.mask_size))
+                mask = np.zeros(self.mask_size)
+                self.set_mask(mask)
             else:
-                self.subroi_to_mask()
-        return self.mask
+                mask = self.subroi_to_mask()
+        else:
+            mask = unpack_mask(self.mask, self.mask_size)
+        return mask
 
     def get_subroi_stack(self):
         if self.subroi_stack is None:
@@ -174,11 +198,16 @@ class RoiAndMaskPair:
             state_dict['roi'] = None
         state_dict['mask'] = self.mask
         state_dict['mask_size'] = self.mask_size
+        state_dict['version'] = self.version
         return state_dict
 
     def __setstate__(self, state_dict):
         self.__init__(state_dict['mask_size'])
-        self.mask = state_dict['mask']
+        version = state_dict.get('version', 1)
+        if version < 2: #compatibility with old format
+            self.mask = pack_mask(state_dict['mask'])
+        else:
+            self.mask = state_dict['mask']
         if state_dict['roi'] is not None:
             self.subroi_stack = []
             for knotList in state_dict['roi']:
