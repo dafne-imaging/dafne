@@ -17,6 +17,7 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import matplotlib
 from dafne_dl.common.biascorrection import biascorrection_image
+from muscle_bids import MedicalVolume
 from muscle_bids.dosma_io import NiftiWriter
 from scipy.interpolate import interp1d
 from skimage.morphology import area_opening, area_closing
@@ -2674,13 +2675,20 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @pyqtSlot(str)
     def reorient_data(self, orientation):
+        print(orientation)
         if self.medical_volume is None:
             return
         medical_volume = self.medical_volume
         self.resetInternalState()
         self.resetInterface()
-        new_medical_volume = medical_volume.reformat(get_nifti_orientation(orientation))
-        new_medical_volume._headers = None
+        if orientation == 'Invert Slices':
+            current_orientation = medical_volume.orientation
+            slc_orientation = current_orientation[2]
+            new_slc_orientation = slc_orientation[1] + slc_orientation[0]
+            new_medical_volume = medical_volume.reformat((current_orientation[0], current_orientation[1], new_slc_orientation))
+        else:
+            new_medical_volume = medical_volume.reformat(get_nifti_orientation(orientation))
+            new_medical_volume._headers = None
         self.load_dosma_volume(new_medical_volume)
         self.roiManager = ROIManager(self.imList[0].shape)
         self.registrationManager = RegistrationManager(self.imList,

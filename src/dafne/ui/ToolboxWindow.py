@@ -338,6 +338,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.action_reorient_axial.triggered.connect(lambda: self.reorient_data('Axial'))
         self.action_reorient_sagittal.triggered.connect(lambda: self.reorient_data('Sagittal'))
         self.action_reorient_coronal.triggered.connect(lambda: self.reorient_data('Coronal'))
+        self.action_reorient_invert_slices.triggered.connect(lambda: self.reorient_data('Invert Slices'))
 
         self.actionSave_as_Dicom.triggered.connect(lambda: self.export_masks_dir('dicom'))
         self.actionSave_as_Compact_Dicom.triggered.connect(lambda: self.export_masks_dir('compact_dicom'))

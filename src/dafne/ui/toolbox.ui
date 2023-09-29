@@ -974,6 +974,7 @@ padding-right: 10px;</string>
      <addaction name="action_reorient_axial"/>
      <addaction name="action_reorient_sagittal"/>
      <addaction name="action_reorient_coronal"/>
+     <addaction name="action_reorient_invert_slices"/>
     </widget>
     <addaction name="actionLoad_data"/>
     <addaction name="actionSave_data_as_Nifti"/>
@@ -1196,6 +1197,11 @@ padding-right: 10px;</string>
   <action name="actionModel_browser">
    <property name="text">
     <string>Model browser...</string>
+   </property>
+  </action>
+  <action name="action_reorient_invert_slices">
+   <property name="text">
+    <string>Invert slices...</string>
    </property>
   </action>
  </widget>
