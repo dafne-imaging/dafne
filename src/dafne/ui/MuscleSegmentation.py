@@ -461,6 +461,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.quit.connect(self.close_slot)
 
         self.toolbox_window.reblit.connect(self.do_reblit)
+        self.toolbox_window.redraw.connect(self.do_redraw)
 
         self.toolbox_window.delete_subregion.connect(self.delete_current_subregion)
         self.toolbox_window.delete_all_subregions.connect(self.delete_all_subregions)
@@ -1674,7 +1675,6 @@ class MuscleSegmentation(ImageShow, QObject):
             return
 
         subregion = self.getCurrentSubregion()
-        print(self.region_rectangle)
 
         if not self.region_rectangle:
             self.region_rectangle = Rectangle((subregion[1], subregion[0]), subregion[3], subregion[2],
@@ -1779,6 +1779,10 @@ class MuscleSegmentation(ImageShow, QObject):
             pass
         try:
             self.brush_patch.remove()
+        except:
+            pass
+        try:
+            self.removeSubregion()
         except:
             pass
         self.fig.canvas.draw()
@@ -1949,6 +1953,7 @@ class MuscleSegmentation(ImageShow, QObject):
     def mouseMoveCB(self, event):
         self.fig.canvas.activateWindow()
         if (self.getState() == 'MUSCLE' and
+                self.toolbox_window.get_edit_button_state() in (ToolboxWindow.ADD_STATE, ToolboxWindow.REMOVE_STATE) and
                 self.toolbox_window.get_edit_mode() == ToolboxWindow.EDITMODE_MASK and
                 self.isCursorNormal() and
                 event.button != 2 and
@@ -1992,13 +1997,11 @@ class MuscleSegmentation(ImageShow, QObject):
                 delta_row = int(event.ydata) - self.subregion_translate_start[0]
                 delta_col = int(event.xdata) - self.subregion_translate_start[1]
 
-                self.subregion_translate_start = (int(event.ydata), int(event.xdata))
-
-                current_subregion = self.getCurrentSubregion()
-                new_start_row = current_subregion[0] + delta_row
-                new_start_col = current_subregion[1] + delta_col
-                new_end_row = new_start_row + current_subregion[2]
-                new_end_col = new_start_col + current_subregion[3]
+                original_subregion = self.subregion_start
+                new_start_row = original_subregion[0] + delta_row
+                new_start_col = original_subregion[1] + delta_col
+                new_end_row = new_start_row + original_subregion[2]
+                new_end_col = new_start_col + original_subregion[3]
 
             if new_start_row < 0:
                 new_start_row = 0
@@ -2015,6 +2018,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.setCurrentSubregion(
                 (new_start_row, new_start_col, new_end_row - new_start_row, new_end_col - new_start_col))
             self.reblit()
+            return
 
 
         if self.getState() != 'MUSCLE': return
@@ -2035,9 +2039,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def leftPressCB(self, event):
         if not self.imPlot.contains(event):
-            #print("Event outside")
             return
-
 
         # These two are independent on the existance of an active ROI
         if self.toolbox_window.get_subregion_restriction():
@@ -2049,6 +2051,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
             if self.toolbox_window.get_edit_button_state() == ToolboxWindow.SUBREGION_MOVE_STATE:
                 self.subregion_translate_start = (int(event.ydata), int(event.xdata))
+                self.subregion_start = self.getCurrentSubregion()
                 self.removeSubregion()
                 self.redraw()
                 return
@@ -2250,7 +2253,6 @@ class MuscleSegmentation(ImageShow, QObject):
                 return
 
         try:
-            # print(self.allROIs)
             assert isinstance(roiManager, (ROIManager, utils.ROIManager.ROIManager))
         except AssertionError:
             self.alert("Unrecognized saved ROI type")
@@ -3011,10 +3013,23 @@ class MuscleSegmentation(ImageShow, QObject):
 
         if setSplash:
             self.setSplash(True, 1, 3, "Running segmentation...")
-        inputData = {'image': self.imList[imIndex], 'resolution': self.resolution[0:2],
+
+        image = self.imList[imIndex]
+        if self.toolbox_window.get_subregion_restriction():
+            subregion = self.roiManager.get_autosegment_subregion(imIndex)
+            image = image[subregion[0]:(subregion[0] + subregion[2]), subregion[1]:(subregion[1]+subregion[3])]
+
+        inputData = {'image': image, 'resolution': self.resolution[0:2],
                      'split_laterality': GlobalConfig['SPLIT_LATERALITY'], 'classification': class_str}
         print("Segmenting image...")
         masks_out = segmenter(inputData)
+        if self.toolbox_window.get_subregion_restriction():
+            # reformat the masks
+            new_masks_out = {}
+            for mask_name, mask in masks_out.items():
+                new_masks_out[mask_name] = np.zeros_like(self.imList[imIndex])
+                new_masks_out[mask_name][subregion[0]:(subregion[0] + subregion[2]), subregion[1]:(subregion[1]+subregion[3])] = mask
+            masks_out = new_masks_out
         return masks_out
 
     @pyqtSlot()
@@ -3035,6 +3050,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.otherMask = None
         print("Segmentation/import time:", time.time() - t)
         self.setSplash(False, 3, 3)
+        time.sleep(0.1)
         self.redraw()
 
     #@pyqtSlot()

@@ -140,6 +140,7 @@ def ask_confirm(text):
 class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     reblit = pyqtSignal()
+    redraw = pyqtSignal()
     do_autosegment = pyqtSignal(int, int)
     contour_optimize = pyqtSignal()
     contour_simplify = pyqtSignal()
@@ -409,8 +410,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.opacitySlider.valueChanged.connect(self.set_opacity_config)
 
         self.segment_area_group.setVisible(False)
-        self.restrict_autosegment_checkbox.stateChanged.connect(self.segment_area_group.setVisible)
-        self.restrict_autosegment_checkbox.stateChanged.connect(self.reblit.emit)
+        self.restrict_autosegment_checkbox.stateChanged.connect(self.toggle_subregion_group)
+        self.restrict_autosegment_checkbox.stateChanged.connect(self.redraw.emit)
 
         self.segment_area_del_button.clicked.connect(self.delete_subregion.emit)
         self.segment_area_deleteall_button.clicked.connect(self.delete_all_subregions_confirm)
@@ -419,9 +420,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.general_enable(False)
 
-        self.setMinimumSize(self.sizeHint().width()+5, 0)
-
-        self.resize(self.sizeHint().width()+5, self.sizeHint().height())
+        self.resize_to_fit()
         # move window to side of main screen
         self.move(QApplication.primaryScreen().geometry().x(),
                   int(QApplication.primaryScreen().geometry().height()/2 - self.rect().center().y()))
@@ -430,6 +429,15 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         return QSize(self.scrollAreaWidgetContents.minimumSize().width() + 16,
                      max(self.scrollAreaWidgetContents.sizeHint().height()+50,
                          QApplication.primaryScreen().geometry().height()-100))
+
+
+    def resize_to_fit(self):
+        self.setMinimumSize(self.sizeHint().width() + 5, 0)
+        self.resize(self.sizeHint().width()+5, self.sizeHint().height())
+    @pyqtSlot(int)
+    def toggle_subregion_group(self, enabled):
+        self.segment_area_group.setVisible(enabled)
+        self.resize_to_fit()
 
     @pyqtSlot()
     @ask_confirm("Are you sure you want to reset all autosegment subregions?")
