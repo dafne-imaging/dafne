@@ -91,4 +91,4 @@ app = BUNDLE(coll_dafne,
     name='Dafne.app',
     icon='../icons/dafne_icon.icns',
     bundle_identifier='network.dafne.dafne',
-    version='1.3-alpha')
+    version='1.4-alpha')

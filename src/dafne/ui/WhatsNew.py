@@ -70,8 +70,10 @@ def check_for_updates():
     last_news_time = xml_timestamp_to_datetime(GlobalConfig['LAST_NEWS'])
     # last_news_time = xml_timestamp_to_datetime('2010-11-10T00:00:00+00:00')
     try:
-        r = requests.get(GlobalConfig['NEWS_URL'])
+        r = requests.get(GlobalConfig['NEWS_URL'], timeout=(1, None))
     except requests.exceptions.ConnectionError:
+        return [], []
+    except requests.exceptions.Timeout:
         return [], []
 
     if r.status_code != 200:
