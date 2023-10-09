@@ -206,11 +206,17 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     model_import = pyqtSignal(str, str)
 
+    delete_subregion = pyqtSignal()
+    delete_all_subregions = pyqtSignal()
+    copy_all_subregions = pyqtSignal()
+
     NO_STATE = 0
     ADD_STATE = 1
     REMOVE_STATE = 2
     ROTATE_STATE = 3
     TRANSLATE_STATE = 4
+    SUBREGION_SET_STATE = 5
+    SUBREGION_MOVE_STATE = 6
 
     BRUSH_CIRCLE = 'Circle'
     BRUSH_SQUARE = 'Square'
@@ -227,7 +233,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.addpaint_button: self.ADD_STATE,
             self.removeerase_button: self.REMOVE_STATE,
             self.translateContour_button: self.TRANSLATE_STATE,
-            self.rotateContour_button: self.ROTATE_STATE
+            self.rotateContour_button: self.ROTATE_STATE,
+            self.segment_area_set_button: self.SUBREGION_SET_STATE,
+            self.segment_area_move_button: self.SUBREGION_MOVE_STATE
         }
 
         self.muscle_segmentation_window = muscle_segmentation_window
@@ -275,6 +283,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.removeerase_button.clicked.connect(self.manage_edit_toggle)
         self.translateContour_button.clicked.connect(self.manage_edit_toggle)
         self.rotateContour_button.clicked.connect(self.manage_edit_toggle)
+        self.segment_area_set_button.clicked.connect(self.manage_edit_toggle)
+        self.segment_area_move_button.clicked.connect(self.manage_edit_toggle)
 
         self.eraseFromAllROIs_checkbox.setVisible(False)
         self.intensityAware_checkbox.setVisible(False)
@@ -398,6 +408,15 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.opacitySlider.setValue(int(config.GlobalConfig['MASK_LAYER_ALPHA'] * 100))
         self.opacitySlider.valueChanged.connect(self.set_opacity_config)
 
+        self.segment_area_group.setVisible(False)
+        self.restrict_autosegment_checkbox.stateChanged.connect(self.segment_area_group.setVisible)
+        self.restrict_autosegment_checkbox.stateChanged.connect(self.reblit.emit)
+
+        self.segment_area_del_button.clicked.connect(self.delete_subregion.emit)
+        self.segment_area_deleteall_button.clicked.connect(self.delete_all_subregions_confirm)
+        self.segment_area_copyall_button.clicked.connect(self.copy_all_subregions_confirm)
+
+
         self.general_enable(False)
 
         self.setMinimumSize(self.sizeHint().width()+5, 0)
@@ -411,6 +430,17 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         return QSize(self.scrollAreaWidgetContents.minimumSize().width() + 16,
                      max(self.scrollAreaWidgetContents.sizeHint().height()+50,
                          QApplication.primaryScreen().geometry().height()-100))
+
+    @pyqtSlot()
+    @ask_confirm("Are you sure you want to reset all autosegment subregions?")
+    def delete_all_subregions_confirm(self):
+        self.delete_all_subregions.emit()
+
+    @pyqtSlot()
+    @ask_confirm("Are you sure you want to copy all autosegment subregions?")
+    def copy_all_subregions_confirm(self):
+        self.copy_all_subregions.emit()
+
 
     @pyqtSlot()
     def show_logs(self):
@@ -640,6 +670,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     def get_intensity_threshold(self):
         return float(self.intensityThreshold_slider.value()) / 100.0
+
+    def get_subregion_restriction(self):
+        return self.restrict_autosegment_checkbox.isChecked()
 
     def get_edit_mode(self):
         if self.editmode_combo.currentText() == self.EDITMODE_MASK:

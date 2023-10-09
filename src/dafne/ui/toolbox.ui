@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>472</width>
-    <height>828</height>
+    <width>581</width>
+    <height>857</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -85,8 +85,8 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>447</width>
-            <height>1214</height>
+            <width>556</width>
+            <height>1298</height>
            </rect>
           </property>
           <property name="sizePolicy">
@@ -332,10 +332,77 @@ padding-right: 10px;</string>
             </widget>
            </item>
            <item>
-            <widget class="QPushButton" name="autosegment_button">
-             <property name="text">
-              <string>AutoSegment</string>
+            <layout class="QHBoxLayout" name="horizontalLayout_20">
+             <item>
+              <widget class="QPushButton" name="autosegment_button">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                 <horstretch>1</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="text">
+                <string>AutoSegment</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="restrict_autosegment_checkbox">
+               <property name="text">
+                <string>Restrict area</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="segment_area_group">
+             <property name="title">
+              <string>Autosegment area</string>
              </property>
+             <layout class="QHBoxLayout" name="horizontalLayout_21">
+              <item>
+               <widget class="QPushButton" name="segment_area_set_button">
+                <property name="text">
+                 <string>Set</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="segment_area_move_button">
+                <property name="text">
+                 <string>Move</string>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="segment_area_del_button">
+                <property name="text">
+                 <string>Reset</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="segment_area_copyall_button">
+                <property name="text">
+                 <string>Copy to all</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="segment_area_deleteall_button">
+                <property name="text">
+                 <string>Reset all</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </widget>
            </item>
            <item>
@@ -928,7 +995,7 @@ padding-right: 10px;</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>472</width>
+     <width>581</width>
      <height>30</height>
     </rect>
    </property>

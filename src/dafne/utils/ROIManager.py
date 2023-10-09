@@ -27,6 +27,7 @@ def notify_parent_decorator(func):
         return func(obj, *args, **kwargs)
     return wrapper
 
+
 class SplineInterpWithNotification(SplineInterpROIClass):
 
     # decorate the methods that modify data
@@ -39,6 +40,7 @@ class SplineInterpWithNotification(SplineInterpROIClass):
     def __init__(self, maskpair_parent, smooth=False):
         SplineInterpROIClass.__init__(self, smooth)
         self.maskpair_parent = maskpair_parent
+
 
 def pack_mask(mask):
     """
@@ -59,6 +61,7 @@ def unpack_mask(packed_mask, mask_size):
     :return: the unpacked mask
     """
     return np.unpackbits(packed_mask)[:mask_size[0]*mask_size[1]].reshape(mask_size)
+
 
 class RoiAndMaskPair:
     def __init__(self, mask_size):
@@ -205,6 +208,7 @@ class RoiAndMaskPair:
         self.__init__(state_dict['mask_size'])
         version = state_dict.get('version', 1)
         if version < 2: #compatibility with old format
+            print("Old ROI format detected, converting to new format")
             self.mask = pack_mask(state_dict['mask'])
         else:
             self.mask = state_dict['mask']
@@ -216,6 +220,7 @@ class RoiAndMaskPair:
                 self.subroi_stack.append(r)
         else:
             self.subroi_stack = None
+
 
 class ROIManager:
     """
@@ -229,6 +234,22 @@ class ROIManager:
     def __init__(self, mask_size):
         self.allROIs = {}
         self.mask_size = mask_size
+        self.autosegment_subregions = {}
+
+    def get_autosegment_subregion(self, slice):
+        if slice not in self.autosegment_subregions:
+            self.autosegment_subregions[slice] = (0,0,self.mask_size[0],self.mask_size[1])
+        return self.autosegment_subregions[slice]
+
+    def set_autosegment_subregion(self, slice, region):
+        assert len(region) == 4, "Region must be a tuple of 4 elements: start_row, start_column, width, height"
+        self.autosegment_subregions[slice] = region
+
+    def clear_autosegment_subregion(self, slice):
+        del self.autosegment_subregions[slice]
+
+    def clear_all_autosegment_subregions(self):
+        self.autosegment_subregions = {}
 
     def is_empty(self):
         return not self.allROIs

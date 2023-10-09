@@ -17,6 +17,7 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import matplotlib
 from dafne_dl.common.biascorrection import biascorrection_image
+from matplotlib.patches import Rectangle
 from muscle_bids import MedicalVolume
 from muscle_bids.dosma_io import NiftiWriter
 from scipy.interpolate import interp1d
@@ -113,7 +114,7 @@ ACTIONS_TO_REMOVE = 'Subplots', 'Customize', 'Save'
 
 def make_excepthook(muscle_segmentation_instance):
     def excepthook(exctype, value, traceback):
-        muscle_segmentation_instance.alert(f"An error occurred. Please check the logs in {os.path.dirname(GlobalConfig.ERROR_LOG_FILE)} for more information. The current ROIs will be saved.")
+        muscle_segmentation_instance.alert(f"An error occurred. Please check the logs in {os.path.dirname(GlobalConfig['ERROR_LOG_FILE'])} for more information. The current ROIs will be saved.")
         muscle_segmentation_instance.saveROIPickle()
         muscle_segmentation_instance.close_slot()
         return sys.__excepthook__(exctype, value, traceback)
@@ -307,10 +308,16 @@ class MuscleSegmentation(ImageShow, QObject):
         except:
             pass
 
+        try:
+            self.removeSubregion()
+        except:
+            pass
+
         self.maskImPlot = None
         self.maskOtherImPlot = None
         self.activeMask = None
         self.otherMask = None
+        self.region_rectangle = None
 
         self.roiColor = GlobalConfig['ROI_COLOR']
         self.roiOther = GlobalConfig['ROI_OTHER_COLOR']
@@ -454,6 +461,10 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.quit.connect(self.close_slot)
 
         self.toolbox_window.reblit.connect(self.do_reblit)
+
+        self.toolbox_window.delete_subregion.connect(self.delete_current_subregion)
+        self.toolbox_window.delete_all_subregions.connect(self.delete_all_subregions)
+        self.toolbox_window.copy_all_subregions.connect(self.copy_all_subregions)
 
     def setSplash(self, is_splash, current_value = 0, maximum_value = 1, text= ""):
         self.splash_signal.emit(is_splash, current_value, maximum_value, text)
@@ -712,6 +723,21 @@ class MuscleSegmentation(ImageShow, QObject):
             return None
         self.roiManager.set_mask(roi_name, int(self.curImage + offset), mask)
 
+    def getCurrentSubregion(self, offset=0):
+        if not self.roiManager:
+            return None
+        imageN = int(self.curImage + offset)
+        return self.roiManager.get_autosegment_subregion(imageN)
+
+    def setCurrentSubregion(self, subregion, offset=0):
+        if not self.roiManager:
+            return
+        imageN = int(self.curImage + offset)
+        if subregion is None:
+            self.roiManager.clear_autosegment_subregion(imageN)
+        else:
+            self.roiManager.set_autosegment_subregion(imageN, subregion)
+
     def calcOutputData(self, setSplash=False):
         imSize = self.image.shape
 
@@ -840,6 +866,28 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.updateMasksFromROIs()
         self.reblit()
+
+    @pyqtSlot()
+    def delete_current_subregion(self):
+        self.setCurrentSubregion(None)
+        self.reblit()
+
+    @pyqtSlot()
+    def delete_all_subregions(self):
+        if self.roiManager is None:
+            return
+        self.roiManager.clear_all_autosegment_subregions()
+        self.removeSubregion()
+        self.redraw()
+
+    @pyqtSlot()
+    def copy_all_subregions(self):
+        subregion = self.getCurrentSubregion()
+        if subregion is None:
+            return
+
+        for image_index in range(len(self.imList)):
+            self.roiManager.set_autosegment_subregion(image_index, subregion)
 
 
     #########################################################################################
@@ -1498,6 +1546,24 @@ class MuscleSegmentation(ImageShow, QObject):
         self.sameRoiPainter.clear_patches(self.axes)
         self.otherRoiPainter.clear_patches(self.axes)
 
+    def removeSubregion(self):
+        """ Remove the autosegment subregion from the plot """
+        if not self.region_rectangle:
+            return
+
+        try:
+            self.region_rectangle.set_visible(False)
+        except:
+            pass
+
+        try:
+            self.region_rectangle.remove()
+        except:
+            pass
+
+        self.region_rectangle = None
+
+
     def updateMasksFromROIs(self):
         roi_name = self.getCurrentROIName()
         mask_size = self.image.shape
@@ -1601,6 +1667,29 @@ class MuscleSegmentation(ImageShow, QObject):
         self.otherRoiPainter.draw(self.axes, False)
         self.sameRoiPainter.draw(self.axes, False)
 
+    def drawSubregion(self):
+        """ Plot the autosegment subregion for the current figure """
+        if not self.toolbox_window.get_subregion_restriction():
+            self.removeSubregion()
+            return
+
+        subregion = self.getCurrentSubregion()
+        print(self.region_rectangle)
+
+        if not self.region_rectangle:
+            self.region_rectangle = Rectangle((subregion[1], subregion[0]), subregion[3], subregion[2],
+                                              fill=False,
+                                              edgecolor='green',
+                                              linewidth=2)
+            self.axes.add_patch(self.region_rectangle)
+        else:
+            self.region_rectangle.set_xy((subregion[1], subregion[0]))
+            self.region_rectangle.set_width(subregion[3])
+            self.region_rectangle.set_height(subregion[2])
+            self.region_rectangle.set_visible(True)
+        self.axes.draw_artist(self.region_rectangle)
+
+
     # convert a single slice to ROIs
     def maskToRois2D(self, name, mask, imIndex, refresh = True):
         if not self.roiManager: return
@@ -1624,11 +1713,13 @@ class MuscleSegmentation(ImageShow, QObject):
         self.resetBlitBg()
         self.removeMasks()
         self.removeContours()
+        self.removeSubregion()
         ImageShow.displayImage(self, im, cmap, redraw)
         self.updateRoiList()  # set the appropriate (sub)roi list for the current image
         self.activeMask = None
         self.otherMask = None
         self.updateContourPainters()
+        self.drawSubregion()
         try:
             self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
         except:
@@ -1651,6 +1742,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.blitYlim != self.axes.get_ylim():
             self.removeMasks()
             self.removeContours()
+            self.removeSubregion()
             self.redraw()
             return
         self.fig.canvas.restore_region(self.blitBg)
@@ -1668,6 +1760,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.drawContours()
             elif self.editMode == ToolboxWindow.EDITMODE_MASK:
                 self.drawMasks()
+            self.drawSubregion()
 
     def redraw(self):
         self.redraw_signal.emit()
@@ -1879,26 +1972,88 @@ class MuscleSegmentation(ImageShow, QObject):
             ImageShow.mouseMoveCB(self, event)
 
     def leftMoveCB(self, event):
-        if self.getState() == 'MUSCLE' and event.xdata is not None and event.ydata is not None:
-            roi = self.getCurrentROI()
-            if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:  # event.key == 'shift' or checkCapsLock():
-                self.movePoint(roi, event)
-            elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.TRANSLATE_STATE:
-                if self.translateDelta is None: return
-                newCenter = (event.xdata - self.translateDelta[0], event.ydata - self.translateDelta[1])
-                roi.moveCenterTo(newCenter)
-                self.reblit()
-            elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.ROTATE_STATE:
-                if self.rotationDelta is None: return
-                newAngle = roi.getOrientation( (event.xdata, event.ydata), center = self.rotationDelta[0])
-                roi.reorientByAngle(newAngle - self.rotationDelta[1])
-                self.reblit()
+        if event.xdata is None or event.ydata is None:
+            return
+
+        if self.toolbox_window.get_subregion_restriction():
+            if self.toolbox_window.get_edit_button_state() == ToolboxWindow.SUBREGION_SET_STATE:
+                if not self.subregion_start: return
+                start_row = self.subregion_start[0]
+                start_col = self.subregion_start[1]
+
+                new_row = int(event.ydata)
+                new_col = int(event.xdata)
+
+                new_start_row = min(start_row, new_row)
+                new_end_row = max(start_row, new_row)
+                new_start_col = min(start_col, new_col)
+                new_end_col = max(start_col, new_col)
+            elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.SUBREGION_MOVE_STATE:
+                delta_row = int(event.ydata) - self.subregion_translate_start[0]
+                delta_col = int(event.xdata) - self.subregion_translate_start[1]
+
+                self.subregion_translate_start = (int(event.ydata), int(event.xdata))
+
+                current_subregion = self.getCurrentSubregion()
+                new_start_row = current_subregion[0] + delta_row
+                new_start_col = current_subregion[1] + delta_col
+                new_end_row = new_start_row + current_subregion[2]
+                new_end_col = new_start_col + current_subregion[3]
+
+            if new_start_row < 0:
+                new_start_row = 0
+
+            if new_start_col < 0:
+                new_start_col = 0
+
+            if new_end_row >= self.image.shape[0]:
+                new_end_row = self.image.shape[0]
+
+            if new_end_col >= self.image.shape[1]:
+                new_end_col = self.image.shape[1]
+
+            self.setCurrentSubregion(
+                (new_start_row, new_start_col, new_end_row - new_start_row, new_end_col - new_start_col))
+            self.reblit()
+
+
+        if self.getState() != 'MUSCLE': return
+
+        roi = self.getCurrentROI()
+        if self.toolbox_window.get_edit_button_state() == ToolboxWindow.ADD_STATE:  # event.key == 'shift' or checkCapsLock():
+            self.movePoint(roi, event)
+        elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.TRANSLATE_STATE:
+            if self.translateDelta is None: return
+            newCenter = (event.xdata - self.translateDelta[0], event.ydata - self.translateDelta[1])
+            roi.moveCenterTo(newCenter)
+            self.reblit()
+        elif self.toolbox_window.get_edit_button_state() == ToolboxWindow.ROTATE_STATE:
+            if self.rotationDelta is None: return
+            newAngle = roi.getOrientation( (event.xdata, event.ydata), center = self.rotationDelta[0])
+            roi.reorientByAngle(newAngle - self.rotationDelta[1])
+            self.reblit()
 
     def leftPressCB(self, event):
         if not self.imPlot.contains(event):
             #print("Event outside")
             return
 
+
+        # These two are independent on the existance of an active ROI
+        if self.toolbox_window.get_subregion_restriction():
+            if self.toolbox_window.get_edit_button_state() == ToolboxWindow.SUBREGION_SET_STATE:
+                self.subregion_start = (int(event.ydata), int(event.xdata))
+                self.removeSubregion()
+                self.redraw()
+                return
+
+            if self.toolbox_window.get_edit_button_state() == ToolboxWindow.SUBREGION_MOVE_STATE:
+                self.subregion_translate_start = (int(event.ydata), int(event.xdata))
+                self.removeSubregion()
+                self.redraw()
+                return
+
+        # Only set if there is an active ROI
         if self.getState() != 'MUSCLE': return
 
         if self.toolbox_window.get_edit_mode() == ToolboxWindow.EDITMODE_MASK:
@@ -1946,6 +2101,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.currentPoint = None  # reset the state
         self.translateDelta = None
         self.rotationDelta = None
+        self.subregion_start = None
+        self.suregion_translate_start = None
         if self.editMode == ToolboxWindow.EDITMODE_MASK:
             self.saveSnapshot() # save state before modification
             if self.roiManager is not None:
@@ -2103,6 +2260,12 @@ class MuscleSegmentation(ImageShow, QObject):
             roiManager.mask_size[1] != self.image.shape[1]:
             self.alert("ROI for wrong dataset")
             return
+
+        # compatibility with old versions that don't have autosegment subregions
+        try:
+            roiManager.autosegment_subregions
+        except AttributeError:
+            roiManager.autosegment_subregions = {}
 
         #print('Rois loaded')
         self.clearAllROIs()
