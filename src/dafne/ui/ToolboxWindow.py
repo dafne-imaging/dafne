@@ -36,6 +36,7 @@ import webbrowser
 from .LogWindow import LogWindow
 
 from ..utils.resource_utils import get_resource_path
+from ..utils.open_folder import open_folder
 
 DOCUMENTATION_URL = 'https://www.dafne.network/documentation/'
 
@@ -378,6 +379,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.action_Restore_factory_settings.triggered.connect(self.clear_preferences)
         self.actionModel_browser.triggered.connect(self.open_model_browser)
 
+        self.actionOpen_model_folder.triggered.connect(lambda: open_folder(config.GlobalConfig['MODEL_PATH']))
+        self.actionOpen_log_folder.triggered.connect(lambda: open_folder(config.GlobalConfig['OUTPUT_LOG_FILE']))
+
         self.actionCopy_roi.triggered.connect(self.do_copy_roi)
         self.actionCombine_roi.triggered.connect(self.do_combine_roi)
         self.actionMultiple_combine.triggered.connect(self.do_combine_multiple_roi)
@@ -481,14 +485,14 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionSave_as_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
         self.actionSave_data_as_Nifti.setVisible(False) # Disable save data as Nifti
         self.actionSave_as_Compact_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
-        self.actionImport_model.setVisible(config.GlobalConfig['MODEL_PROVIDER'] == 'Local')
+        self.actionImport_model.setVisible(config.GlobalConfig['MODEL_PROVIDER'] in ('Local', 'Mixed'))
         if config.GlobalConfig['ENABLE_DATA_UPLOAD'] and (config.GlobalConfig['MODEL_PROVIDER'] == 'Remote' or
                                                           config.GlobalConfig['FORCE_LOCAL_DATA_UPLOAD']):
             self.action_Upload_data.setVisible(True)
         else:
             self.action_Upload_data.setVisible(False)
 
-        if config.GlobalConfig['MODEL_PROVIDER'] == 'Remote':
+        if config.GlobalConfig['MODEL_PROVIDER'] in ('Remote', 'Mixed'):
             self.actionModel_browser.setVisible(True)
         else:
             self.actionModel_browser.setVisible(False)

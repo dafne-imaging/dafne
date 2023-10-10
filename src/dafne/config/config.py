@@ -57,7 +57,7 @@ defaults = {
     'NEWS_URL': ('https://www.dafne.network/feed/blog.xml', 'string', None),
     'LAST_NEWS': ('2010-11-10T00:00:00+00:00', 'string', None),
     'USE_CLASSIFIER': (False, 'bool', None),
-    'MODEL_PROVIDER': ('Local', 'option', ['Local', 'Remote'], 'Model location'),
+    'MODEL_PROVIDER': ('Local', 'option', ['Local', 'Remote', 'Mixed'], 'Model source'),
     'API_KEY': ('', 'string', 'Personal server access key'),
     'SPLIT_LATERALITY': (True, 'bool', 'Separate L/R in autosegment'),
     'FORCE_MODEL_DOWNLOAD': (False, 'bool', 'Force download of models from server'),

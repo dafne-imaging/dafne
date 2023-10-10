@@ -84,9 +84,9 @@
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>-247</y>
+            <y>0</y>
             <width>556</width>
-            <height>1401</height>
+            <height>1342</height>
            </rect>
           </property>
           <property name="sizePolicy">
@@ -1004,7 +1004,7 @@ padding-right: 10px;</string>
      <x>0</x>
      <y>0</y>
      <width>581</width>
-     <height>32</height>
+     <height>30</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -1069,6 +1069,13 @@ padding-right: 10px;</string>
     <property name="title">
      <string>Tools</string>
     </property>
+    <widget class="QMenu" name="menuOpen_folder">
+     <property name="title">
+      <string>Open folder</string>
+     </property>
+     <addaction name="actionOpen_model_folder"/>
+     <addaction name="actionOpen_log_folder"/>
+    </widget>
     <addaction name="actionIncremental_Learn"/>
     <addaction name="separator"/>
     <addaction name="actionCalculate_statistics"/>
@@ -1079,6 +1086,7 @@ padding-right: 10px;</string>
     <addaction name="actionPreferences"/>
     <addaction name="actionModel_browser"/>
     <addaction name="action_Restore_factory_settings"/>
+    <addaction name="menuOpen_folder"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -1277,6 +1285,16 @@ padding-right: 10px;</string>
   <action name="action_reorient_invert_slices">
    <property name="text">
     <string>Invert slices...</string>
+   </property>
+  </action>
+  <action name="actionOpen_model_folder">
+   <property name="text">
+    <string>Models folder...</string>
+   </property>
+  </action>
+  <action name="actionOpen_log_folder">
+   <property name="text">
+    <string>Logs folder...</string>
    </property>
   </action>
  </widget>

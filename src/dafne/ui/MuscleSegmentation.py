@@ -70,6 +70,7 @@ import traceback
 
 from dafne_dl.LocalModelProvider import LocalModelProvider
 from dafne_dl.RemoteModelProvider import RemoteModelProvider
+from dafne_dl.MixedModelProvider import MixedModelProvider
 
 from ..utils.RegistrationManager import RegistrationManager
 
@@ -253,10 +254,15 @@ class MuscleSegmentation(ImageShow, QObject):
             model_provider = LocalModelProvider(GlobalConfig['MODEL_PATH'], GlobalConfig['TEMP_UPLOAD_DIR'])
             available_models = model_provider.available_models()
         else:
+            if GlobalConfig['MODEL_PROVIDER'] == 'Remote':
+                ProviderClass = RemoteModelProvider
+            else:
+                ProviderClass = MixedModelProvider
+                print('Using mixed model provider')
             url = GlobalConfig['SERVER_URL']
             if not url.endswith('/'):
                 url += '/'
-            model_provider = RemoteModelProvider(GlobalConfig['MODEL_PATH'], url, GlobalConfig['API_KEY'], GlobalConfig['TEMP_UPLOAD_DIR'])
+            model_provider = ProviderClass(GlobalConfig['MODEL_PATH'], url, GlobalConfig['API_KEY'], GlobalConfig['TEMP_UPLOAD_DIR'])
             fallback = False
             try:
                 available_models = model_provider.available_models()
@@ -281,6 +287,12 @@ class MuscleSegmentation(ImageShow, QObject):
                 filter_classes = False
                 available_models = model_provider.available_models()
 
+        try:
+            local_model_list = self.model_provider.get_local_models()
+        except AttributeError:
+            local_model_list = []
+
+        GlobalConfig['ENABLED_MODELS'].extend(local_model_list)
         self.setModelProvider(model_provider)
 
         print(available_models)
@@ -2887,14 +2899,16 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @pyqtSlot(str, str)
     def importModel(self, modelFile, modelName):
-        if not isinstance(self.model_provider, LocalModelProvider):
-            print('Trying to import a model in a non-local provider')
-            return
-
         self.setSplash(True, 0, 1, 'Importing model...')
+
+        modelName = modelName.replace('_', '-').replace(',', '.')
 
         try:
             self.model_provider.import_model(modelFile, modelName)
+        except AttributeError:
+            self.alert('Model provider does not support import')
+            self.setSplash(False, 0, 1, 'Importing model...')
+            return
         except Exception as err:
             self.alert('Error while importing model. Probably invalid model', 'Error')
             self.setSplash(False, 0, 1, 'Importing model...')
@@ -2903,6 +2917,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.setSplash(True, 1, 1, 'Importing model...')
         self.alert('Model imported successfully', 'Info')
         self.setSplash(False, 1, 1, 'Importing model...')
+        GlobalConfig['ENABLED_MODELS'].append(modelName)
         self.setAvailableClasses(self.model_provider.available_models())
 
     def setModelProvider(self, modelProvider):
