@@ -122,9 +122,7 @@ class RoiAndMaskPair:
 
     def set_mask(self, mask):
         #self.mask = pack_mask(mask)
-        print("Original mask size", mask.nbytes)
         self.mask = compressed_dumps(mask)
-        print("Compressed mask size", len(self.mask))
         self.invalidate_roi()
 
     def invalidate_roi(self):

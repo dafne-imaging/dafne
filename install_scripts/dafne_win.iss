@@ -2,11 +2,10 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Dafne"
-#define MyAppVersion "1.4-alpha"
+#define MyAppVersion "1.5-alpha"
 #define MyAppPublisher "Dafne-imaging"
 #define MyAppURL "https://dafne.network/"
 #define MyAppExeName "dafne.exe"
-#define CalcTransformsName "calc_transforms.exe"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
@@ -29,7 +28,7 @@ LicenseFile=dist\dafne\LICENSE
 ;PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=C:\dafne
-OutputBaseFilename=dafne_windows_setup_1.4-alpha
+OutputBaseFilename=dafne_windows_setup_1.5-alpha
 SetupIconFile=..\icons\dafne_icon.ico
 Compression=lzma
 SolidCompression=yes
@@ -43,16 +42,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "dist\dafne\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\calc_transforms\{#CalcTransformsName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\calc_transforms\{#CalcTransformsName}.manifest"; DestDir: "{app}"; Flags: ignoreversion
 Source: "dist\dafne\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
-Name: "{group}\Offline Transform Calculator"; Filename: "{app}\{#CalcTransformsName}"
-Name: "{autodesktop}\Offline Transform Calculator"; Filename: "{app}\{#CalcTransformsName}"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
