@@ -19,6 +19,7 @@ from .mask_to_spline import mask_to_splines
 from .pySplineInterp import SplineInterpROIClass
 import functools
 from copy import deepcopy
+from .compressed_pickle import compressed_dumps, compressed_loads
 
 def notify_parent_decorator(func):
     @functools.wraps(func)
@@ -68,7 +69,7 @@ class RoiAndMaskPair:
         self.subroi_stack = None
         self.mask = None
         self.mask_size = mask_size
-        self.version = 2 # version of the ROI format. From version one, the mask is now packed
+        self.version = 3 # version of the ROI format. Version 1/no version: masks unpacked. Version 2: mask packed. Version 3: mask compressed
 
     # if the passed roi is not a member of the Spline-Notifier class, make it so
     def __wrap_roi(self, roi):
@@ -82,7 +83,8 @@ class RoiAndMaskPair:
         return r
 
     def clear_mask(self):
-        self.mask = pack_mask(np.zeros(self.mask_size))
+        #self.mask = pack_mask(np.zeros(self.mask_size))
+        self.mask = compressed_dumps(np.zeros(self.mask_size))
         self.invalidate_roi()
 
     def clear_subrois(self):
@@ -119,7 +121,10 @@ class RoiAndMaskPair:
         # self.invalidate_mask() # this was already invalidated in clear_subrois
 
     def set_mask(self, mask):
-        self.mask = pack_mask(mask)
+        #self.mask = pack_mask(mask)
+        print("Original mask size", mask.nbytes)
+        self.mask = compressed_dumps(mask)
+        print("Compressed mask size", len(self.mask))
         self.invalidate_roi()
 
     def invalidate_roi(self):
@@ -140,13 +145,14 @@ class RoiAndMaskPair:
                 mask = np.logical_xor(mask, subroi.toMask(self.mask_size, False))
             except:
                 pass
-        self.mask = pack_mask(mask)
+        #self.mask = pack_mask(mask)
+        self.mask = compressed_dumps(mask)
         return mask
 
     def mask_to_subroi(self):
         if self.mask is None: return
         if self.subroi_stack is not None: return # do not recalculate subrois if they are valid
-        splineInterpList = mask_to_splines(unpack_mask(self.mask, self.mask_size))  # run mask tracing
+        splineInterpList = mask_to_splines(compressed_loads(self.mask))  # run mask tracing
         #print(splineInterpList)
         self.subroi_stack = []
         for roi in splineInterpList:
@@ -170,7 +176,7 @@ class RoiAndMaskPair:
             else:
                 mask = self.subroi_to_mask()
         else:
-            mask = unpack_mask(self.mask, self.mask_size)
+            mask = compressed_loads(self.mask)
         return mask
 
     def get_subroi_stack(self):
@@ -209,7 +215,9 @@ class RoiAndMaskPair:
         version = state_dict.get('version', 1)
         if version < 2: #compatibility with old format
             print("Old ROI format detected, converting to new format")
-            self.mask = pack_mask(state_dict['mask'])
+            self.mask = compressed_dumps(state_dict['mask'])
+        elif version == 2:
+            self.mask = compressed_dumps(unpack_mask(state_dict['mask'], self.mask_size))
         else:
             self.mask = state_dict['mask']
         if state_dict['roi'] is not None:
