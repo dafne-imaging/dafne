@@ -4,13 +4,15 @@
 import os
 import numpy as np
 from PyQt5.QtCore import pyqtSlot, pyqtSignal
-from PyQt5.QtWidgets import QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QApplication
 from ..config.config import GlobalConfig
 
 os.environ["QT_API"] = "pyqt5"
 import pyvista as pv
 from pyvistaqt import QtInteractor
 
+WIDTH = 400
+HEIGHT = 400
 
 class Viewer3D(QWidget):
 
@@ -30,7 +32,8 @@ class Viewer3D(QWidget):
         layout.addWidget(self.plotter)
         self.setLayout(layout)
         self.setWindowTitle("3D Viewer")
-        self.setGeometry(0, 0, 400, 400)
+        screen_width = QApplication.desktop().screenGeometry().width()
+        self.setGeometry(screen_width - WIDTH, 0, WIDTH, HEIGHT)
         self.real_close_flag = False
 
     @pyqtSlot(list, np.ndarray)
