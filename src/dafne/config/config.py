@@ -59,6 +59,7 @@ defaults = {
     'USE_CLASSIFIER': (False, 'bool', None),
     'MODEL_PROVIDER': ('Local', 'option', ['Local', 'Remote', 'Mixed'], 'Model source'),
     'API_KEY': ('', 'string', 'Personal server access key'),
+    'DICOM_SORT': ('InstanceNumber', 'option', ['InstanceNumber', 'SlicePosition', 'None'], 'Sort DICOM files by'),
     'SPLIT_LATERALITY': (True, 'bool', 'Separate L/R in autosegment'),
     'FORCE_MODEL_DOWNLOAD': (False, 'bool', 'Force download of models from server'),
     'IL_MIN_SLICES': (5, 'int_spin', 1, 50, 1, None),

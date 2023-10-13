@@ -28,6 +28,7 @@ from muscle_bids import MedicalVolume
 import os
 
 from .multiframe import is_enhanced_dicom, is_multi_dicom, convert_to_slices, load_multi_dicom
+from ...config import GlobalConfig
 
 
 class ConversionError(Exception):
@@ -183,7 +184,10 @@ def dosma_volume_from_path(path, parent_qobject = None, reorient_data = True):
 
         if load_dicom_dir:
             try:
-                dr = DicomReader(num_workers=0, group_by=None, sort_by="InstanceNumber", ignore_ext=True)
+                sort = GlobalConfig['DICOM_SORT']
+                if sort == 'None':
+                    sort = None
+                dr = DicomReader(num_workers=0, group_by=None, sort_by=sort, ignore_ext=True)
                 medical_volume = dr.load(basepath)[0]
                 affine_valid = True
             except:
