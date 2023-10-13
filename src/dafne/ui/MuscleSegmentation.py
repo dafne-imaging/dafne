@@ -2158,11 +2158,11 @@ class MuscleSegmentation(ImageShow, QObject):
             self.saveSnapshot() # save state before modification
             if self.roiManager is not None:
                 self.roiManager.set_mask(self.getCurrentROIName(), self.curImage, self.activeMask)
-                self.emit_mask_slice_changed()
             if self.toolbox_window.get_erase_from_all_rois():
                 for (key_tuple, mask) in self.roiManager.all_masks(image_number=self.curImage):
                     if key_tuple[0] == self.getCurrentROIName(): continue
                     self.roiManager.set_mask(key_tuple[0], key_tuple[1], np.logical_and(mask, self.otherMask))
+        self.emit_mask_slice_changed()
 
     def rightPressCB(self, event):
         self.hideRois = GlobalConfig['HIDE_ROIS_RIGHTCLICK']

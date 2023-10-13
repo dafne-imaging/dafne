@@ -4,7 +4,7 @@
 import os
 import numpy as np
 from PyQt5.QtCore import pyqtSlot, pyqtSignal
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QApplication
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QApplication, QPushButton
 from ..config.config import GlobalConfig
 
 os.environ["QT_API"] = "pyqt5"
@@ -22,6 +22,7 @@ class Viewer3D(QWidget):
         super().__init__()
         self.plotter = QtInteractor(self)
         self.plotter.background_color = 'black'
+        self.plotter.add_camera_orientation_widget()
         self.spacing = (1.0, 1.0, 1.0)
         self.data = None
         self.actor = None
@@ -30,6 +31,11 @@ class Viewer3D(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.plotter)
+
+        fit_button = QPushButton("Fit to scene")
+        layout.addWidget(fit_button)
+        fit_button.clicked.connect(self.plotter.reset_camera)
+
         self.setLayout(layout)
         self.setWindowTitle("3D Viewer")
         screen_width = QApplication.desktop().screenGeometry().width()
