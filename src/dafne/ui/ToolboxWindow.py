@@ -21,6 +21,7 @@ import functools
 import os
 import sys
 
+from .Viewer3D import Viewer3D
 from ..ui.ToolboxUI import Ui_SegmentationToolbox
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QSize
 from PyQt5.QtGui import QMovie, QIcon, QPixmap
@@ -212,6 +213,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     delete_all_subregions = pyqtSignal()
     copy_all_subregions = pyqtSignal()
 
+    show_3D_viewer_signal = pyqtSignal()
+
     NO_STATE = 0
     ADD_STATE = 1
     REMOVE_STATE = 2
@@ -273,6 +276,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.suppress_roi_change_emit = False
         self.valid_roi_selected = False
         self.model_details = {}
+        self.viewer3D = Viewer3D()
+
+        self.viewer3D.hide_signal.connect(lambda: self.action3D_Viewer.setChecked(False))
+        self.action3D_Viewer.triggered.connect(self.toggle_3D_viewer)
+
         self.roi_combo.currentTextChanged.connect(self.send_roi_changed)
         self.roi_combo.currentTextChanged.connect(self.repopulate_subrois)
         self.subroi_combo.currentTextChanged.connect(self.send_roi_changed)
@@ -421,7 +429,6 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.segment_area_deleteall_button.clicked.connect(self.delete_all_subregions_confirm)
         self.segment_area_copyall_button.clicked.connect(self.copy_all_subregions_confirm)
 
-
         self.general_enable(False)
 
         self.resize_to_fit()
@@ -442,6 +449,17 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def toggle_subregion_group(self, enabled):
         self.segment_area_group.setVisible(enabled)
         self.resize_to_fit()
+
+    def toggle_3D_viewer(self, checked):
+        if checked:
+            self.viewer3D.show()
+            self.show_3D_viewer_signal.emit()
+        else:
+            self.viewer3D.hide()
+
+    def is_3D_viewer_visible(self):
+        if self.viewer3D is None: return False
+        return self.viewer3D.isVisible()
 
     @pyqtSlot()
     @ask_confirm("Are you sure you want to reset all autosegment subregions?")
@@ -478,6 +496,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionPyRadiomics.setEnabled(enabled)
         self.actionIncremental_Learn.setEnabled(enabled)
         self.actionSave_data_as_Nifti.setEnabled(enabled)
+        self.action3D_Viewer.setEnabled(enabled)
 
     @pyqtSlot()
     def reload_config(self):

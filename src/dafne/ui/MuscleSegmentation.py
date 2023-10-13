@@ -149,6 +149,9 @@ class MuscleSegmentation(ImageShow, QObject):
     undo_signal = pyqtSignal()
     redo_signal = pyqtSignal()
 
+    mask_changed = pyqtSignal(list, np.ndarray)
+    mask_slice_changed = pyqtSignal(int, np.ndarray)
+
     def __init__(self, *args, **kwargs):
         self.suppressRedraw = False
         ImageShow.__init__(self, *args, **kwargs)
@@ -479,6 +482,10 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.delete_all_subregions.connect(self.delete_all_subregions)
         self.toolbox_window.copy_all_subregions.connect(self.copy_all_subregions)
 
+        self.toolbox_window.show_3D_viewer_signal.connect(self.emit_mask_changed)
+        self.mask_changed.connect(self.toolbox_window.viewer3D.set_spacing_and_data)
+        self.mask_slice_changed.connect(self.toolbox_window.viewer3D.set_slice)
+
     def setSplash(self, is_splash, current_value = 0, maximum_value = 1, text= ""):
         self.splash_signal.emit(is_splash, current_value, maximum_value, text)
 
@@ -666,6 +673,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.updateMasksFromROIs()
         self.updateContourPainters()
         self.reblit()
+        self.emit_mask_changed()
 
     def _addSubRoi_internal(self, roi_name=None, imageN=None):
         if not roi_name:
@@ -691,11 +699,12 @@ class MuscleSegmentation(ImageShow, QObject):
     @pyqtSlot(str, int)
     def changeRoi(self, roi_name, subroi_index):
         """ Change the active ROI """
-        #print(roi_name, subroi_index)
+        print("Roi change", roi_name, subroi_index)
         self.activeMask = None
         self.otherMask = None
         self.updateContourPainters()
         self.reblit()
+        self.emit_mask_changed()
 
     def getCurrentROIName(self):
         """ Gets the name of the ROI selected in the toolbox """
@@ -1588,6 +1597,32 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.activeMask = mask.copy()
             else:
                 self.otherMask = np.logical_or(self.otherMask, mask)
+        self.emit_mask_slice_changed()
+
+    def emit_mask_changed(self):
+        if not self.toolbox_window.is_3D_viewer_visible(): return
+        if self.roiManager is None:
+            return
+        roi_name = self.getCurrentROIName()
+        if not roi_name:
+            return
+        full_mask = np.zeros((self.image.shape[0], self.image.shape[1], len(self.imList)), dtype=np.uint8)
+        for key_tuple, mask in self.roiManager.all_masks(roi_name=roi_name):
+            mask_slice = key_tuple[1]
+            full_mask[:, :, mask_slice] = mask
+        self.mask_changed.emit(list(self.resolution), full_mask)
+
+    def emit_mask_slice_changed(self):
+        if not self.toolbox_window.is_3D_viewer_visible(): return
+        if self.roiManager is None:
+            return
+
+        slice_n = int(self.curImage)
+        mask = self.getCurrentMask()
+        if mask is None:
+            return
+
+        self.mask_slice_changed.emit(slice_n, mask)
 
     def drawMasks(self):
         """ Plot the masks for the current figure """
@@ -1837,6 +1872,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def closeCB(self, event):
         self.toolbox_window.close()
+        self.toolbox_window.viewer3D.real_close()
         if not self.basepath: return
         if self.registrationManager:
             self.registrationManager.pickle_transforms()
@@ -2122,6 +2158,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.saveSnapshot() # save state before modification
             if self.roiManager is not None:
                 self.roiManager.set_mask(self.getCurrentROIName(), self.curImage, self.activeMask)
+                self.emit_mask_slice_changed()
             if self.toolbox_window.get_erase_from_all_rois():
                 for (key_tuple, mask) in self.roiManager.all_masks(image_number=self.curImage):
                     if key_tuple[0] == self.getCurrentROIName(): continue
