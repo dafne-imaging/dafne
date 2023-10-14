@@ -44,8 +44,11 @@ class ContourPainter:
         self.painted = False
         if axes:
             # axes.patches = [] # Error with new matplotlib!
-            while axes.patches:
-                axes.patches.pop()
+            try:
+                for patch in axes.patches:
+                    patch.remove()
+            except Exception as e:
+                print("Error removing patches", e)
             return
         for knot in self._knots:
             try:

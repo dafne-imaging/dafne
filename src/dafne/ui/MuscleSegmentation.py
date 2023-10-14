@@ -151,6 +151,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
     mask_changed = pyqtSignal(list, np.ndarray)
     mask_slice_changed = pyqtSignal(int, np.ndarray)
+    volume_loaded_signal = pyqtSignal(list, np.ndarray)
 
     def __init__(self, *args, **kwargs):
         self.suppressRedraw = False
@@ -485,6 +486,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.show_3D_viewer_signal.connect(self.emit_mask_changed)
         self.mask_changed.connect(self.toolbox_window.viewer3D.set_spacing_and_data)
         self.mask_slice_changed.connect(self.toolbox_window.viewer3D.set_slice)
+        self.volume_loaded_signal.connect(self.toolbox_window.viewer3D.set_spacing_and_anatomy)
 
     def setSplash(self, is_splash, current_value = 0, maximum_value = 1, text= ""):
         self.splash_signal.emit(is_splash, current_value, maximum_value, text)
@@ -1610,7 +1612,7 @@ class MuscleSegmentation(ImageShow, QObject):
         for key_tuple, mask in self.roiManager.all_masks(roi_name=roi_name):
             mask_slice = key_tuple[1]
             full_mask[:, :, mask_slice] = mask
-        self.mask_changed.emit(list(self.resolution), full_mask)
+        self.mask_changed.emit([self.resolution[0], self.resolution[1], self.resolution[2]], full_mask)
 
     def emit_mask_slice_changed(self):
         if not self.toolbox_window.is_3D_viewer_visible(): return
@@ -2458,6 +2460,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.setSplash(True, 1, 2, "Loading masks")
             self.masksToRois(mask_dictionary, 0)
         self.setSplash(False, 1, 2, "Loading masks")
+        self.volume_loaded_signal.emit([self.resolution[0], self.resolution[1], self.resolution[2]], self.medical_volume.volume)
 
     def update_all_classifications(self):
         self.classifications = []

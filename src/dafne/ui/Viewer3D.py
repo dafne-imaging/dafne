@@ -3,8 +3,8 @@
 
 import os
 import numpy as np
-from PyQt5.QtCore import pyqtSlot, pyqtSignal
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QApplication, QPushButton
+from PyQt5.QtCore import pyqtSlot, pyqtSignal, Qt
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QApplication, QPushButton, QHBoxLayout, QLabel, QSlider
 from ..config.config import GlobalConfig
 
 os.environ["QT_API"] = "pyqt5"
@@ -13,6 +13,9 @@ from pyvistaqt import QtInteractor
 
 WIDTH = 400
 HEIGHT = 400
+
+OPACITY_ARRAY = np.array([0, 0.2, 0.3, 0.6, 0.2, 0])
+COLORMAP = 'bone'
 
 class Viewer3D(QWidget):
 
@@ -25,7 +28,10 @@ class Viewer3D(QWidget):
         self.plotter.add_camera_orientation_widget()
         self.spacing = (1.0, 1.0, 1.0)
         self.data = None
-        self.actor = None
+        self.anatomy = None
+        self.actor_roi = None
+        self.actor_anatomy = None
+        self.anatomy_opacity = 0.2
         # Layout
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -36,11 +42,59 @@ class Viewer3D(QWidget):
         layout.addWidget(fit_button)
         fit_button.clicked.connect(self.plotter.reset_camera)
 
+        opacity_widget = QWidget()
+        opacity_widget_layout = QHBoxLayout()
+        opacity_widget.setLayout(opacity_widget_layout)
+        opacity_widget_layout.addWidget(QLabel('Anatomy opacity:'))
+        self.anat_opacity_slider = QSlider(Qt.Horizontal)
+        self.anat_opacity_slider.setMinimum(0)
+        self.anat_opacity_slider.setMaximum(100)
+        self.anat_opacity_slider.setValue(20)
+        self.anat_opacity_slider.valueChanged.connect(self.set_global_anat_opacity)
+        opacity_widget_layout.addWidget(self.anat_opacity_slider)
+        layout.addWidget(opacity_widget)
+
+
         self.setLayout(layout)
         self.setWindowTitle("3D Viewer")
         screen_width = QApplication.desktop().screenGeometry().width()
         self.setGeometry(screen_width - WIDTH, 0, WIDTH, HEIGHT)
         self.real_close_flag = False
+
+    @pyqtSlot(list, np.ndarray)
+    def set_spacing_and_anatomy(self, spacing, anatomy):
+        self.spacing = spacing
+        self.anatomy = anatomy.astype(np.uint16)
+        self.visualize_anatomy()
+
+    @pyqtSlot(int)
+    def set_global_anat_opacity(self, value):
+        self.anatomy_opacity = float(value)/100
+        if self.actor_anatomy is None:
+            return
+
+        lut = pv.LookupTable(cmap=COLORMAP)
+        lut.apply_opacity(OPACITY_ARRAY * self.anatomy_opacity)
+        self.actor_anatomy.prop.apply_lookup_table(lut)
+        self.plotter.render()
+
+    def visualize_anatomy(self):
+        self.plotter.remove_actor(self.actor_anatomy, render=False)
+        if self.anatomy is None or self.spacing is None or self.anatomy_opacity == 0:
+            self.plotter.render()
+            return
+        vol = pv.ImageData(dimensions=np.array(self.anatomy.shape)+1, spacing=self.spacing)
+        vol.cell_data['values'] = self.anatomy.flatten(order='F')
+
+        opacity = (OPACITY_ARRAY* self.anatomy_opacity)
+
+        self.actor_anatomy = self.plotter.add_volume(vol,
+                                                     scalars='values',
+                                                     clim=[self.anatomy.min(), self.anatomy.max()],
+                                                     opacity=opacity,
+                                                     cmap=COLORMAP,
+                                                     show_scalar_bar=False)
+        self.plotter.show()
 
     @pyqtSlot(list, np.ndarray)
     def set_spacing_and_data(self, spacing, data):
@@ -75,7 +129,7 @@ class Viewer3D(QWidget):
 
         camera_position = self.plotter.camera_position
         #self.plotter.clear()
-        self.plotter.remove_actor(self.actor, reset_camera=False, render=False)
+        self.plotter.remove_actor(self.actor_roi, reset_camera=False, render=False)
         if self.data is None or self.spacing is None or not np.any(self.data):
             print("No data to plot")
             self.plotter.render()
@@ -87,15 +141,15 @@ class Viewer3D(QWidget):
         surf = grid.contour([0.5], self.data.flatten(order="F"), method='marching_cubes')
         color = GlobalConfig['ROI_COLOR']
         color = [color[0], color[1], color[2]]
-        self.actor = self.plotter.add_mesh(surf,
-                                  color=color,
-                                  opacity=1,
-                                  show_edges=False,
-                                  smooth_shading=True,
-                                  specular=0.5,
-                                  show_scalar_bar=False,
-                                  render=False
-                              )
+        self.actor_roi = self.plotter.add_mesh(surf,
+                                               color=color,
+                                               opacity=0.8,
+                                               show_edges=False,
+                                               smooth_shading=True,
+                                               specular=0.5,
+                                               show_scalar_bar=False,
+                                               render=False
+                                               )
 
         #restore camera position if it's not the default, which is too narrow
         if np.max(np.abs(camera_position[0])) > 1:
