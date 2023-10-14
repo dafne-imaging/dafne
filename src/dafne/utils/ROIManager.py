@@ -61,7 +61,7 @@ def unpack_mask(packed_mask, mask_size):
     :param mask_size: the size of the unpacked mask
     :return: the unpacked mask
     """
-    return np.unpackbits(packed_mask)[:mask_size[0]*mask_size[1]].reshape(mask_size)
+    return np.unpackbits(packed_mask)[:mask_size[0]*mask_size[1]].reshape(mask_size).astype(np.uint8)
 
 
 class RoiAndMaskPair:

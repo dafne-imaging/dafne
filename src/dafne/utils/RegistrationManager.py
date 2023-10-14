@@ -185,6 +185,9 @@ class RegistrationManager:
 
         transformixImageFilter.SetTransformParameterMap(transform)
 
+        if mask.dtype == bool:
+            mask = mask.astype(np.uint8)
+
         transformixImageFilter.SetMovingImage(sitk.GetImageFromArray(mask))
         self.move_to_temp_dir()
         transformixImageFilter.Execute()
