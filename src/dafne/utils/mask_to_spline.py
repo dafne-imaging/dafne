@@ -152,6 +152,9 @@ def invert_point(p):
 def contour_to_spline(contour, precision=1):
     MAX_KNOTS = 20
 
+    if len(contour) < 8:
+        return None
+
     spline_out = SplineInterpROIClass()
 
     contour_added_indices = [0,
@@ -161,7 +164,11 @@ def contour_to_spline(contour, precision=1):
 
     spline_out.addKnots([contour[i] for i in contour_added_indices])
 
-    mean_d, distances = calc_contour_distance(contour, spline_out.getCurve(shift_curve=True))
+    new_contour = spline_out.getCurve(shift_curve=True)
+    if new_contour is None:
+        return None
+
+    mean_d, distances = calc_contour_distance(contour, new_contour)
 
     # add up to MAX_KNOTS
     for n_knots in range(MAX_KNOTS):
@@ -223,7 +230,13 @@ def mask_to_splines(mask, precision=1):
         # transposed with respect to the numpy format
         contour_for_spline = [invert_point(p) for p in contour_points]
         contour_for_spline.reverse()
-        splines_out.append(contour_to_spline(contour_for_spline, precision=precision))
+        try:
+            spline = contour_to_spline(contour_for_spline, precision=precision)
+        except:
+            print('Error converting contour to spline')
+            spline = None
+        if spline is not None:
+            splines_out.append(spline)
 
     return splines_out
 

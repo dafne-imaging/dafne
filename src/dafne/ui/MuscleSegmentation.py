@@ -601,10 +601,13 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.updateRoiList()
         if self.roiManager.contains(roiName):
-            if subRoiNumber < self.roiManager.get_roi_mask_pair(roiName, self.curImage).get_subroi_len():
-                self.toolbox_window.set_current_roi(roiName, subRoiNumber)
+            if self.toolbox_window.get_edit_mode() == ToolboxWindow.EDITMODE_MASK:
+                self.toolbox_window.set_current_roi(roiName, -1)
             else:
-                self.toolbox_window.set_current_roi(roiName, 0)
+                if subRoiNumber < self.roiManager.get_roi_mask_pair(roiName, self.curImage).get_subroi_len():
+                    self.toolbox_window.set_current_roi(roiName, subRoiNumber)
+                else:
+                    self.toolbox_window.set_current_roi(roiName, 0)
         self.activeMask = None
         self.otherMask = None
         self.redraw()
