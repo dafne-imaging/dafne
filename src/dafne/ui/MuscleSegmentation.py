@@ -448,6 +448,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.roi_remove_overlap.connect(self.roiRemoveOverlap)
 
         self.toolbox_window.statistics_calc.connect(self.saveStats)
+        self.toolbox_window.statistics_calc_slicewise.connect(self.saveStats_singleslice)
         self.toolbox_window.radiomics_calc.connect(self.saveRadiomics)
 
         self.toolbox_window.incremental_learn.connect(self.incrementalLearnStandalone)
@@ -788,7 +789,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 current_roi_index += 1
             masklist = []
             for imageIndex in range(len(self.imList)):
-                roi = np.zeros(imSize)
+                roi = np.zeros(imSize, dtype=np.uint8)
                 if self.roiManager.contains(roiName, imageIndex):
                     roi = self.roiManager.get_mask(roiName, imageIndex)
 
@@ -2535,6 +2536,73 @@ class MuscleSegmentation(ImageShow, QObject):
             save_npz_masks(pathOut, allMasks)
 
         self.setSplash(False, 4, 4, "End")
+
+    @pyqtSlot(str)
+    @separate_thread_decorator
+    def saveStats_singleslice(self, file_out: str):
+        """ Saves the statistics for a datasets. Exported statistics:
+            - Number of slices where ROI is present
+            - Number of voxels
+            - Average value of the data over ROI
+            - Standard Deviation of the data
+            - 0-25-50-75-100 percentiles of the data distribution
+        """
+        self.setSplash(True, 0, 2, "Calculating maps...")
+
+        allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
+
+        self.setSplash(True, 1, 2, "Calculating stats...")
+
+        dataset = self.getDatasetAsNumpy()
+
+        csv_file = open(file_out, 'w')
+        field_names = ['roi_name',
+                       'slice',
+                       'voxels',
+                       'volume',
+                       'mean',
+                       'standard_deviation',
+                       'perc_0',
+                       'perc_25',
+                       'perc_50',
+                       'perc_75',
+                       'perc_100']
+        csv_writer = csv.DictWriter(csv_file, fieldnames=field_names)
+        csv_writer.writeheader()
+
+        for roi_name, roi_mask in allMasks.items():
+            for slice_number in range(roi_mask.shape[2]):
+                mask_slice = roi_mask[:, :, slice_number]
+                data_slice = dataset[:, :, slice_number]
+                if mask_slice.sum() == 0:
+                    continue
+                try:
+                    csvRow = {}
+                    csvRow['roi_name'] = roi_name
+                    csvRow['slice'] = slice_number
+                    mask = mask_slice > 0
+                    masked = np.ma.array(data_slice, mask=np.logical_not(mask))
+                    csvRow['voxels'] = mask.sum()
+                    try:
+                        csvRow['volume'] = csvRow['voxels']*self.resolution[0]*self.resolution[1]*self.resolution[2]
+                    except:
+                        csvRow['volume'] = 0
+                    compressed_array = masked.compressed()
+                    csvRow['mean'] = compressed_array.mean()
+                    csvRow['standard_deviation'] = compressed_array.std()
+                    csvRow['perc_0'] = compressed_array.min()
+                    csvRow['perc_100'] = compressed_array.max()
+                    csvRow['perc_25'] = np.percentile(compressed_array, 25)
+                    csvRow['perc_50'] = np.percentile(compressed_array, 50)
+                    csvRow['perc_75'] = np.percentile(compressed_array, 75)
+                    csv_writer.writerow(csvRow)
+                except:
+                    print('Error calculating statistics for ROI', roi_name)
+                    traceback.print_exc()
+
+        csv_file.close()
+        self.setSplash(False, 2, 2, "Finished")
+
 
     @pyqtSlot(str)
     @separate_thread_decorator

@@ -192,6 +192,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     data_reorient = pyqtSignal(str)
 
     statistics_calc = pyqtSignal(str)
+    statistics_calc_slicewise = pyqtSignal(str)
     radiomics_calc = pyqtSignal(str, bool, int, int)
     incremental_learn = pyqtSignal()
 
@@ -373,6 +374,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionHelp_shortcuts.triggered.connect(self.show_shortcuts)
 
         self.actionCalculate_statistics.triggered.connect(self.calculate_statistics)
+        self.actionCalculate_statistics_slicewise.triggered.connect(self.calculate_statistics_slicewise)
         if not activate_radiomics:
             self.actionPyRadiomics.setVisible(False)
 
@@ -492,7 +494,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.menuReorient_data.setEnabled(enabled)
         self.menuSave_masks.setEnabled(enabled)
         self.action_Upload_data.setEnabled(enabled)
-        self.actionCalculate_statistics.setEnabled(enabled)
+        self.menuCalculate_statistics.setEnabled(enabled)
         self.actionPyRadiomics.setEnabled(enabled)
         self.actionIncremental_Learn.setEnabled(enabled)
         self.actionSave_data_as_Nifti.setEnabled(enabled)
@@ -1092,6 +1094,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
                                                   filter='CSV File (*.csv);;All files ()')
         if file_out:
             self.statistics_calc.emit(file_out)
+
+    @pyqtSlot()
+    def calculate_statistics_slicewise(self):
+        file_out, _ = QFileDialog.getSaveFileName(self, caption='Select csv file to save the statistics',
+                                                  filter='CSV File (*.csv);;All files ()')
+        if file_out:
+            self.statistics_calc_slicewise.emit(file_out)
 
     @pyqtSlot()
     def calculate_radiomics(self):

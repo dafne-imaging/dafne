@@ -1076,10 +1076,17 @@ padding-right: 10px;</string>
      <addaction name="actionOpen_model_folder"/>
      <addaction name="actionOpen_log_folder"/>
     </widget>
+    <widget class="QMenu" name="menuCalculate_statistics">
+     <property name="title">
+      <string>Calculate statistics</string>
+     </property>
+     <addaction name="actionCalculate_statistics"/>
+     <addaction name="actionCalculate_statistics_slicewise"/>
+    </widget>
     <addaction name="actionIncremental_Learn"/>
     <addaction name="separator"/>
-    <addaction name="actionCalculate_statistics"/>
     <addaction name="actionPyRadiomics"/>
+    <addaction name="menuCalculate_statistics"/>
     <addaction name="separator"/>
     <addaction name="actionOpen_transform_calculator"/>
     <addaction name="separator"/>
@@ -1161,7 +1168,7 @@ padding-right: 10px;</string>
   </action>
   <action name="actionCalculate_statistics">
    <property name="text">
-    <string>Calculate statistics...</string>
+    <string>Global...</string>
    </property>
   </action>
   <action name="actionAbout">
@@ -1310,6 +1317,11 @@ padding-right: 10px;</string>
    </property>
    <property name="text">
     <string>3D Viewer</string>
+   </property>
+  </action>
+  <action name="actionCalculate_statistics_slicewise">
+   <property name="text">
+    <string>Slicewise...</string>
    </property>
   </action>
  </widget>
