@@ -706,7 +706,6 @@ class MuscleSegmentation(ImageShow, QObject):
     @pyqtSlot(str, int)
     def changeRoi(self, roi_name, subroi_index):
         """ Change the active ROI """
-        print("Roi change", roi_name, subroi_index)
         self.activeMask = None
         self.otherMask = None
         self.updateContourPainters()
