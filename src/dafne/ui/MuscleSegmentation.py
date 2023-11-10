@@ -16,6 +16,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import matplotlib
+import muscle_bids
 from dafne_dl.common.biascorrection import biascorrection_image
 from matplotlib.patches import Rectangle
 from muscle_bids import MedicalVolume
@@ -2380,9 +2381,9 @@ class MuscleSegmentation(ImageShow, QObject):
             self.basepath = os.path.dirname(path)
             try:
                 if 'data' in bundle:
-                    self.image = self.loadNumpyArray(bundle['data'])
+                    self.loadNumpyArray(bundle['data'])
                 elif 'image' in bundle:
-                    self.image = self.loadNumpyArray(bundle['image'])
+                    self.loadNumpyArray(bundle['image'])
                 else:
                     __error('No data in bundle!') # should never happen because we are checking above
             except Exception as e:
@@ -2395,6 +2396,7 @@ class MuscleSegmentation(ImageShow, QObject):
                     self.resolution.append(1.0)
                 self.resolution_valid = True
                 print('Resolution', self.resolution)
+                self.medical_volume._affine = np.diag(self.resolution + [1])
 
             mask_dictionary = {}
             for key in bundle:
@@ -2431,6 +2433,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.resolution = [output[0], output[1], output[2]]
                 self.resolution_valid = True
                 self.axes.set_aspect(aspect=self.resolution[0]/self.resolution[1])
+                self.medical_volume._affine = np.diag(self.resolution + [1])
 
         # this is in case appendimage was never called
         if len(self.classifications) == 0:
