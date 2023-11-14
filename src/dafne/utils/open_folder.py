@@ -7,6 +7,8 @@ def open_folder(folder_path):
     if not os.path.isdir(folder_path):
         folder_path = os.path.dirname(folder_path)
 
+    print('Opening folder:', folder_path)
+
     if sys.platform == 'win32':
         proc_name = 'explorer'
     elif sys.platform == 'darwin':
