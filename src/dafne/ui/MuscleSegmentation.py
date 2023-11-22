@@ -1600,9 +1600,11 @@ class MuscleSegmentation(ImageShow, QObject):
         for key_tuple, mask in self.roiManager.all_masks(image_number=self.curImage):
             mask_name = key_tuple[0]
             if mask_name == roi_name:
-                self.activeMask = mask.copy()
+                if mask is not None:
+                    self.activeMask = mask.copy()
             else:
-                self.otherMask = np.logical_or(self.otherMask, mask)
+                if mask is not None:
+                    self.otherMask = np.logical_or(self.otherMask, mask)
         self.emit_mask_slice_changed()
 
     def emit_mask_changed(self):
