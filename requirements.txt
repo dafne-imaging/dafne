@@ -15,3 +15,5 @@ importlib_resources ; python_version < "3.10"
 dafne-dl >= 1.4a0
 flexidep>=0.0.6
 pyvistaqt
+torch
+torchvision

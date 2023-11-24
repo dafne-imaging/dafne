@@ -201,6 +201,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     mask_fill_holes = pyqtSignal(int)
     mask_despeckle = pyqtSignal(int)
     mask_auto_threshold = pyqtSignal(bool)
+    sam_autorefine = pyqtSignal()
 
     brush_changed = pyqtSignal()
 
@@ -311,6 +312,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.classification_all_button.clicked.connect(self.on_classification_change_all)
         self.model_info_button.clicked.connect(self.show_model_info)
         self.autosegment_button.clicked.connect(self.on_do_segmentation)
+        self.sam_autorefine_button.clicked.connect(self.sam_autorefine.emit)
 
         self.undoButton.clicked.connect(self.undo.emit)
         self.redoButton.clicked.connect(self.redo.emit)

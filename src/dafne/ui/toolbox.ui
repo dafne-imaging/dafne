@@ -84,9 +84,9 @@
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>0</y>
+            <y>-612</y>
             <width>556</width>
-            <height>1401</height>
+            <height>1443</height>
            </rect>
           </property>
           <property name="sizePolicy">
@@ -767,6 +767,13 @@ padding-right: 10px;</string>
                  </widget>
                 </item>
                </layout>
+              </item>
+              <item>
+               <widget class="QPushButton" name="sam_autorefine_button">
+                <property name="text">
+                 <string>SAM Autorefine</string>
+                </property>
+               </widget>
               </item>
              </layout>
             </widget>

@@ -86,6 +86,9 @@ defaults = {
     'FORCE_LOCAL_DATA_UPLOAD': (False, 'bool', None),
     'DELETE_OLD_MODELS': (True, 'bool', None),
     'ECHO_OUTPUT': (False, 'bool', None),
+    'SAM_MODEL': ('Large', 'option', ['Large', 'Medium', 'Small'], 'SAM model size'),
+    'SAM_BBOX_EXPAND_FACTOR': (0.2, 'float_slider', 0.0, 1.0, 0.1, 'SAM Bounding box expansion factor'),
+    'SAM_USE_CUDA': (False, 'bool', 'Use CUDA for SAM (if available)'),
     'ADVANCED_CONFIG': (False, 'bool', 'Show advanced configuration'),
     'ENABLED_MODELS': (['Leg', 'Thigh'], 'none', None)
 }

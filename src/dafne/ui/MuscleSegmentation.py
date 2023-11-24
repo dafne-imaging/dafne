@@ -31,6 +31,7 @@ from . import GenericInputDialog
 from ..utils.mask_to_spline import mask_average, mask_to_trivial_splines, masks_splines_to_splines_masks
 from ..utils.pySplineInterp import SplineInterpROIClass
 from ..utils.resource_utils import get_resource_path
+from ..utils.sam_mask_refine import enhance_mask
 
 matplotlib.use("Qt5Agg")
 
@@ -465,6 +466,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.mask_fill_holes.connect(self.maskFillHoles)
         self.toolbox_window.mask_despeckle.connect(self.maskDespeckle)
         self.toolbox_window.mask_auto_threshold.connect(self.maskAutoThreshold)
+        self.toolbox_window.sam_autorefine.connect(self.samAutoRefine)
 
         self.toolbox_window.config_changed.connect(self.configChanged)
         self.toolbox_window.data_upload.connect(self.uploadData)
@@ -1173,6 +1175,27 @@ class MuscleSegmentation(ImageShow, QObject):
     def maskFillHoles(self, radius):
         #self._currentMaskOperation(lambda mask: area_closing(mask, radius ** 2))
         self._currentMaskOperation(functools.partial(area_closing, area_threshold=radius ** 2))
+
+    @pyqtSlot()
+    @snapshotSaver
+    @separate_thread_decorator
+    def samAutoRefine(self):
+        if not self.editMode == ToolboxWindow.EDITMODE_MASK or \
+                not self.roiManager:
+            return
+
+        def progress_callback(current, maximum):
+            self.setSplash(True, current, maximum, "SAM autorefine")
+
+        new_mask = enhance_mask(self.image, self.getCurrentMask(), progress_callback)
+
+        self.setCurrentMask(new_mask)
+        self.setSplash(False)
+        self.updateMasksFromROIs()
+        self.reblit()
+        self.setSplash(False)
+
+
 
     @pyqtSlot(bool)
     @snapshotSaver

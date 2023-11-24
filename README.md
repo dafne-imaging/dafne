@@ -82,4 +82,6 @@ So `len(training_data['image_list']) == len(training_outputs)`.
 # Acknowledgments
 Input/Output is based on [DOSMA](https://github.com/ad12/DOSMA) - GPLv3 license
 
+This software includes the [Segment Anything Model (SAM)](https://github.com/facebookresearch/segment-anything) - Apache 2.0 license
+
 Other packages required for this project are listed in requirements.txt
