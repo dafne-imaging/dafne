@@ -134,7 +134,6 @@ class RoiAndMaskPair:
         self.mask = None
 
     def subroi_to_mask(self, return_mask=False):
-        if not self.mask_size: return None
         mask = np.zeros(self.mask_size, dtype=np.uint8)
         if self.subroi_stack is None:
             self.mask = compressed_dumps(mask)
@@ -142,7 +141,7 @@ class RoiAndMaskPair:
         if self.mask is not None:
             if return_mask:
                 return compressed_loads(self.mask)
-            return None # do not recalculate mask if it is valid
+            return mask # do not recalculate mask if it is valid
         for subroi in self.subroi_stack:
             try:
                 mask = np.logical_xor(mask, subroi.toMask(self.mask_size, False))
