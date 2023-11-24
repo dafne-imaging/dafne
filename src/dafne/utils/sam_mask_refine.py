@@ -12,6 +12,7 @@ import torch
 import os
 from typing import Callable, Optional
 import requests
+import tensorflow as tf
 
 from ..config import GlobalConfig
 
@@ -63,7 +64,7 @@ def load_sam(model_type, progress_callback: Optional[Callable[[int, int], None]]
 
     sam = sam_model_registry[model_type](checkpoint=checkpoint_path)
 
-    if GlobalConfig['SAM_USE_CUDA'] and torch.cuda.is_available():
+    if GlobalConfig['USE_GPU_FOR'] != 'Autosegmentation' and torch.cuda.is_available():
         sam.to(device='cuda')
 
     predictor = SamPredictor(sam)
@@ -231,5 +232,7 @@ def enhance_mask(img, mask, progress_callback: Optional[Callable[[int, int], Non
         if dice > max_dice:
             max_dice = dice
             best_mask = m_id
+
+    torch.cuda.empty_cache()
 
     return masks[best_mask, :, :]

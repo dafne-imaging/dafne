@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import gc
 
 #  Copyright (c) 2021 Dafne-Imaging Team
 #
@@ -15,11 +16,28 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from ..config import GlobalConfig, load_config
+load_config()
+
+import tensorflow as tf
+
+if GlobalConfig['USE_GPU_FOR'] == 'SAM Refinement':
+    # force CPU for tensorflow
+    tf.config.set_visible_devices([], 'GPU')
+elif GlobalConfig['USE_GPU_FOR'] == 'Both (careful!)':
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        try:
+            tf.config.experimental.set_virtual_device_configuration(
+                gpus[0],
+                [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=GlobalConfig['TENSORFLOW_MEMORY_ALLOCATION']*1000)])
+        except RuntimeError as e:
+            # Virtual devices must be set before GPUs have been initialized
+            print(e)
+
 import matplotlib
-import muscle_bids
 from dafne_dl.common.biascorrection import biascorrection_image
 from matplotlib.patches import Rectangle
-from muscle_bids import MedicalVolume
 from muscle_bids.dosma_io import NiftiWriter
 from scipy.interpolate import interp1d
 from skimage.morphology import area_opening, area_closing
@@ -36,9 +54,6 @@ from ..utils.sam_mask_refine import enhance_mask
 matplotlib.use("Qt5Agg")
 
 import os, time, math, sys
-
-from ..config import GlobalConfig, load_config
-load_config()
 
 from .ToolboxWindow import ToolboxWindow
 from .pyDicomView import ImageShow
@@ -1186,6 +1201,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         def progress_callback(current, maximum):
             self.setSplash(True, current, maximum, "SAM autorefine")
+
 
         try:
             new_mask = enhance_mask(self.image, self.getCurrentMask(), progress_callback)
