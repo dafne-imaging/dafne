@@ -400,7 +400,10 @@ class ROIManager:
 
     def get_mask(self, roi_name, image_number) -> np.ndarray:
         image_number = int(image_number)
-        return self.get_roi_mask_pair(roi_name, image_number).get_mask()
+        mask = self.get_roi_mask_pair(roi_name, image_number).get_mask()
+        if mask is None:
+            return np.zeros(self.mask_size, dtype=np.uint8)
+        return mask
 
     def set_mask(self, roi_name, image_number, mask):
         image_number = int(image_number)
