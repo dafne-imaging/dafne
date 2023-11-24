@@ -180,7 +180,6 @@ def enhance_mask(img, mask, progress_callback: Optional[Callable[[int, int], Non
     show_progress(80, 100)
 
     point_list = generate_points_from_mask(mask)
-    print("Positive points", point_list)
     bbox = enlarge_bounding_box(mask, GlobalConfig['SAM_BBOX_EXPAND_FACTOR'])
 
     # generate negative points
@@ -190,7 +189,6 @@ def enhance_mask(img, mask, progress_callback: Optional[Callable[[int, int], Non
     negative_mask = np.logical_and(negative_mask, bbox_region)
 
     negative_point_list = generate_points_from_mask(negative_mask)
-    print("Negative points", negative_point_list)
 
     t = time.perf_counter()
 

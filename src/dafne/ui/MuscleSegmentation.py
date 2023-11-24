@@ -1187,15 +1187,18 @@ class MuscleSegmentation(ImageShow, QObject):
         def progress_callback(current, maximum):
             self.setSplash(True, current, maximum, "SAM autorefine")
 
-        new_mask = enhance_mask(self.image, self.getCurrentMask(), progress_callback)
+        try:
+            new_mask = enhance_mask(self.image, self.getCurrentMask(), progress_callback)
+        except Exception as e:
+            print("Error in SAM autorefine:", e)
+            self.alert("Error in SAM autorefine: " + str(e))
+            self.setSplash(False)
+            return
 
         self.setCurrentMask(new_mask)
-        self.setSplash(False)
         self.updateMasksFromROIs()
         self.reblit()
         self.setSplash(False)
-
-
 
     @pyqtSlot(bool)
     @snapshotSaver
