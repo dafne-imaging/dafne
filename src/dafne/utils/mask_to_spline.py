@@ -11,6 +11,8 @@ from .pySplineInterp import SplineInterpROIClass
 MAX_POINTS = 10000
 MAX_CONTOURS = 100
 
+# sometimes this function is not correctly packaged, so checking it now prevents a crash later
+flood_exist_check = skimage.segmentation.flood
 
 def get_point_context(img, point):
     x, y = point
