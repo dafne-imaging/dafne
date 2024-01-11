@@ -15,6 +15,16 @@ DMG_NAME=dafne_mac_${VERSION}_$ARCH.dmg
 CODESIGN_IDENTITY="Francesco Santini"
 USE_ALTOOL=False
 
+
+NOTARYTOOL() {
+  if [ -f /Library/Developer/CommandLineTools/usr/bin/notarytool ]
+  then
+    /Library/Developer/CommandLineTools/usr/bin/notarytool "$@"
+  else 
+    xcrun notarytool "$@"
+  fi
+}
+
 echo $VERSION
 pyinstaller dafne_mac.spec --noconfirm
 cd dist
@@ -57,7 +67,7 @@ else
   # store credentials:
   # xcrun notarytool store-credentials "AC_PASSWORD" --apple-id <apple_id> --password <password> --team-id <team_id>
   echo "This can take up to 1 hour"
-  /Library/Developer/CommandLineTools/usr/bin/notarytool submit "$DMG_NAME" --wait --keychain-profile "AC_PASSWORD"
+  NOTARYTOOL submit "$DMG_NAME" --wait --keychain-profile "AC_PASSWORD"
   # This will wait for the notarization to complete
   echo 'If failed, save log file with:'
   echo 'xcrun notarytool log <request_uuid> --keychain-profile "AC_PASSWORD" notarization.log'
