@@ -4,4 +4,5 @@
 
 from PyInstaller.utils.hooks import collect_submodules
 
-hiddenimports=collect_submodules('dafne')
+hiddenimports=collect_submodules('dafne') + \
+              collect_submodules('skimage.segmentation')
