@@ -82,7 +82,7 @@ def divide_slice_types(pixel_data, header_list):
     frames_out = {}
     current_frame_number = 0
     last_frame_number = 0
-    for dicom_info in header_list:
+    for current_frame_number, dicom_info in enumerate(header_list):
         new_frame_type = get_frame_type(dicom_info)
         if new_frame_type != current_frame_type:
             new_header = header_list[last_frame_number:current_frame_number]
@@ -90,7 +90,10 @@ def divide_slice_types(pixel_data, header_list):
             frames_out[current_frame_type] = (new_data, new_header)
             current_frame_type = new_frame_type
             last_frame_number = current_frame_number
-        current_frame_number += 1
+    # add the last frame type
+    new_header = header_list[last_frame_number:current_frame_number+1]
+    new_data = pixel_data[:, :, last_frame_number:current_frame_number+1]
+    frames_out[current_frame_type] = (new_data, new_header)
     return frames_out
 
 
