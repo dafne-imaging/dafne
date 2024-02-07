@@ -1,9 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 block_cipher = None
+import sys ; sys.setrecursionlimit(sys.getrecursionlimit() * 5)
 
-
-a_dafne = Analysis(['../dafne'],
+a_dafne = Analysis(['../run_dafne.py'],
              pathex=['../src'],
              binaries=[],
              datas=[('../LICENSE', '.'), ('../src/dafne/resources/*', 'resources/')],
@@ -96,4 +96,4 @@ app = BUNDLE(coll_dafne,
     name='Dafne.app',
     icon='../icons/dafne_icon.icns',
     bundle_identifier='network.dafne.dafne',
-    version='1.5-alpha')
+    version='1.8-alpha3')

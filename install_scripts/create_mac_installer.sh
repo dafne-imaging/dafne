@@ -33,13 +33,16 @@ python ../fix_app_bundle_for_mac.py $APPNAME.app
 echo "Signing code"
 # Sign code outside MacOS
 find $APPNAME.app/Contents/Resources -name '*.dylib' | xargs codesign --force -v -s "$CODESIGN_IDENTITY"
+find $APPNAME.app/Contents/Resources -name '*.so' | xargs codesign --force -v -s "$CODESIGN_IDENTITY"
 # sign the app
 codesign --deep --force -v -s "$CODESIGN_IDENTITY" $APPNAME.app
+find $APPNAME.app/Contents -path '*bin/*' | xargs codesign --force -o runtime --timestamp --entitlements ../entitlements.plist -v -s "$CODESIGN_IDENTITY"
 
 # Resign the app with the correct entitlement
-codesign --force -o runtime --entitlements ../entitlements.plist -v -s "$CODESIGN_IDENTITY" $APPNAME.app
+codesign --force -o runtime --timestamp --entitlements ../entitlements.plist -v -s "$CODESIGN_IDENTITY" $APPNAME.app
 
 echo "Creating DMG"
+# Create-dmg at some point stopped working because of a newline prepended to the mount point. If this fails, check for this bug.
 create-dmg --volname "Dafne" --volicon $APPNAME.app/Contents/Resources/dafne_icon.icns \
 	 --eula $APPNAME.app/Contents/Resources/LICENSE --background ../../icons/mac_installer_bg.png \
 	 --window-size 420 220 --icon-size 64 --icon $APPNAME.app 46 31 \
