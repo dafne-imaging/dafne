@@ -19,20 +19,33 @@ import tensorflow as tf
 from ..config import GlobalConfig
 
 CHECKPOINT_MODELS = {
-        "medsam": { 
+        "Med Sam": { 
             'type': 'vit_b', 
             'file_name': 'medsam_vit_b.pth', 
             'url': 'https://zenodo.org/records/10689643/files/medsam_vit_b.pth',
             'size': 375049145 
         },
-        "sam_vit_b": {
+        "Sam Large": {
+            'type': 'vit_h',
+            'file_name': 'sam_vit_h_01ec64.pth',
+            'url': 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_01ec64.pth',
+            'size':  2564550879
+        },
+        "Sam Medium": {
+            'type': 'vit_l',
+            'file_name': 'sam_vit_l_01ec64.pth',
+            'url': 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth',
+            'size':  1249524607
+        },
+        "Sam Small": {
             'type': 'vit_b',
-            'file_name': 'sam_vit_b_01ec64.pth',
+            'file_name': 'sam_vit_b_01ec64.pt',
             'url': 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth',
             'size':  375042383
         },
 }
 
+image_embedding = None
 predictor = None
 old_img = None
 
@@ -194,7 +207,7 @@ def determine_device():
     return 'cpu'
 
 def enhance_mask(img, mask, progress_callback: Optional[Callable[[int, int], None]] = None):
-    global predictor, old_img
+    global old_img, image_embedding, predictor
 
     # if there is no mask, return the original mask
     if not mask.any():
@@ -209,80 +222,101 @@ def enhance_mask(img, mask, progress_callback: Optional[Callable[[int, int], Non
 
     show_progress(0, 100)
 
-    if predictor is None:
-        print('Loading SAM...')
-        predictor = load_sam(model_choice, progress_callback)
+    print('Loading SAM...')
+    sam = load_sam(model_choice, progress_callback)
 
     show_progress(30, 100)
 
-    image_embedding = None  # Ensure image_embedding is defined
-    # if img is not old_img:
-    print('Loading image...')
-    old_img = img
-    img_norm = img * 255 / img.max()
-    # predictor.set_image(np.stack([img_norm, img_norm, img_norm], 2).astype(np.uint8))
+    if img is not old_img:
+        print('Loading image...')
+        old_img = img
+        img_norm = img * 255 / img.max()
+        image_embedding = None
+        predictor = None
 
-    # Read and preprocess the image
-    # img_np = np.stack([img_norm, img_norm, img_norm], axis=-1).astype(np.uint8)  # Create 3-channel image
-    if len(img_norm.shape) == 2:
-        img_3c = np.repeat(img_norm[:, :, None], 3, axis=-1)
-    else:
-        img_3c = img_norm
-    H, W, _ = img_3c.shape
-
-    img_1024 = transform.resize(img_3c, (1024, 1024), order=3, preserve_range=True, anti_aliasing=True).astype(np.uint8)
-    img_1024_tensor = torch.tensor(img_1024).float().permute(2, 0, 1).unsqueeze(0).to(device)
-
-    with torch.no_grad():
-        image_embedding = predictor.image_encoder(img_1024_tensor)  # (1, 256, 64, 64)
-
-
-    show_progress(80, 100)
-
-    if image_embedding is None:
-        raise ValueError("Image embedding is not set. Check the condition that assigns image_embedding.")
-
-    point_list = generate_points_from_mask(mask)
     bbox = enlarge_bounding_box(mask, GlobalConfig['SAM_BBOX_EXPAND_FACTOR'])
     print('bbox:', bbox)
 
-    # generate negative points
-    negative_mask = np.logical_not(mask)
-    bbox_region = np.zeros_like(mask)
-    bbox_region[bbox[1]:bbox[3], bbox[0]:bbox[2]] = 1
-    negative_mask = np.logical_and(negative_mask, bbox_region)
+    if model_choice in ['Med Sam']:
+        if image_embedding is None:
+            img_3c = np.repeat(img_norm[:, :, None], 3, axis=-1) if len(img_norm.shape) == 2 else img_norm
+            H, W, _ = img_3c.shape
 
-    negative_point_list = generate_points_from_mask(negative_mask)
+            img_1024 = transform.resize(img_3c, (1024, 1024), order=3, preserve_range=True, anti_aliasing=True).astype(np.uint8)
+            img_1024_tensor = torch.tensor(img_1024).float().permute(2, 0, 1).unsqueeze(0).to(device)
 
-    print('Positive points:', point_list)
-    print('Negative points:', negative_point_list)
+            with torch.no_grad():
+                image_embedding = sam.image_encoder(img_1024_tensor)  # (1, 256, 64, 64)
+            if image_embedding is None:
+                raise ValueError("Image embedding is not set. Check the condition that assigns image_embedding.")
+
+        show_progress(80, 100)
+        box_1024 = bbox / np.array([W, H, W, H]) * 1024
+        box_1024 = box_1024[None, :]  # Ensure shape is (1, 4)
+        box_1024 = box_1024[:, None, :]  # Ensure shape is (1, 1, 4)
+        print('box_1024:', box_1024)
+        print('H, W:', H, W)
+        masks = medsam_inference(sam, image_embedding, box_1024, H, W)
+        torch.cuda.empty_cache()
+        return masks
+    else:
+        if predictor is None:
+            predictor = SamPredictor(sam)
+            predictor.set_image(np.stack([img_norm, img_norm, img_norm], 2).astype(np.uint8))
+
+        show_progress(80, 100)
+        
+
+        point_list = generate_points_from_mask(mask)
+
+        # generate negative points
+        negative_mask = np.logical_not(mask)
+        bbox_region = np.zeros_like(mask)
+        bbox_region[bbox[1]:bbox[3], bbox[0]:bbox[2]] = 1
+        negative_mask = np.logical_and(negative_mask, bbox_region)
+
+        negative_point_list = generate_points_from_mask(negative_mask)
     
 
-    t = time.perf_counter()
+        t = time.perf_counter()
 
-    labels = np.array([1] * point_list.shape[0] + [0] * negative_point_list.shape[0])
+        labels = np.array([1] * point_list.shape[0] + [0] * negative_point_list.shape[0])
 
-    if point_list.ndim < 2 and negative_point_list.ndim < 2:
-        # there is no point defined. This shouldn't happen, but then return the original mask
-        print('Error detecting points')
-        return mask
-    if point_list.ndim < 2:
-        # there is no positive point in the image
-        point_list = negative_point_list
-    elif negative_point_list.ndim == 2:
-        # there are both positive and negative points
-        point_list = np.concatenate([point_list, negative_point_list], axis=0)
+        if point_list.ndim < 2 and negative_point_list.ndim < 2:
+            # there is no point defined. This shouldn't happen, but then return the original mask
+            print('Error detecting points')
+            return mask
+        if point_list.ndim < 2:
+            # there is no positive point in the image
+            point_list = negative_point_list
+        elif negative_point_list.ndim == 2:
+            # there are both positive and negative points
+            point_list = np.concatenate([point_list, negative_point_list], axis=0)
+        
+        # otherwise, we just stay with the positive points. The labels should be fine, because the shape is correct
+        masks, scores, logits = predictor.predict(
+            point_coords=point_list,
+            point_labels=labels,
+            box=bbox[None, :],
+            multimask_output=True
+        )
 
-    # otherwise, we just stay with the positive points. The labels should be fine, because the shape is correct
-    box_1024 = bbox / np.array([W, H, W, H]) * 1024
-    box_1024 = box_1024[None, :]  # Ensure shape is (1, 4)
-    box_1024 = box_1024[:, None, :]  # Ensure shape is (1, 1, 4)
-    print('box_1024:', box_1024)
-    print('H, W:', H, W)
-    masks = medsam_inference(predictor, image_embedding, box_1024, H, W)
-    elapsed_time = time.perf_counter() - t
-    # print('Prediction time', elapsed_time*1000)
-    show_progress(100, 100)
-    torch.cuda.empty_cache()
+        elapsed_time = time.perf_counter() - t
+        # print('Prediction time', elapsed_time*1000)
 
-    return masks
+        max_dice = 0
+        best_mask = 0
+
+        show_progress(100, 100)
+
+        # get the mask closest to the first
+        n_output_masks = masks.shape[0]
+        for m_id in range(n_output_masks):
+            dice = dice_score(masks[m_id, :, :], mask)
+            # print('Dice of mask', m_id, dice)
+            if dice > max_dice:
+                max_dice = dice
+                best_mask = m_id
+
+        torch.cuda.empty_cache()
+        return masks[best_mask, :, :]
