@@ -236,7 +236,6 @@ def enhance_mask(img, mask, progress_callback: Optional[Callable[[int, int], Non
         predictor = None
 
     bbox = enlarge_bounding_box(mask, GlobalConfig['SAM_BBOX_EXPAND_FACTOR'])
-    print('bbox:', bbox)
 
     if model_choice in ['Med Sam']:
         if image_embedding is None:
@@ -255,8 +254,6 @@ def enhance_mask(img, mask, progress_callback: Optional[Callable[[int, int], Non
         box_1024 = bbox / np.array([W, H, W, H]) * 1024
         box_1024 = box_1024[None, :]  # Ensure shape is (1, 4)
         box_1024 = box_1024[:, None, :]  # Ensure shape is (1, 1, 4)
-        print('box_1024:', box_1024)
-        print('H, W:', H, W)
         masks = medsam_inference(sam, image_embedding, box_1024, H, W)
         torch.cuda.empty_cache()
         return masks
