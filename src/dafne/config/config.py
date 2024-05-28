@@ -86,7 +86,7 @@ defaults = {
     'FORCE_LOCAL_DATA_UPLOAD': (False, 'bool', None),
     'DELETE_OLD_MODELS': (True, 'bool', None),
     'ECHO_OUTPUT': (False, 'bool', None),
-    'SAM_MODEL': ('Large', 'option', ['Large', 'Medium', 'Small'], 'SAM model size (requires restart)'),
+    'SAM_MODEL': ('medsam', 'option', ['medsam'], 'SAM model size (requires restart)'),
     'SAM_BBOX_EXPAND_FACTOR': (0.2, 'float_slider', 0.0, 1.0, 0.1, 'SAM Bounding box expansion factor'),
     'USE_GPU_FOR': ('Autosegmentation', 'option', ['Autosegmentation', 'SAM Refinement', 'Both (careful!)'], 'Use CUDA for (requires restart)'),
     'TENSORFLOW_MEMORY_ALLOCATION': (2.0, 'float_slider', 0.0, 20.0, 0.1, 'Tensorflow max memory (GB) (requires restart)'),

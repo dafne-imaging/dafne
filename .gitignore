@@ -146,6 +146,7 @@ dmypy.json
 cython_debug/
 
 .vscode
+.DS_Store
 
 tmp
 config_localhost.pickle
