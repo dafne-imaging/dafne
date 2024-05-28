@@ -50,6 +50,7 @@ predictor = None
 old_img = None
 
 
+# source: https://github.com/bowang-lab/MedSAM/blob/main/MedSAM_Inference.py
 @torch.no_grad()
 def medsam_inference(medsam_model, img_embed, box_1024, H, W):
     box_torch = torch.as_tensor(box_1024, dtype=torch.float, device=img_embed.device)
