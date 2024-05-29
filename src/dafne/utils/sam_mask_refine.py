@@ -14,7 +14,6 @@ from skimage import io, transform
 import os
 from typing import Callable, Optional
 import requests
-import tensorflow as tf
 
 from ..config import GlobalConfig
 
@@ -244,6 +243,12 @@ def enhance_mask(img, mask, progress_callback: Optional[Callable[[int, int], Non
         if image_embedding is None:
             img_3c = np.repeat(img_norm[:, :, None], 3, axis=-1) if len(img_norm.shape) == 2 else img_norm
             img_1024 = transform.resize(img_3c, (1024, 1024), order=3, preserve_range=True, anti_aliasing=True).astype(np.uint8)
+            img_1024 = (img_1024 - img_1024.min()) / np.clip(
+                img_1024.max() - img_1024.min(), a_min=1e-8, a_max=None
+            )  # normalize to [0, 1], (H, W, 3)
+            plt.figure()
+            plt.imshow(img_1024[:, :, 0])
+            plt.pause(0.1)
             img_1024_tensor = torch.tensor(img_1024).float().permute(2, 0, 1).unsqueeze(0).to(device)
 
             with torch.no_grad():
