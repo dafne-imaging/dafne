@@ -246,9 +246,6 @@ def enhance_mask(img, mask, progress_callback: Optional[Callable[[int, int], Non
             img_1024 = (img_1024 - img_1024.min()) / np.clip(
                 img_1024.max() - img_1024.min(), a_min=1e-8, a_max=None
             )  # normalize to [0, 1], (H, W, 3)
-            plt.figure()
-            plt.imshow(img_1024[:, :, 0])
-            plt.pause(0.1)
             img_1024_tensor = torch.tensor(img_1024).float().permute(2, 0, 1).unsqueeze(0).to(device)
 
             with torch.no_grad():
