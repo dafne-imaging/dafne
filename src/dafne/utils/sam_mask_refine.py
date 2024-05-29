@@ -26,8 +26,8 @@ CHECKPOINT_MODELS = {
         },
         "Sam Large": {
             'type': 'vit_h',
-            'file_name': 'sam_vit_h_01ec64.pth',
-            'url': 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_01ec64.pth',
+            'file_name': 'sam_vit_h_4b8939.pth',
+            'url': 'https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth',
             'size':  2564550879
         },
         "Sam Medium": {
