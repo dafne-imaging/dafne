@@ -200,12 +200,14 @@ def generate_points_from_mask(mask):
 
     return np.array(point_list)
 
+
 def determine_device():
     if GlobalConfig['USE_GPU_FOR'] != 'Autosegmentation' and torch.cuda.is_available():
         print('SAM loaded on GPU')
         return 'cuda'
     print('SAM loaded on CPU')
     return 'cpu'
+
 
 def enhance_mask(img, mask, progress_callback: Optional[Callable[[int, int], None]] = None):
     global old_img, image_embedding, predictor
@@ -238,10 +240,9 @@ def enhance_mask(img, mask, progress_callback: Optional[Callable[[int, int], Non
     bbox = enlarge_bounding_box(mask, GlobalConfig['SAM_BBOX_EXPAND_FACTOR'])
 
     if model_choice in ['Med Sam']:
+        H, W = img.shape[:2]
         if image_embedding is None:
             img_3c = np.repeat(img_norm[:, :, None], 3, axis=-1) if len(img_norm.shape) == 2 else img_norm
-            H, W, _ = img_3c.shape
-
             img_1024 = transform.resize(img_3c, (1024, 1024), order=3, preserve_range=True, anti_aliasing=True).astype(np.uint8)
             img_1024_tensor = torch.tensor(img_1024).float().permute(2, 0, 1).unsqueeze(0).to(device)
 
