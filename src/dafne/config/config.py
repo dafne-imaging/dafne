@@ -119,6 +119,28 @@ os.makedirs(GlobalConfig['TEMP_UPLOAD_DIR'], exist_ok=True)
 os.makedirs(GlobalConfig['TEMP_DIR'], exist_ok=True)
 
 
+def validate_value(key, value):
+    if key not in defaults:
+        return value
+    type = defaults[key][1]
+    default = defaults[key][0]
+    if type in ['none', 'bool', 'string', 'color']:
+        return value
+    elif type in ['int', 'int_spin', 'int_slider', 'float', 'float_spin', 'float_slider']:
+        min = defaults[key][2]
+        max = defaults[key][3]
+        if value < min:
+            return min
+        if value > max:
+            return max
+        return value
+    elif type == 'option':
+        options = defaults[key][2]
+        if value not in options:
+            return defaults[key][0]
+        return value
+    return value
+
 def load_config():
     # load defaults
     for k, v in defaults.items():
@@ -133,7 +155,7 @@ def load_config():
 
     # overwrite with stored configuration
     for k, v in stored_config.items():
-        GlobalConfig[k] = v
+        GlobalConfig[k] = validate_value(k, v)
 
     # static config always supersedes stored config
     for k, v in static_config.items():
