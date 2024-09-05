@@ -21,10 +21,9 @@ import pydicom
 import pydicom as dicom
 import numpy as np
 from PyQt5.QtWidgets import QInputDialog
-from muscle_bids.dosma_io import NiftiReader
-from muscle_bids.dosma_io.io.dicom_io import to_RAS_affine, DicomReader
+from voxel import NiftiReader, DicomReader, MedicalVolume
+from voxel.orientation import to_RAS_affine
 from scipy.ndimage import map_coordinates
-from muscle_bids import MedicalVolume
 import os
 
 from .multiframe import is_enhanced_dicom, is_multi_dicom, convert_to_slices, load_multi_dicom

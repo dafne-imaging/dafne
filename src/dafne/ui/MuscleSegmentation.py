@@ -38,7 +38,7 @@ elif GlobalConfig['USE_GPU_FOR'] == 'Both (careful!)':
 import matplotlib
 from dafne_dl.common.biascorrection import biascorrection_image
 from matplotlib.patches import Rectangle
-from muscle_bids.dosma_io import NiftiWriter
+from voxel import NiftiWriter
 from scipy.interpolate import interp1d
 from skimage.morphology import area_opening, area_closing
 

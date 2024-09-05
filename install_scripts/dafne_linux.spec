@@ -18,7 +18,7 @@ a = Analysis(
               'nibabel',
               'dafne_dl',
               'cmath',
-              'muscle-bids',
+              'ormir-pyvoxel',
               'pyvistaqt',
               'pyvista',
               'vtk',

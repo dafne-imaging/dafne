@@ -10,7 +10,7 @@ progress
 appdirs
 requests
 scikit-image
-muscle-bids
+ormir-pyvoxel
 importlib_resources ; python_version < "3.10"
 dafne-dl >= 1.4a2
 flexidep>=0.0.6

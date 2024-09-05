@@ -19,7 +19,7 @@ import time
 
 import matplotlib
 import matplotlib.pyplot as plt
-import muscle_bids
+import voxel
 import pydicom.filereader
 from PyQt5.QtWidgets import QInputDialog, QMessageBox
 
@@ -471,7 +471,7 @@ class ImageShow:
         elif len(data.shape) == 3:
             for sl in range(data.shape[2]):
                 self.appendImage(data[:, :, sl])
-        self.medical_volume = muscle_bids.MedicalVolume(data, np.eye(4))
+        self.medical_volume = voxel.MedicalVolume(data, np.eye(4))
 
     def load_dosma_volume(self, medical_volume):
         if np.max(medical_volume.volume) < 10:

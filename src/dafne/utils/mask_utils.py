@@ -15,8 +15,7 @@
 
 import os
 import numpy as np
-from muscle_bids.dosma_io import DicomWriter, NiftiWriter
-from muscle_bids import MedicalVolume
+from voxel import DicomWriter, NiftiWriter, MedicalVolume
 from matplotlib import pyplot as plt
 from scipy import ndimage
 
