@@ -20,8 +20,6 @@ import time
 import matplotlib
 import matplotlib.pyplot as plt
 import voxel
-import pydicom.filereader
-from PyQt5.QtWidgets import QInputDialog, QMessageBox
 
 try:
     import pydicom as dicom

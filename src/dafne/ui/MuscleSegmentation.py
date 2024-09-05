@@ -2917,7 +2917,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.setSplash(False, 0, 0, "")
             return
         elif ext in nii_ext:
-            mask_medical_volume, *_ = dosma_volume_from_path(path, reorient_data=False)
+            mask_medical_volume, *_ = dosma_volume_from_path(path, reorient_data=False, sort=GlobalConfig['DICOM_SORT'])
             name, _ = os.path.splitext(os.path.basename(path))
 
             mask = align_masks(mask_medical_volume)
@@ -2939,7 +2939,7 @@ class MuscleSegmentation(ImageShow, QObject):
         elif ext in dicom_ext:
             # load dicom masks
             path = os.path.dirname(path)
-            mask_medical_volume, *_ = dosma_volume_from_path(path, reorient_data=False)
+            mask_medical_volume, *_ = dosma_volume_from_path(path, reorient_data=False, sort=GlobalConfig['DICOM_SORT'])
             name = os.path.basename(path)
 
             mask = align_masks(mask_medical_volume)
@@ -2970,7 +2970,7 @@ class MuscleSegmentation(ImageShow, QObject):
             for data_path in path_list:
                 if data_path.startswith('.'): continue
                 try:
-                    mask_medical_volume, *_ = dosma_volume_from_path(data_path, reorient_data=False)
+                    mask_medical_volume, *_ = dosma_volume_from_path(data_path, reorient_data=False, sort=GlobalConfig['DICOM_SORT'])
                 except:
                     continue
                 dataset = mask_medical_volume.volume

@@ -69,7 +69,7 @@ class CalcTransformWindow(QWidget, Ui_CalcTransformsUI):
         medical_volume = None
         basename = ''
         try:
-            medical_volume, affine_valid, title, self.basepath, self.basename = dosma_volume_from_path(path, self)
+            medical_volume, affine_valid, title, self.basepath, self.basename = dosma_volume_from_path(path, self, sort=GlobalConfig['DICOM_SORT'])
             self.data = medical_volume.volume
         except:
             pass

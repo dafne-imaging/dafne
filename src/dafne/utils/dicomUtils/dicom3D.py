@@ -16,8 +16,6 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from __future__ import print_function
-
 import numpy as np
 try:
     import pydicom as dicom
@@ -27,7 +25,6 @@ except:
     import dicom.UID as UID
 import os
 import os.path
-import sys
 import copy
 from progress.bar import Bar
 
