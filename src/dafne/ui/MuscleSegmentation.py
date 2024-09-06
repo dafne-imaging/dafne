@@ -43,7 +43,7 @@ from scipy.interpolate import interp1d
 from skimage.morphology import area_opening, area_closing
 
 from .WhatsNew import NewsChecker, WhatsNewDialog
-from ..utils.dicomUtils.misc import realign_medical_volume, dosma_volume_from_path, reorient_data_ui, \
+from dicomUtils.misc import realign_medical_volume, dosma_volume_from_path, reorient_data_ui, \
     get_nifti_orientation
 from . import GenericInputDialog
 from ..utils.mask_to_spline import mask_average, mask_to_trivial_splines, masks_splines_to_splines_masks
@@ -56,7 +56,7 @@ matplotlib.use("Qt5Agg")
 import os, time, math, sys
 
 from .ToolboxWindow import ToolboxWindow
-from .pyDicomView import ImageShow
+from dicomUtils.ui.pyDicomView import ImageShow
 from ..utils.mask_utils import save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks, \
     save_single_dicom_dataset, save_single_nifti
 from dafne_dl.misc import calc_dice_score

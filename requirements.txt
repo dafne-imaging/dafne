@@ -17,3 +17,4 @@ flexidep>=0.0.6
 pyvistaqt
 torch
 torchvision
+dafne-dicomUtils

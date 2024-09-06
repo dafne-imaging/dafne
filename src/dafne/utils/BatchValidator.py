@@ -24,9 +24,9 @@ import numpy as np
 from dafne_dl.RemoteModelProvider import RemoteModelProvider
 from dafne_dl.misc import calc_dice_score
 from ..ui import GenericInputDialog
-from ..ui.pyDicomView import ImListProxy
+from dicomUtils.ui.pyDicomView import ImListProxy
 from .ROIManager import ROIManager
-from .dicomUtils.misc import dosma_volume_from_path
+from dicomUtils.misc import dosma_volume_from_path
 from . import compressed_pickle as pickle
 from ..config import config
 import tensorflow as tf

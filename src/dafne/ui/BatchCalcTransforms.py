@@ -22,7 +22,7 @@ from .CalcTransformsUI import Ui_CalcTransformsUI
 import os
 import numpy as np
 from ..utils.RegistrationManager import RegistrationManager
-from ..utils.dicomUtils.misc import dosma_volume_from_path, get_nifti_orientation
+from dicomUtils.misc import dosma_volume_from_path, get_nifti_orientation
 from ..utils.ThreadHelpers import separate_thread_decorator
 from ..config import GlobalConfig
 import sys
