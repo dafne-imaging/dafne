@@ -201,7 +201,7 @@ def generate_points_from_mask(mask):
 
 
 def determine_device():
-    if GlobalConfig['USE_GPU_FOR'] != 'Autosegmentation' and torch.cuda.is_available():
+    if GlobalConfig['USE_GPU_FOR'] != 'Tensorflow' and torch.cuda.is_available():
         print('SAM loaded on GPU')
         return 'cuda'
     print('SAM loaded on CPU')

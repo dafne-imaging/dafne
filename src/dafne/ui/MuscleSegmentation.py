@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 import gc
 
+from dafne_dl.model_loaders import ensure_compatible_orientation_inplace, ensure_compatible_orientation
+
 #  Copyright (c) 2021 Dafne-Imaging Team
 #
 #  This program is free software: you can redistribute it and/or modify
@@ -20,23 +22,22 @@ from ..config import GlobalConfig, load_config
 load_config()
 
 import tensorflow as tf
-tf.config.set_visible_devices([], 'GPU')
 
-if GlobalConfig['USE_GPU_FOR'] == 'SAM Refinement':
+if GlobalConfig['USE_GPU_FOR'] == 'Torch':
     # force CPU for tensorflow
     tf.config.set_visible_devices([], 'GPU')
     
 import torch
-#elif GlobalConfig['USE_GPU_FOR'] == 'Both (careful!)':
-#    gpus = tf.config.experimental.list_physical_devices('GPU')
-#    if gpus:
-#        try:
-#            tf.config.experimental.set_virtual_device_configuration(
-#                gpus[0],
-#                [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=GlobalConfig['TENSORFLOW_MEMORY_ALLOCATION']*1000)])
-#        except RuntimeError as e:
-#            # Virtual devices must be set before GPUs have been initialized
-#            print(e)
+if GlobalConfig['USE_GPU_FOR'] == 'Both (careful!)':
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        try:
+            tf.config.experimental.set_virtual_device_configuration(
+                gpus[0],
+                [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=GlobalConfig['TENSORFLOW_MEMORY_ALLOCATION']*1000)])
+        except RuntimeError as e:
+            # Virtual devices must be set before GPUs have been initialized
+            print(e)
 
 import matplotlib
 from dafne_dl.common.biascorrection import biascorrection_image
@@ -92,6 +93,8 @@ import traceback
 from dafne_dl.LocalModelProvider import LocalModelProvider
 from dafne_dl.RemoteModelProvider import RemoteModelProvider
 from dafne_dl.MixedModelProvider import MixedModelProvider
+
+from dafne_dl.DynamicDLModel import DynamicDLModel
 
 from ..utils.RegistrationManager import RegistrationManager
 
@@ -802,24 +805,25 @@ class MuscleSegmentation(ImageShow, QObject):
         }
         
         return tuple(mapping[char] for char in orientation)
-                
-    def execute_action(self, case, segm):
-        """Transpose the stack based on the orientation."""
-        if case == "Case axial: AP-RL-IS":
-            mask = np.transpose(np.stack(segm), [1,0,2])
-            
-        elif case == "Case sagittal: IS-AP-RL":
-            mask = np.transpose(np.stack(segm), [2,1,0])
-            
-        elif case == "Case coronal: IS-RL-AP":
-            mask = np.transpose(np.stack(segm), [1,2,0])
-        else:
-            print('ERROR')
 
-        return mask
-                        
     def process_orientation(self, orientation, segm):
-        """Verify cathegory of orientation"""
+        """Verify category of orientation"""
+
+        def transpose_mask(self, case, segm):
+            """Transpose the stack based on the orientation."""
+            if case == "Case axial: AP-RL-IS":
+                mask = np.transpose(np.stack(segm), [1, 0, 2])
+
+            elif case == "Case sagittal: IS-AP-RL":
+                mask = np.transpose(np.stack(segm), [2, 1, 0])
+
+            elif case == "Case coronal: IS-RL-AP":
+                mask = np.transpose(np.stack(segm), [1, 2, 0])
+            else:
+                print('ERROR')
+
+            return mask
+
         axial_cases = {
             ('AP', 'RL', 'IS'): "Case axial: AP-RL-IS",
             ('IS', 'AP', 'RL'): "Case sagittal: IS-AP-RL",
@@ -832,12 +836,16 @@ class MuscleSegmentation(ImageShow, QObject):
         if mapped_orientation in axial_cases:
             # print(f"{axial_cases[mapped_orientation]}")
             case = axial_cases[mapped_orientation]
-            final_mask = self.execute_action(case, segm)
+            final_mask = self.transpose_mask(case, segm)
         else:
             print("Orientation not recognized.")
             final_mask = segm
 
         return final_mask
+
+    def _is_current_model_3D(self):
+        model_dimensionality = get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality')
+        return str(model_dimensionality) == '3'
 
     def calcOutputData(self, setSplash=False):
         imSize = self.image.shape
@@ -862,41 +870,37 @@ class MuscleSegmentation(ImageShow, QObject):
             if setSplash:
                 self.setSplash(True, current_roi_index, len(roi_names), "Calculating maps...")
                 current_roi_index += 1
-            
-            if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+
+            if self._is_current_model_3D():
 
                 masklist = np.zeros(self.medical_volume.shape, dtype=np.uint8)
 
                 # print("len imList: ", len(self.imList))
 
-                imageIndex = range(0, len(self.imList))
+                image_indices_3D = range(0, len(self.imList))
 
                 # print('imageIndex: ', imageIndex)
                 # print('self.medical_volume.shape[:2]: ', self.medical_volume.shape[:2])
-                roi = np.zeros(self.medical_volume.shape[:2], dtype=np.uint8)
 
                 for index in range(len(self.imList)):
-
                     if self.roiManager.contains(roiName, index):
                         roi = self.roiManager.get_mask(roiName, index)
                         masklist[:, :, index]=roi
                         slices_with_rois.add(index)
-                
-                
+                       
                 count = 0
                 for index in range(len(self.imList)):
-
                     if self.classifications[index] != 'None':
                         count = 0
                     else:
                         count += 1
 
-                if imageIndex not in originalSegmentationMasks and count == 0:
-                    originalSegmentationMasks = self.getSegmentedMasks_3D(imageIndex, False, True)
+                if image_indices_3D not in originalSegmentationMasks and count == 0:
+                    originalSegmentationMasks = self.getSegmentedMasks_3D(image_indices_3D, False, True)
 
                 try:
                     # print("try")
-                    originalSegmentation = originalSegmentationMasks[roiName][:,:,imageIndex]
+                    originalSegmentation = originalSegmentationMasks[roiName][:,:,image_indices_3D]
                 except KeyError:
                     originalSegmentation = None
 
@@ -976,7 +980,7 @@ class MuscleSegmentation(ImageShow, QObject):
                     del segForTraining[classification_name][imageIndex]
             # print('Slices after cleanup', list(dataForTraining[classification_name].keys()))
 
-        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+        if self._is_current_model_3D():
             for key in dataForTraining:
                 dataForTraining[key] = np.stack([dataForTraining[key][i] for i in sorted(dataForTraining[key].keys())], axis=0)
             
@@ -2693,16 +2697,17 @@ class MuscleSegmentation(ImageShow, QObject):
     def saveBundle(self, path_out: str, comment: str):
         self.setSplash(True, 0, 1, "Saving bundle...")
 
-        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+        if self._is_current_model_3D():
             
             self.setSplash(True, 0, 4, "Calculating maps...")
             saved_files_count = self.count_saved_files()
             print(f"saved_files_count {saved_files_count}")
-            total_next_indices = sum(len(indices_dict) for indices_dict in self.incrLearnDataTrain.values())
+            current_model = self.classifications[int(self.curImage)]
+            total_next_indices = len(self.incrLearnDataTrain.get(current_model, {}))
 
             if saved_files_count > total_next_indices:
                 self.load_saved_npz()
-                total_next_indices = sum(len(indices_dict) for indices_dict in self.incrLearnDataTrain.values())
+                total_next_indices = len(self.incrLearnDataTrain.get(current_model, {}))
                 print(f"files count {total_next_indices}")
             
             allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)   
@@ -2780,6 +2785,7 @@ class MuscleSegmentation(ImageShow, QObject):
                     self.incrLearnMeanDice[key] = {}
                     next_index = 0
                 else:
+                    # the index is numeric, so get the maximum index and add 1 for the next index
                     next_index = max(self.incrLearnDataTrain[key].keys(), default=-1) + 1
 
                 self.incrLearnDataTrain[key][next_index] = data['data']
@@ -2806,20 +2812,21 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.setSplash(True, 0, 4, "Calculating maps...")
 
-        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+        if self._is_current_model_3D():
 
             saved_files_count = self.count_saved_files()
             print(f"saved_files_count {saved_files_count}")
-            total_next_indices = sum(len(indices_dict) for indices_dict in self.incrLearnDataTrain.values())
+            current_model = self.classifications[int(self.curImage)]
+            total_next_indices = len(self.incrLearnDataTrain.get(current_model, {}))
 
             if saved_files_count > total_next_indices:
                 self.load_saved_npz()
-                total_next_indices = sum(len(indices_dict) for indices_dict in self.incrLearnDataTrain.values())
+                total_next_indices = len(self.incrLearnDataTrain.get(current_model, {}))
                 print(f"files count {total_next_indices}")
 
         allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
 
-        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+        if self._is_current_model_3D():
            
             next_index, key, value_image = self.add_to_incrLearnData(self.incrLearnDataTrain, dataForTraining) 
             next_index, key, value_segm = self.add_to_incrLearnData(self.incrLearnSegTrain, segForTraining) 
@@ -2832,7 +2839,7 @@ class MuscleSegmentation(ImageShow, QObject):
     
         self.setSplash(True, 3, 4, "Saving file...")
 
-        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+        if self._is_current_model_3D():
             affine_transform = self.original_affine 
             # for incremental learning
             if key not in self.incrementalLearningAffine:
@@ -2844,7 +2851,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         if GlobalConfig['DO_INCREMENTAL_LEARNING']:
             # saving as bundle
-            if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+            if self._is_current_model_3D():
                 self.setSplash(True, 0, 1, "Saving bundle...")
                 bundle = self.prepare_numpy_bundle_IL_3D(value_image, value_segm, meanDiceScore, key)
                 directory=os.path.join(GlobalConfig['NUMPY_FILE_3D'], get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'model_name'))
@@ -2858,7 +2865,7 @@ class MuscleSegmentation(ImageShow, QObject):
         if outputType == 'dicom':
             save_dicom_masks(pathOut, allMasks, self.affine, self.dicomHeaderList)
         elif outputType == 'nifti':
-            if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+            if self._is_current_model_3D():
                 save_nifti_masks_3D(pathOut, next_index, allMasks, self.original_affine, self.affine, self.original_headers)
             else:
                 save_nifti_masks(pathOut, allMasks, self.affine)
@@ -2876,7 +2883,7 @@ class MuscleSegmentation(ImageShow, QObject):
         # perform incremental learning
         if GlobalConfig['DO_INCREMENTAL_LEARNING']:
 
-            if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') != '3':
+            if self._is_current_model_3D():
 
                 self.incrementalLearn(dataForTraining, segForTraining, meanDiceScore, True)
 
@@ -3457,7 +3464,7 @@ class MuscleSegmentation(ImageShow, QObject):
         if min_slice > max_slice: # invert order if one is bigger than the other
             min_slice, max_slice = max_slice, min_slice
         
-        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+        if self._is_current_model_3D():
             self.displayImage(min_slice)
             self.doSegmentation_3D(min_slice, max_slice)
             self.setSplash(True, 0, 3, "Loading model...")
@@ -3559,7 +3566,8 @@ class MuscleSegmentation(ImageShow, QObject):
         if setSplash:
             self.setSplash(True, 1, 3, "Running segmentation...")
 
-        image=self.medical_volume[:,:,imIndex[0]:imIndex[-1]+1]
+        image = self.medical_volume[:,:,imIndex[0]:imIndex[-1]+1]
+        image = ensure_compatible_orientation(image, segmenter.get_metadata())
         inputData = {'image': image.volume.astype(np.float32), 'affine': self.affine, 'resolution': self.resolution, 
                     'split_laterality': False, 'classification': class_str}
                 
@@ -3605,7 +3613,7 @@ class MuscleSegmentation(ImageShow, QObject):
         print("Done")
         self.masksToRois(masks_out, image[:,:,imIndex[0]:imIndex[-1]+1])
         self.activeMask = None
-        self.otherMask = None
+        self.otherMask = None # TODO: Is it correct?
         print("Segmentation/import time:", time.time() - t)
         self.setSplash(False, 3, 3)
         time.sleep(0.1)
@@ -3616,21 +3624,22 @@ class MuscleSegmentation(ImageShow, QObject):
     @pyqtSlot()
     def incrementalLearnStandalone(self):
         
-        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') != '3':
+        if self._is_current_model_3D():
             self.setSplash(True, 0, 4, "Calculating maps...")
             allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
         self.setSplash(True, 1, 4, "Incremental learning...")
 
         # perform incremental learning
-        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+        if self._is_current_model_3D():
             
             saved_files_count = self.count_saved_files()
             print(f"saved_files_count {saved_files_count}")
-            total_next_indices = sum(len(indices_dict) for indices_dict in self.incrLearnDataTrain.values())
+            current_model = self.classifications[int(self.curImage)]
+            total_next_indices = len(self.incrLearnDataTrain.get(current_model, {}))
 
             if saved_files_count > total_next_indices:
                 self.load_saved_npz()
-                total_next_indices = sum(len(indices_dict) for indices_dict in self.incrLearnDataTrain.values())
+                total_next_indices = len(self.incrLearnDataTrain.get(current_model, {}))
                 print(f"files count {total_next_indices}")
 
             self.incrementalLearn_3D(self.incrLearnDataTrain, self.incrLearnSegTrain, self.incrementalLearningAffine, self.incrLearnMeanDice, True)

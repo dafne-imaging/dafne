@@ -89,7 +89,7 @@ defaults = {
     'ECHO_OUTPUT': (False, 'bool', None),
     'SAM_MODEL': ('Med Sam', 'option', ['Med Sam', 'Sam Large', 'Sam Medium', 'Sam Small'], 'SAM model size (requires restart)'),
     'SAM_BBOX_EXPAND_FACTOR': (0.2, 'float_slider', 0.0, 1.0, 0.1, 'SAM Bounding box expansion factor'),
-    'USE_GPU_FOR': ('Autosegmentation', 'option', ['Autosegmentation', 'SAM Refinement', 'Both (careful!)'], 'Use CUDA for (requires restart)'),
+    'USE_GPU_FOR': ('Autosegmentation', 'option', ['Tensorflow', 'Torch', 'Both (careful!)'], 'Use CUDA for (requires restart)'),
     'TENSORFLOW_MEMORY_ALLOCATION': (2.0, 'float_slider', 0.0, 20.0, 0.1, 'Tensorflow max memory (GB) (requires restart)'),
     'ADVANCED_CONFIG': (False, 'bool', 'Show advanced configuration'),
     'ENABLED_MODELS': (['Leg', 'Thigh'], 'none', None)
