@@ -20,20 +20,23 @@ from ..config import GlobalConfig, load_config
 load_config()
 
 import tensorflow as tf
+tf.config.set_visible_devices([], 'GPU')
 
 if GlobalConfig['USE_GPU_FOR'] == 'SAM Refinement':
     # force CPU for tensorflow
     tf.config.set_visible_devices([], 'GPU')
-elif GlobalConfig['USE_GPU_FOR'] == 'Both (careful!)':
-    gpus = tf.config.experimental.list_physical_devices('GPU')
-    if gpus:
-        try:
-            tf.config.experimental.set_virtual_device_configuration(
-                gpus[0],
-                [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=GlobalConfig['TENSORFLOW_MEMORY_ALLOCATION']*1000)])
-        except RuntimeError as e:
-            # Virtual devices must be set before GPUs have been initialized
-            print(e)
+    
+import torch
+#elif GlobalConfig['USE_GPU_FOR'] == 'Both (careful!)':
+#    gpus = tf.config.experimental.list_physical_devices('GPU')
+#    if gpus:
+#        try:
+#            tf.config.experimental.set_virtual_device_configuration(
+#                gpus[0],
+#                [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=GlobalConfig['TENSORFLOW_MEMORY_ALLOCATION']*1000)])
+#        except RuntimeError as e:
+#            # Virtual devices must be set before GPUs have been initialized
+#            print(e)
 
 import matplotlib
 from dafne_dl.common.biascorrection import biascorrection_image
@@ -58,8 +61,8 @@ import os, time, math, sys
 from .ToolboxWindow import ToolboxWindow
 from dicomUtils.ui.pyDicomView import ImageShow
 from ..utils.mask_utils import save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks, \
-    save_single_dicom_dataset, save_single_nifti
-from dafne_dl.misc import calc_dice_score
+    save_single_dicom_dataset, save_single_nifti, save_nifti_masks_3D
+from dafne_dl.misc import get_model_detail, calc_dice_score_3D, calc_dice_score
 import matplotlib.pyplot as plt
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -71,6 +74,7 @@ from .. import utils
 sys.modules['utils'] = utils # to make pickle work
 
 import numpy as np
+import nibabel as nib
 import scipy.ndimage as ndimage
 from scipy.ndimage.morphology import binary_dilation, binary_erosion
 from ..utils import compressed_pickle as pickle
@@ -246,6 +250,12 @@ class MuscleSegmentation(ImageShow, QObject):
             if 'keymap' in key and 'zoom' not in key and 'pan' not in key:
                 plt.rcParams[key] = []
         sys.excepthook = make_excepthook(self)
+
+        # 3D incremental learning
+        self.incrLearnDataTrain = {}
+        self.incrLearnSegTrain = {}
+        self.incrementalLearningAffine = {}
+        self.incrLearnMeanDice = {}
 
     @pyqtSlot(list, str)
     def show_news(self, news, index_address):
@@ -782,6 +792,52 @@ class MuscleSegmentation(ImageShow, QObject):
             self.roiManager.clear_autosegment_subregion(imageN)
         else:
             self.roiManager.set_autosegment_subregion(imageN, subregion)
+    
+    def map_orientation(self, orientation):
+        """Orientation map AP, RL, IS"""
+        mapping = {
+            'A': 'AP', 'P': 'AP',  
+            'R': 'RL', 'L': 'RL',  
+            'S': 'IS', 'I': 'IS'   
+        }
+        
+        return tuple(mapping[char] for char in orientation)
+                
+    def execute_action(self, case, segm):
+        """Transpose the stack based on the orientation."""
+        if case == "Case axial: AP-RL-IS":
+            mask = np.transpose(np.stack(segm), [1,0,2])
+            
+        elif case == "Case sagittal: IS-AP-RL":
+            mask = np.transpose(np.stack(segm), [2,1,0])
+            
+        elif case == "Case coronal: IS-RL-AP":
+            mask = np.transpose(np.stack(segm), [1,2,0])
+        else:
+            print('ERROR')
+
+        return mask
+                        
+    def process_orientation(self, orientation, segm):
+        """Verify cathegory of orientation"""
+        axial_cases = {
+            ('AP', 'RL', 'IS'): "Case axial: AP-RL-IS",
+            ('IS', 'AP', 'RL'): "Case sagittal: IS-AP-RL",
+            ('IS', 'RL', 'AP'): "Case coronal: IS-RL-AP"
+        }
+
+        mapped_orientation = self.map_orientation(orientation)
+        # print(f"mapped_orientation {mapped_orientation}")
+
+        if mapped_orientation in axial_cases:
+            # print(f"{axial_cases[mapped_orientation]}")
+            case = axial_cases[mapped_orientation]
+            final_mask = self.execute_action(case, segm)
+        else:
+            print("Orientation not recognized.")
+            final_mask = segm
+
+        return final_mask
 
     def calcOutputData(self, setSplash=False):
         imSize = self.image.shape
@@ -801,64 +857,146 @@ class MuscleSegmentation(ImageShow, QObject):
         originalSegmentationMasks = {}
 
         for roiName in self.roiManager.get_roi_names():
+            print("roiName: ", roiName)
+
             if setSplash:
                 self.setSplash(True, current_roi_index, len(roi_names), "Calculating maps...")
                 current_roi_index += 1
-            masklist = []
-            for imageIndex in range(len(self.imList)):
-                roi = np.zeros(imSize, dtype=np.uint8)
-                if self.roiManager.contains(roiName, imageIndex):
-                    roi = self.roiManager.get_mask(roiName, imageIndex)
+            
+            if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
 
-                if roi.any():
-                    slices_with_rois.add(imageIndex) # add the slice to the set if any voxel is nonzero
-                    if imageIndex not in originalSegmentationMasks and self.classifications[imageIndex] != 'None':
-                        #print(imageIndex)
-                        originalSegmentationMasks[imageIndex] = self.getSegmentedMasks(imageIndex, False, True)
+                masklist = np.zeros(self.medical_volume.shape, dtype=np.uint8)
 
-                masklist.append(roi)
+                # print("len imList: ", len(self.imList))
+
+                imageIndex = range(0, len(self.imList))
+
+                # print('imageIndex: ', imageIndex)
+                # print('self.medical_volume.shape[:2]: ', self.medical_volume.shape[:2])
+                roi = np.zeros(self.medical_volume.shape[:2], dtype=np.uint8)
+
+                for index in range(len(self.imList)):
+
+                    if self.roiManager.contains(roiName, index):
+                        roi = self.roiManager.get_mask(roiName, index)
+                        masklist[:, :, index]=roi
+                        slices_with_rois.add(index)
+                
+                
+                count = 0
+                for index in range(len(self.imList)):
+
+                    if self.classifications[index] != 'None':
+                        count = 0
+                    else:
+                        count += 1
+
+                if imageIndex not in originalSegmentationMasks and count == 0:
+                    originalSegmentationMasks = self.getSegmentedMasks_3D(imageIndex, False, True)
+
                 try:
-                    originalSegmentation = originalSegmentationMasks[imageIndex][roiName]
+                    # print("try")
+                    originalSegmentation = originalSegmentationMasks[roiName][:,:,imageIndex]
                 except KeyError:
                     originalSegmentation = None
 
                 if originalSegmentation is not None:
-                    diceScores.append(calc_dice_score(originalSegmentation, roi))
-                    n_voxels.append(np.sum(roi))
-                    #print(diceScores)
+                    # diceScores.append(calc_dice_score(originalSegmentation, masklist))
+                    # print('originalSegmentationMasks shape: ', originalSegmentationMasks[roiName].shape)
+                    # print('originalSegmentation shape: ', originalSegmentation.shape)
+                    # print('masklist shape: ', masklist.shape)
+
+                    diceScores.append(calc_dice_score(originalSegmentation, masklist))
+                    n_voxels.append(np.sum(masklist[:]))
 
                 # TODO: maybe add this to the training according to the dice score?
-                classification_name = self.classifications[imageIndex]
-                if classification_name not in dataForTraining:
-                    dataForTraining[classification_name] = {}
-                    segForTraining[classification_name] = {}
-                if imageIndex not in dataForTraining[classification_name]:
-                    dataForTraining[classification_name][imageIndex] = self.imList[imageIndex]
-                    segForTraining[classification_name][imageIndex] = {}
+                # count=0
+                for index in range(len(self.imList)):
+                    classification_name = self.classifications[index]
 
-                segForTraining[classification_name][imageIndex][roiName] = roi
+                    if classification_name not in dataForTraining:
+                        dataForTraining[classification_name] = {}
+                        segForTraining[classification_name] = {}
+                    
+                    if index not in dataForTraining[classification_name]:
+                        dataForTraining[classification_name][index] = self.medical_volume.volume[:,:,index]
+                        segForTraining[classification_name][index] = {roiName: masklist[:,:,index]}
 
-            npMask = np.transpose(np.stack(masklist), [1, 2, 0])
-            allMasks[roiName] = npMask
+                orientation=nib.aff2axcodes(self.affine)
+
+                npMask = self.process_orientation(orientation, masklist)
+
+                allMasks[roiName] = npMask
+                torch.cuda.empty_cache()
+
+            else:
+                masklist = []
+                for imageIndex in range(len(self.imList)):
+                    roi = np.zeros(imSize, dtype=np.uint8)
+                    if self.roiManager.contains(roiName, imageIndex):
+                        roi = self.roiManager.get_mask(roiName, imageIndex)
+
+                    if roi.any():
+                        slices_with_rois.add(imageIndex) # add the slice to the set if any voxel is nonzero
+                        if imageIndex not in originalSegmentationMasks and self.classifications[imageIndex] != 'None':
+                            #print(imageIndex)
+                            originalSegmentationMasks[imageIndex] = self.getSegmentedMasks(imageIndex, False, True)
+
+                    masklist.append(roi)
+                    try:
+                        originalSegmentation = originalSegmentationMasks[imageIndex][roiName]
+                    except KeyError:
+                        originalSegmentation = None
+
+                    if originalSegmentation is not None:
+                        diceScores.append(calc_dice_score(originalSegmentation, roi))
+                        n_voxels.append(np.sum(roi))
+                        #print(diceScores)
+
+                    # TODO: maybe add this to the training according to the dice score?
+                    classification_name = self.classifications[imageIndex]
+                    if classification_name not in dataForTraining:
+                        dataForTraining[classification_name] = {}
+                        segForTraining[classification_name] = {}
+                    if imageIndex not in dataForTraining[classification_name]:
+                        dataForTraining[classification_name][imageIndex] = self.imList[imageIndex]
+                        segForTraining[classification_name][imageIndex] = {}
+
+                    segForTraining[classification_name][imageIndex][roiName] = roi
+                
+                npMask = np.transpose(np.stack(masklist), [1, 2, 0])
+                allMasks[roiName] = npMask
 
         # cleanup empty slices and slices that were already used for training
         for classification_name in dataForTraining:
-            print('Slices available for', classification_name, ':', list(dataForTraining[classification_name].keys()))
+            # print('Slices available for', classification_name, ':', list(dataForTraining[classification_name].keys()))
             for imageIndex in list(dataForTraining[classification_name]): # get a list of keys to be able to delete from dict
                 if imageIndex not in slices_with_rois or imageIndex in self.slicesUsedForTraining:
                     del dataForTraining[classification_name][imageIndex]
                     del segForTraining[classification_name][imageIndex]
-            print('Slices after cleanup', list(dataForTraining[classification_name].keys()))
+            # print('Slices after cleanup', list(dataForTraining[classification_name].keys()))
 
+        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+            for key in dataForTraining:
+                dataForTraining[key] = np.stack([dataForTraining[key][i] for i in sorted(dataForTraining[key].keys())], axis=0)
+            
+            for key in segForTraining:
+
+                for sub_key in segForTraining[key][0].keys(): 
+                    images = [segForTraining[key][i][sub_key] for i in sorted(segForTraining[key].keys())]
+                    stacked = np.stack(images, axis=0)
+                    segForTraining[key] = {sub_key: stacked}
+
+            torch.cuda.empty_cache()
 
         diceScores = np.array(diceScores)
         n_voxels =np.array(n_voxels)
-        #print(diceScores)
         if np.sum(n_voxels) == 0:
             average_dice = -1.0
         else:
-            average_dice = np.average(diceScores, weights=n_voxels)
+            average_dice = np.average(diceScores) #, weights=n_voxels)
         print("Average Dice score", average_dice)
+
         return allMasks, dataForTraining, segForTraining, average_dice
 
     @pyqtSlot(str, str, bool)
@@ -1927,7 +2065,8 @@ class MuscleSegmentation(ImageShow, QObject):
         if self.registrationManager:
             self.registrationManager.pickle_transforms()
         self.saveROIPickle()
-        sys.exit(0)
+        # sys.exit(0)
+        QApplication.quit()
 
     @pyqtSlot()
     def updateBrush(self):
@@ -2393,7 +2532,9 @@ class MuscleSegmentation(ImageShow, QObject):
             self.resetInternalState()
             self.override_class = override_class
             self.resolution_valid = False
+            self.original_affine=None
             self.affine = None
+            self.original_headers=None
             self.image = None
             self.resolution = [1, 1, 1]
 
@@ -2461,6 +2602,11 @@ class MuscleSegmentation(ImageShow, QObject):
         else:
             try:
                 ImageShow.loadDirectory(self, path)
+                if path.endswith(".nii.gz")| path.endswith(".nii"):
+                    # load original informations
+                    original_volume = nib.load(path)
+                    self.original_affine = original_volume.affine
+                    self.original_headers = original_volume.header
             except Exception as e:
                 __error(e)
                 return
@@ -2546,9 +2692,111 @@ class MuscleSegmentation(ImageShow, QObject):
     @separate_thread_decorator
     def saveBundle(self, path_out: str, comment: str):
         self.setSplash(True, 0, 1, "Saving bundle...")
-        bundle = self.prepare_numpy_bundle(comment)
-        np.savez_compressed(path_out, **bundle)
+
+        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+            
+            self.setSplash(True, 0, 4, "Calculating maps...")
+            saved_files_count = self.count_saved_files()
+            print(f"saved_files_count {saved_files_count}")
+            total_next_indices = sum(len(indices_dict) for indices_dict in self.incrLearnDataTrain.values())
+
+            if saved_files_count > total_next_indices:
+                self.load_saved_npz()
+                total_next_indices = sum(len(indices_dict) for indices_dict in self.incrLearnDataTrain.values())
+                print(f"files count {total_next_indices}")
+            
+            allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)   
+            next_index, key, value_image = self.add_to_incrLearnData(self.incrLearnDataTrain, dataForTraining) 
+            next_index, key, value_segm = self.add_to_incrLearnData(self.incrLearnSegTrain, segForTraining) 
+            
+            if key not in self.incrLearnMeanDice:
+                self.incrLearnMeanDice[key] = {} 
+                self.incrLearnMeanDice[key][next_index] = meanDiceScore
+            else:
+                self.incrLearnMeanDice[key][next_index] = meanDiceScore
+
+            affine_transform = self.original_affine 
+            # for incremental learning
+            if key not in self.incrementalLearningAffine:
+                self.incrementalLearningAffine[key] = {} 
+                self.incrementalLearningAffine[key][next_index] = self.affine
+            else:
+                self.incrementalLearningAffine[key][next_index] = self.affine
+            
+            bundle = self.prepare_numpy_bundle_IL_3D(value_image, value_segm, meanDiceScore, key, comment)
+            np.savez_compressed(path_out, **bundle)
+
+            if GlobalConfig['DO_INCREMENTAL_LEARNING']:
+
+                bundle = self.prepare_numpy_bundle_IL_3D(value_image, value_segm, meanDiceScore, key)
+                directory=os.path.join(GlobalConfig['NUMPY_FILE_3D'], get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'model_name'))
+                
+                if not os.path.isdir(directory):
+                    os.makedirs(directory)
+
+                np.savez_compressed(os.path.join(directory, f'temp_{next_index}'), **bundle)
+                
+        else:
+            bundle = self.prepare_numpy_bundle(comment)
+            np.savez_compressed(path_out, **bundle)
         self.setSplash(False)
+    
+    def add_to_incrLearnData(self, incrLearnData, data):
+        for key, value in data.items():
+            if key not in incrLearnData:
+                incrLearnData[key] = {}  # create the dict if it not exists
+                next_index = 0  # start from 0 for the first time
+            else:
+                next_index = max(incrLearnData[key].keys(), default=-1) + 1  # find the next index
+
+            incrLearnData[key][next_index] = value  # add the array with the new index
+        return next_index, key, value
+    
+    def count_saved_files(self):
+        """Count the number of files saved in the temporary directory."""
+        directory=os.path.join(GlobalConfig['NUMPY_FILE_3D'], get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'model_name'))
+        if not os.path.isdir(directory):
+            os.makedirs(directory)
+        folder_path = os.listdir(directory)
+        return len([name for name in folder_path if name.endswith('.npz')])
+    
+    def load_saved_npz(self):
+        """Load the data from saved NPZ files."""
+        try:
+            folder_path = os.listdir(os.path.join(GlobalConfig['NUMPY_FILE_3D'], get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'model_name')))
+            temp_files = sorted([f for f in folder_path if f.startswith('temp_') and f.endswith('.npz')],
+                                key=lambda x: int(x.split('_')[1].split('.npz')[0]))
+            
+            for file in temp_files:
+                file_path = os.path.join(GlobalConfig['NUMPY_FILE_3D'], get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'model_name'), file)
+                data = np.load(file_path, allow_pickle=True)
+
+                key = str(data['model'])
+
+                if key not in self.incrLearnDataTrain:
+                    self.incrLearnDataTrain[key] = {}
+                    self.incrLearnSegTrain[key] = {}
+                    self.incrementalLearningAffine[key] = {}
+                    self.incrLearnMeanDice[key] = {}
+                    next_index = 0
+                else:
+                    next_index = max(self.incrLearnDataTrain[key].keys(), default=-1) + 1
+
+                self.incrLearnDataTrain[key][next_index] = data['data']
+                self.incrementalLearningAffine[key][next_index] = data['affine']
+                self.incrLearnMeanDice[key][next_index] = data['dice']
+
+                for sub_key in [k for k in data.files if k.startswith('mask_')]:
+
+                    sub_key = str(sub_key)
+                    original_key = sub_key.replace("mask_", "")
+                    self.incrLearnSegTrain[key][next_index] = {}
+                    self.incrLearnSegTrain[key][next_index][original_key] = data[sub_key]
+            
+            print("Data from NPZ files loaded.")
+        except Exception as e:
+            print(f"Error loading NPZ files: {e}")
+
 
     @pyqtSlot(str, str)
     @separate_thread_decorator
@@ -2558,28 +2806,79 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.setSplash(True, 0, 4, "Calculating maps...")
 
+        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+
+            saved_files_count = self.count_saved_files()
+            print(f"saved_files_count {saved_files_count}")
+            total_next_indices = sum(len(indices_dict) for indices_dict in self.incrLearnDataTrain.values())
+
+            if saved_files_count > total_next_indices:
+                self.load_saved_npz()
+                total_next_indices = sum(len(indices_dict) for indices_dict in self.incrLearnDataTrain.values())
+                print(f"files count {total_next_indices}")
+
         allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
 
-        self.setSplash(True, 1, 4, "Incremental learning...")
-
-        # perform incremental learning
-        if GlobalConfig['DO_INCREMENTAL_LEARNING']:
-            self.incrementalLearn(dataForTraining, segForTraining, meanDiceScore, True)
-
+        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+           
+            next_index, key, value_image = self.add_to_incrLearnData(self.incrLearnDataTrain, dataForTraining) 
+            next_index, key, value_segm = self.add_to_incrLearnData(self.incrLearnSegTrain, segForTraining) 
+            
+            if key not in self.incrLearnMeanDice:
+                self.incrLearnMeanDice[key] = {} 
+                self.incrLearnMeanDice[key][next_index] = meanDiceScore
+            else:
+                self.incrLearnMeanDice[key][next_index] = meanDiceScore
+    
         self.setSplash(True, 3, 4, "Saving file...")
+
+        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+            affine_transform = self.original_affine 
+            # for incremental learning
+            if key not in self.incrementalLearningAffine:
+                self.incrementalLearningAffine[key] = {} 
+                self.incrementalLearningAffine[key][next_index] = self.affine
+            else:
+                self.incrementalLearningAffine[key][next_index] = self.affine
+            
+
+        if GlobalConfig['DO_INCREMENTAL_LEARNING']:
+            # saving as bundle
+            if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+                self.setSplash(True, 0, 1, "Saving bundle...")
+                bundle = self.prepare_numpy_bundle_IL_3D(value_image, value_segm, meanDiceScore, key)
+                directory=os.path.join(GlobalConfig['NUMPY_FILE_3D'], get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'model_name'))
+                
+                if not os.path.isdir(directory):
+                    os.makedirs(directory)
+
+                np.savez_compressed(os.path.join(directory, f'temp_{next_index}'), **bundle)
+                self.setSplash(False)
 
         if outputType == 'dicom':
             save_dicom_masks(pathOut, allMasks, self.affine, self.dicomHeaderList)
         elif outputType == 'nifti':
-            save_nifti_masks(pathOut, allMasks, self.affine)
+            if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+                save_nifti_masks_3D(pathOut, next_index, allMasks, self.original_affine, self.affine, self.original_headers)
+            else:
+                save_nifti_masks(pathOut, allMasks, self.affine)
         elif outputType == 'npy':
-            save_npy_masks(pathOut, allMasks)
+            save_npy_masks(pathOut, allMasks, self.affine)
         elif outputType == 'compact_dicom':
             save_single_dicom_dataset(pathOut, allMasks, self.affine, self.dicomHeaderList)
         elif outputType == 'compact_nifti':
             save_single_nifti(pathOut, allMasks, self.affine)
         else: # assume the most generic outputType == 'npz':
-            save_npz_masks(pathOut, allMasks)
+            save_npz_masks(pathOut, allMasks, self.affine)
+
+        self.setSplash(True, 1, 4, "Incremental learning...")
+
+        # perform incremental learning
+        if GlobalConfig['DO_INCREMENTAL_LEARNING']:
+
+            if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') != '3':
+
+                self.incrementalLearn(dataForTraining, segForTraining, meanDiceScore, True)
 
         self.setSplash(False, 4, 4, "End")
 
@@ -2767,6 +3066,17 @@ class MuscleSegmentation(ImageShow, QObject):
         out_data = {'data': dataset, 'resolution': resolution, 'comment': comment}
         for mask_name, mask in allMasks.items():
             out_data[f'mask_{mask_name}'] = mask
+        return out_data
+    
+    def prepare_numpy_bundle_IL_3D(self, value_image, value_segm, meanDice, key, comment = ''):
+        resolution = np.array(self.resolution)
+        value_image = np.array(value_image)
+        affine = np.array(self.affine)
+        dice = np.array(meanDice)
+        out_data = {'data': value_image.astype(np.float32), 'resolution': resolution, 'dice': dice, 'affine': affine.astype(np.float32), 'comment': comment, 'model': key}
+        for sub_key in value_segm.keys(): 
+            segm = np.array(value_segm[sub_key])
+            out_data[f'mask_{sub_key}'] = segm.astype(np.uint8)
         return out_data
 
     @pyqtSlot(str)
@@ -3116,6 +3426,8 @@ class MuscleSegmentation(ImageShow, QObject):
                     else:
                         new_class_list.append(f'{c}, {variant}')
 
+        torch.cuda.empty_cache()
+
         for i, classification in enumerate(original_classifications[:]):
             if classification not in new_class_list:
                 original_classifications[i] = 'None'
@@ -3144,12 +3456,19 @@ class MuscleSegmentation(ImageShow, QObject):
     def doSegmentationMultislice(self, min_slice, max_slice):
         if min_slice > max_slice: # invert order if one is bigger than the other
             min_slice, max_slice = max_slice, min_slice
-
-        for slice_number in range(min_slice, max_slice+1):
-            self.displayImage(slice_number)
-            self.doSegmentation()
+        
+        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+            self.displayImage(min_slice)
+            self.doSegmentation_3D(min_slice, max_slice)
             self.setSplash(True, 0, 3, "Loading model...")
             time.sleep(0.5)
+            
+        else:
+            for slice_number in range(min_slice, max_slice+1):
+                self.displayImage(slice_number)
+                self.doSegmentation()
+                self.setSplash(True, 0, 3, "Loading model...")
+                time.sleep(0.5)
         self.setSplash(False, 0, 3, "")
 
     def getSegmentedMasks(self, imIndex, setSplash=False, downloadModel=True):
@@ -3204,6 +3523,51 @@ class MuscleSegmentation(ImageShow, QObject):
             masks_out = new_masks_out
         return masks_out
 
+    def getSegmentedMasks_3D(self, imIndex, setSplash=False, downloadModel=True):
+
+        class_str = self.classifications[imIndex[0]]
+
+        if class_str == 'None':
+            self.alert('Segmentation with "None" model is impossible!', 'Error')
+            return
+
+        model_str = class_str.split(',')[0].strip()  # get the base model string in case of multiple variants.
+        # variants are identified by "Model, Variant"
+
+        if setSplash:
+            self.setSplash(True, 0, 3, "Loading model...")
+
+        try:
+            segmenter = self.dl_segmenters[model_str]
+        except KeyError:
+            if downloadModel:
+                if setSplash:
+                    splashCallback = lambda cur_val, max_val: self.setSplash(True, cur_val, max_val,
+                                                                                               'Downloading Model...')
+                else:
+                    splashCallback = None
+                segmenter = self.model_provider.load_model(model_str, splashCallback,
+                                                       force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
+                if segmenter is None:
+                    self.setSplash(False, 0, 3, "Loading model...")
+                    self.alert(f"Error loading model {model_str}", 'Error')
+                    return None
+                self.dl_segmenters[class_str] = segmenter
+            else:
+                return None
+
+        if setSplash:
+            self.setSplash(True, 1, 3, "Running segmentation...")
+
+        image=self.medical_volume[:,:,imIndex[0]:imIndex[-1]+1]
+        inputData = {'image': image.volume.astype(np.float32), 'affine': self.affine, 'resolution': self.resolution, 
+                    'split_laterality': False, 'classification': class_str}
+                
+        print("Segmenting image...")
+        masks_out = segmenter(inputData)
+        torch.cuda.empty_cache()
+        return masks_out
+    
     @pyqtSlot()
     @snapshotSaver
     def doSegmentation(self):
@@ -3225,15 +3589,53 @@ class MuscleSegmentation(ImageShow, QObject):
         time.sleep(0.1)
         self.redraw()
 
+    def doSegmentation_3D(self, min_slice, max_slice):
+        # run the segmentation
+        image=self.medical_volume
+        imIndex = range(min_slice,max_slice+1)
+
+        t = time.time()
+        masks_out=self.getSegmentedMasks_3D(imIndex, True, True)
+
+        if masks_out is None:
+            self.setSplash(False, 0, 3, "Loading model...")
+            return
+        
+        self.setSplash(True, 2, 3, "Converting masks...")
+        print("Done")
+        self.masksToRois(masks_out, image[:,:,imIndex[0]:imIndex[-1]+1])
+        self.activeMask = None
+        self.otherMask = None
+        print("Segmentation/import time:", time.time() - t)
+        self.setSplash(False, 3, 3)
+        time.sleep(0.1)
+        self.redraw()
+
     #@pyqtSlot()
     #@separate_thread_decorator # this crashes tensorflow!!
     @pyqtSlot()
     def incrementalLearnStandalone(self):
-        self.setSplash(True, 0, 4, "Calculating maps...")
-        allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
+        
+        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') != '3':
+            self.setSplash(True, 0, 4, "Calculating maps...")
+            allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
         self.setSplash(True, 1, 4, "Incremental learning...")
+
         # perform incremental learning
-        self.incrementalLearn(dataForTraining, segForTraining, meanDiceScore, True)
+        if get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality') == '3':
+            
+            saved_files_count = self.count_saved_files()
+            print(f"saved_files_count {saved_files_count}")
+            total_next_indices = sum(len(indices_dict) for indices_dict in self.incrLearnDataTrain.values())
+
+            if saved_files_count > total_next_indices:
+                self.load_saved_npz()
+                total_next_indices = sum(len(indices_dict) for indices_dict in self.incrLearnDataTrain.values())
+                print(f"files count {total_next_indices}")
+
+            self.incrementalLearn_3D(self.incrLearnDataTrain, self.incrLearnSegTrain, self.incrementalLearningAffine, self.incrLearnMeanDice, True)
+        else:
+            self.incrementalLearn(dataForTraining, segForTraining, meanDiceScore, True)
         self.setSplash(False, 3, 4, "Saving file...")
 
     def incrementalLearn(self, dataForTraining, segForTraining, meanDiceScore, setSplash=False):
@@ -3285,6 +3687,86 @@ class MuscleSegmentation(ImageShow, QObject):
             st = time.time()
             if meanDiceScore is None:
                 meanDiceScore = -1.0
+            self.model_provider.upload_model(model_str, model, meanDiceScore)
+            print(f"took {time.time() - st:.2f}s")
+        if not performed:
+            self.alert("Not enough images for incremental learning")
+
+    def incrementalLearn_3D(self, dataForTraining, segForTraining, incrementalLearningAffine, incrLearnDiceScore, setSplash=False):
+        performed = False
+        for classification_name in dataForTraining:
+            if classification_name == 'None': continue
+            print(f'Performing incremental learning for {classification_name}')
+            if len(dataForTraining[classification_name]) < GlobalConfig['IL_3D_MIN_IMAGES']:
+                print(f"Not enough images for {classification_name}")
+                continue
+            
+            performed = True
+            model_str = classification_name.split(',')[0].strip()  # get the base model string in case of multiple variants.
+                                                        # variants are identified by "Model, Variant"
+            print('model_str: ', model_str)
+            
+            try:
+                model = self.dl_segmenters[model_str]
+            except KeyError:
+                model = self.model_provider.load_model(model_str, force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
+                if model is None:
+                    self.setSplash(False, 0, 3, "Loading model...")
+                    self.alert(f"Error loading model {model_str}", 'Error')
+                    return
+                self.dl_segmenters[model_str] = model
+
+            # mean dice scores
+            diceScores = []
+
+            for imageIndex in incrLearnDiceScore[classification_name]:
+                diceScores.append(incrLearnDiceScore[classification_name][imageIndex])
+
+            diceScores = np.array(diceScores)
+            # print("diceScores array: ", diceScores)
+            meanDiceScore = np.average(diceScores) #, weights=diceScores.size)
+            print("mean dice score: ", meanDiceScore)
+
+
+            training_data = []
+            training_outputs = {}
+            training_affine = []
+
+            for imageIndex in dataForTraining[classification_name]:
+                training_data.append(dataForTraining[classification_name][imageIndex].astype(np.float32))
+
+            for imageIndex in incrementalLearningAffine[classification_name]:
+                training_affine.append(incrementalLearningAffine[classification_name][imageIndex].astype(np.float32))
+            
+            for imageIndex in segForTraining[classification_name]:
+                for sub_key in segForTraining[classification_name][0].keys(): 
+                    training_outputs[imageIndex] = {sub_key: segForTraining[classification_name][imageIndex][sub_key].astype(np.uint8)}
+
+            try:
+                gc.collect()
+                torch.cuda.empty_cache()
+                # todo: adapt bs and minTrainImages if needed
+                model.incremental_learn({'image_list': training_data, 'affine': training_affine, 'resolution': self.resolution, 'classification': classification_name},
+                                        training_outputs, bs=1, minTrainImages=GlobalConfig['IL_3D_MIN_IMAGES'])
+                gc.collect()
+                torch.cuda.empty_cache()
+                model.reset_timestamp()
+            except Exception as e:
+                print("Error during incremental learning")
+                traceback.print_exc()
+
+            # Uploading new model
+
+            # Only upload delta, to reduce model size -> only activate if rest of federated learning
+            # working properly
+            # all weights lower than threshold will be set to 0 for model compression
+            # threshold = 0.0001
+            # model = model.calc_delta(orig_model, threshold=threshold)
+            if setSplash:
+                self.setSplash(True, 2, 4, "Sending the improved model to server...")
+
+            st = time.time()
+
             self.model_provider.upload_model(model_str, model, meanDiceScore)
             print(f"took {time.time() - st:.2f}s")
         if not performed:

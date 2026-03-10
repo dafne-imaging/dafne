@@ -18,6 +18,7 @@ import numpy as np
 from voxel import DicomWriter, NiftiWriter, MedicalVolume
 from matplotlib import pyplot as plt
 from scipy import ndimage
+import nibabel as nib
 
 
 def save_dicom_masks(base_path: str, mask_dict: dict, affine, dicom_headers: list):
@@ -34,17 +35,71 @@ def save_dicom_masks(base_path: str, mask_dict: dict, affine, dicom_headers: lis
         dicom_writer.save(medical_volume, dicom_path, fname_fmt='image%04d.dcm')
 
 
-def save_npy_masks(base_path, mask_dict):
+def save_npy_masks(base_path, mask_dict, affine):
+    mask_dict["orientation"]=nib.aff2axcodes(affine)
     for name, mask in mask_dict.items():
         npy_name = os.path.join(base_path, name + '.npy')
         np.save(npy_name, mask)
 
 
-def save_npz_masks(filename, mask_dict):
+def save_npz_masks(filename, mask_dict, affine):
+    mask_dict["orientation"]=nib.aff2axcodes(affine)
     np.savez_compressed(filename, **mask_dict)
 
 
-def save_nifti_masks(base_path, mask_dict, affine):
+def save_nifti_masks_3D(base_path, next_index, mask_dict, affine_pre, affine_post, headers):
+    """
+    Save a 3D Nifti masks, properly managing orientation.
+
+    :param base_path: output folder.
+    :param next_index: numerical index to properly save the file.
+    :param mask_dict: dict of NumPy mask.
+    :param affine_pre: affine matrix 4x4 of the original image.
+    :param affine_post: affine matrix 4x4 of the mask.
+    :param headers: Header NIfTI of the original image to correctly save the mask.
+    """
+
+    for name, mask in mask_dict.items():
+        filename = f"{name}_{next_index}.nii.gz"
+        file_path = os.path.join(base_path, filename)
+
+        _mask = mask.copy()
+
+        realigned_mask = flip_image_based_on_orientation(affine_pre, affine_post, _mask)
+
+        # create nifti object
+        nifti_img = nib.Nifti1Image(realigned_mask, affine_pre, header=headers)
+
+        # Salva il file
+        nib.save(nifti_img, file_path)
+
+
+def flip_image_based_on_orientation(affine_pre, affine_post, image_data):
+    # obtain affine marix orientation
+    orient_pre = nib.aff2axcodes(affine_pre)
+    orient_post = nib.aff2axcodes(affine_post)
+
+    # list oif axes to be flipped
+    flip_axes = []
+
+    # find axes to flip
+    for i in range(3):
+        count = 0
+        for k in range(3):
+            if orient_pre[i] == orient_post[k]:
+                count += 1
+        if count < 1:
+            flip_axes.append(i)
+
+    # flip the image
+    flipped_image = image_data.copy()
+
+    for axis in flip_axes:
+        flipped_image = np.flip(flipped_image, axis=axis)
+
+    return flipped_image
+
+def save_nifti_masks(base_path, mask_dict, affine, headers=None):
     nifti_writer = NiftiWriter()
     for name, mask in mask_dict.items():
         nifti_name = os.path.join(base_path, name + '.nii.gz')

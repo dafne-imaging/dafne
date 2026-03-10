@@ -38,6 +38,7 @@ from .LogWindow import LogWindow
 
 from ..utils.resource_utils import get_resource_path
 from ..utils.open_folder import open_folder
+from dafne_dl.misc import get_model_detail
 
 DOCUMENTATION_URL = 'https://www.dafne.network/documentation/'
 
@@ -127,15 +128,36 @@ class ShortcutDialog(QDialog):
         self.show()
 
 
-def ask_confirm(text):
+def get_incremental_learn_message(toolbox_window_obj):
+    if get_model_detail(toolbox_window_obj.model_details, toolbox_window_obj.classification_combo.currentText(), 'dimensionality') == '3':
+        return f'This action will improve the model significantly.\n' \
+            f'At least {config.GlobalConfig["IL_3D_MIN_IMAGES"]} images are required.\n' \
+            f'Proceed with caution: It might take hours. Continue?'
+    else:
+        return f'This action will improve the model significantly.\n' \
+            f'At least {config.GlobalConfig["IL_MIN_SLICES"]} slices are required.\n' \
+            f'It might take a few minutes. Continue?'   
+
+def ask_confirm(message):
+    """
+    Decorator that shows a confirmation dialog with the provided message.
+    If the message is a callable (function), it will be executed to calculate the message dynamically.
+    """
     def decorator_confirm(func):
         @functools.wraps(func)
         def wrapper(obj, *args, **kwargs):
-            if obj.confirm(text):
-                func(obj, *args, **kwargs)
+            # Se message è una funzione, eseguiamo la funzione per ottenere il messaggio dinamico
+            if callable(message):
+                message_text = message(obj)  # Chiamiamo la funzione per calcolare il messaggio
+            else:
+                message_text = message  # Se è una stringa statica, usiamola così com'è
+
+            # Mostra il pop-up di conferma
+            if obj.confirm(message_text):  # Presumo che `obj.confirm` faccia qualcosa per confermare
+                return func(obj, *args, **kwargs)  # Esegui la funzione se l'utente conferma
+            return None
 
         return wrapper
-
     return decorator_confirm
 
 
@@ -439,7 +461,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         # move window to side of main screen
         self.move(QApplication.primaryScreen().geometry().x(),
                   int(QApplication.primaryScreen().geometry().height()/2 - self.rect().center().y()))
-
+    
+        
     def sizeHint(self):
         return QSize(self.scrollAreaWidgetContents.minimumSize().width() + 16,
                      max(self.scrollAreaWidgetContents.sizeHint().height()+50,
@@ -969,13 +992,25 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot()
     def on_do_segmentation(self, *args, **kwargs):
+        # print('self.muscle_segmentation_window.imList: ', self.muscle_segmentation_window.imList)
         cur_slice = self.muscle_segmentation_window.curImage
         min_slice = 0
         max_slice = len(self.muscle_segmentation_window.imList)-1
-        accept, values = GenericInputDialog.show_dialog('Define slice range', [
-                GenericInputDialog.IntSpinInput('Start slice', cur_slice, min_slice, max_slice),
-                GenericInputDialog.IntSpinInput('End slice', cur_slice, min_slice, max_slice)
+
+        # print(self.muscle_segmentation_window.dictionary con info [self.model_details].data_dimensionality)
+
+        if get_model_detail(self.model_details, self.classification_combo.currentText(), 'dimensionality') == '3':
+            accept, values = GenericInputDialog.show_dialog('Define slice range', [
+                GenericInputDialog.IntSpinInput('Min slice', 0, min_slice, max_slice),
+                GenericInputDialog.IntSpinInput('Max slice', max_slice, min_slice, max_slice)
             ], self, message='Warning! This might replace the existing segmentation!')
+        
+        else:
+            accept, values = GenericInputDialog.show_dialog('Define slice range', [
+                    GenericInputDialog.IntSpinInput('Start slice', cur_slice, min_slice, max_slice),
+                    GenericInputDialog.IntSpinInput('End slice', cur_slice, min_slice, max_slice)
+                ], self, message='Warning! This might replace the existing segmentation!')
+        
         if accept:
             self.do_autosegment.emit(values[0], values[1])
 
@@ -1119,12 +1154,17 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.radiomics_calc.emit(file_out, radiomics_props[0], radiomics_props[1], radiomics_props[2])
 
 
-    @pyqtSlot()
-    @ask_confirm(f'This action will improve the model through incremental learning.\n' +
-                 f'At least {config.GlobalConfig["IL_MIN_SLICES"]} slices are required for the operation.\n' +
-                 f'It might take a few minutes. Continue?')
+    @pyqtSlot()      
+    @ask_confirm(get_incremental_learn_message)  # Usa la funzione dinamica
     def do_incremental_learn(self):
-        self.incremental_learn.emit()
+        self.incremental_learn.emit()  # Esegui l'azione dopo la conferma
+
+    # @pyqtSlot()
+    # @ask_confirm(f'This action will improve the model through incremental learning.\n' +
+    #              f'At least {config.GlobalConfig["IL_MIN_SLICES"]} slices are required for the operation.\n' +
+    #              f'It might take a few minutes. Continue?')
+    # def do_incremental_learn(self):
+    #     self.incremental_learn.emit()
 
     def interpolate_emit(self):
         if self.interpolation_style_both.isChecked():

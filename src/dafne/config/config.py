@@ -63,6 +63,7 @@ defaults = {
     'SPLIT_LATERALITY': (True, 'bool', 'Separate L/R in autosegment'),
     'FORCE_MODEL_DOWNLOAD': (False, 'bool', 'Force download of models from server'),
     'IL_MIN_SLICES': (5, 'int_spin', 1, 50, 1, None),
+    'IL_3D_MIN_IMAGES': (10, 'int_spin', 1, 50, 1, None),
     'DO_INCREMENTAL_LEARNING':  (True, 'bool', None),
     'ROI_CIRCLE_SIZE':  (2, 'int', 1, 200, 1, None),
     'SIMPLIFIED_ROI_POINTS':  (20, 'int', 1, 200, 1, None),
@@ -100,6 +101,7 @@ static_config = {
     'MODEL_PATH': os.path.join(app_dirs.user_data_dir, 'models'),
     'TEMP_UPLOAD_DIR': os.path.join(app_dirs.user_cache_dir, 'upload_temp'),
     'TEMP_DIR': os.path.join(app_dirs.user_cache_dir, 'temp'),
+    'NUMPY_FILE_3D': os.path.join(app_dirs.user_cache_dir, 'temp_files'),
     'ENABLE_NIFTI': True,
     'OUTPUT_LOG_FILE': os.path.join(app_dirs.user_log_dir, 'dafne_output.log'),
     'ERROR_LOG_FILE': os.path.join(app_dirs.user_log_dir, 'dafne_error.log'),
@@ -117,6 +119,7 @@ os.makedirs(app_dirs.user_log_dir, exist_ok=True)
 os.makedirs(GlobalConfig['MODEL_PATH'], exist_ok=True)
 os.makedirs(GlobalConfig['TEMP_UPLOAD_DIR'], exist_ok=True)
 os.makedirs(GlobalConfig['TEMP_DIR'], exist_ok=True)
+os.makedirs(GlobalConfig['NUMPY_FILE_3D'], exist_ok=True)
 
 
 def validate_value(key, value):

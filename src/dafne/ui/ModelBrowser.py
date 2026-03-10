@@ -248,7 +248,21 @@ def test():
                 'Link': 'https://www.google.com/'
             }
         },
-        'Brain': { }
+        'Brain': { },
+        'aschoplex': {
+            'categories': ['CHP'],
+            'variants': [""],
+            'dimensionality': "3",
+            'model_name': 'aschoplex',
+            'info': {
+                'Description': 'ASCHOPLEX: automatic segmentation of Choroid Plexus model',
+                'Author':	'Visani Valentina',
+                'Modality': 'MRI',
+                'Orientation': '', #'Axial',
+                "Link": '',
+            },
+        }
+        
     }
     selected_list = ['Leg']
     print(show_model_browser(selected_list, model_details))
