@@ -999,7 +999,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         # print(self.muscle_segmentation_window.dictionary con info [self.model_details].data_dimensionality)
 
-        if get_model_detail(self.model_details, self.classification_combo.currentText(), 'dimensionality') == '3':
+        if str(get_model_detail(self.model_details, self.classification_combo.currentText(), 'dimensionality')) == '3':
             accept, values = GenericInputDialog.show_dialog('Define slice range', [
                 GenericInputDialog.IntSpinInput('Min slice', 0, min_slice, max_slice),
                 GenericInputDialog.IntSpinInput('Max slice', max_slice, min_slice, max_slice)

@@ -5,6 +5,7 @@ from copy import copy
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QDialog, QTreeWidgetItem, QApplication, QTableWidgetItem
+from voxel.orientation import orientation_nib_to_standard
 
 from .ModelBrowserUI import Ui_ModelBrowser
 
@@ -144,6 +145,14 @@ class ModelBrowser(QDialog, Ui_ModelBrowser):
 
         self.details_table.setRowCount(0)
         self.add_table_row('Name', model_name)
+        dimensionality = self.details_dict[model_name].get('dimensionality', '2')
+        self.add_table_row('Dimensionality', dimensionality + 'D')
+        try:
+            orientation = self.details_dict[model_name]['orientation']
+        except KeyError:
+            pass
+        else:
+            self.add_table_row('Default orientation', orientation)
         try:
             info = self.details_dict[model_name]['info']
         except KeyError:
