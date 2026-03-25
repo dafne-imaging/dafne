@@ -3623,7 +3623,12 @@ class MuscleSegmentation(ImageShow, QObject):
     #@separate_thread_decorator # this crashes tensorflow!!
     @pyqtSlot()
     def incrementalLearnStandalone(self):
-        
+
+        model = self.get_model_for_class(self.classifications[int(self.curImage)])
+        if not model.can_incremental_learn():
+            self.alert("This model cannot perform incremental learning")
+            return
+
         if self._is_current_model_3D():
             self.setSplash(True, 0, 4, "Calculating maps...")
             allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
@@ -3647,6 +3652,20 @@ class MuscleSegmentation(ImageShow, QObject):
             self.incrementalLearn(dataForTraining, segForTraining, meanDiceScore, True)
         self.setSplash(False, 3, 4, "Saving file...")
 
+    def get_model_for_class(self, classification_name):
+        model_str = classification_name.split(',')[0].strip()  # get the base model string in case of multiple variants.
+        # variants are identified by "Model, Variant"
+        try:
+            model = self.dl_segmenters[model_str]
+        except KeyError:
+            model = self.model_provider.load_model(model_str, force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
+            if model is None:
+                self.setSplash(False, 0, 3, "Loading model...")
+                self.alert(f"Error loading model {model_str}", 'Error')
+                return
+            self.dl_segmenters[model_str] = model
+        return model
+
     def incrementalLearn(self, dataForTraining, segForTraining, meanDiceScore, setSplash=False):
         performed = False
         for classification_name in dataForTraining:
@@ -3656,17 +3675,12 @@ class MuscleSegmentation(ImageShow, QObject):
                 print(f"Not enough slices for {classification_name}")
                 continue
             performed = True
-            model_str = classification_name.split(',')[0].strip()  # get the base model string in case of multiple variants.
-                                                        # variants are identified by "Model, Variant"
-            try:
-                model = self.dl_segmenters[model_str]
-            except KeyError:
-                model = self.model_provider.load_model(model_str, force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
-                if model is None:
-                    self.setSplash(False, 0, 3, "Loading model...")
-                    self.alert(f"Error loading model {model_str}", 'Error')
-                    return
-                self.dl_segmenters[model_str] = model
+
+            model = self.get_model_for_class(classification_name)
+
+            if not model.can_incremental_learn():
+                print("This model cannot perform incremental learning")
+                return
             training_data = []
             training_outputs = []
             for imageIndex in dataForTraining[classification_name]:
@@ -3711,19 +3725,10 @@ class MuscleSegmentation(ImageShow, QObject):
                 continue
             
             performed = True
-            model_str = classification_name.split(',')[0].strip()  # get the base model string in case of multiple variants.
-                                                        # variants are identified by "Model, Variant"
-            print('model_str: ', model_str)
-            
-            try:
-                model = self.dl_segmenters[model_str]
-            except KeyError:
-                model = self.model_provider.load_model(model_str, force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
-                if model is None:
-                    self.setSplash(False, 0, 3, "Loading model...")
-                    self.alert(f"Error loading model {model_str}", 'Error')
-                    return
-                self.dl_segmenters[model_str] = model
+            model = self.get_model_for_class(classification_name)
+            if not model.can_incremental_learn():
+                print("This model cannot perform incremental learning")
+                return
 
             # mean dice scores
             diceScores = []
