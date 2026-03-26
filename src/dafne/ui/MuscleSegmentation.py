@@ -3624,14 +3624,15 @@ class MuscleSegmentation(ImageShow, QObject):
     @pyqtSlot()
     def incrementalLearnStandalone(self):
 
-        model = self.get_model_for_class(self.classifications[int(self.curImage)])
+        model, model_str = self.get_model_for_class(self.classifications[int(self.curImage)])
         if not model.can_incremental_learn():
             self.alert("This model cannot perform incremental learning")
             return
 
         if self._is_current_model_3D():
             self.setSplash(True, 0, 4, "Calculating maps...")
-            allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
+
+        allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
         self.setSplash(True, 1, 4, "Incremental learning...")
 
         # perform incremental learning
@@ -3664,7 +3665,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.alert(f"Error loading model {model_str}", 'Error')
                 return
             self.dl_segmenters[model_str] = model
-        return model
+        return model, model_str
 
     def incrementalLearn(self, dataForTraining, segForTraining, meanDiceScore, setSplash=False):
         performed = False
@@ -3676,7 +3677,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 continue
             performed = True
 
-            model = self.get_model_for_class(classification_name)
+            model, model_str = self.get_model_for_class(classification_name)
 
             if not model.can_incremental_learn():
                 print("This model cannot perform incremental learning")
@@ -3725,7 +3726,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 continue
             
             performed = True
-            model = self.get_model_for_class(classification_name)
+            model, model_str = self.get_model_for_class(classification_name)
             if not model.can_incremental_learn():
                 print("This model cannot perform incremental learning")
                 return
