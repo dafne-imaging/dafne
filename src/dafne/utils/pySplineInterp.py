@@ -24,8 +24,6 @@ from .polyToMask import polyToMask
 import scipy.ndimage as ndimage
 import time
 #import similaritymeasures
-import random
-
 
 def polyToMaskFast(poly_verts, imageSize):
     x, y = np.meshgrid(np.arange(imageSize[1]), np.arange(0,imageSize[0]))
@@ -348,50 +346,52 @@ class SplineInterpROIClass:
 
 
     def getSimplifiedSpline(self): # simplifies the spline based on useful knots
-    
-        def isNear(point, splinePart, tolerance):
-            x = splinePart[0]
-            y = splinePart[1]
-            tolsq = tolerance**2
-            for p in range(len(x)):
-                if (point[0] - x[p])**2 + (point[1]-y[p])**2 <= tolsq: return True
-            return False
-        
-        def nearestPoint(point, splinePart):
-            x = splinePart[0]
-            y = splinePart[1]
-            dist = 1000
-            nearest = None
-            for p in range(len(x)):
-                d = (point[0] - x[p])**2 + (point[1]-y[p])**2
-                if d < dist:
-                    dist = d
-                    nearest = (x[p], y[p])
-            return nearest
+
+        def isNear(point, spPart, tolerance):
+            x, y = spPart
+            if len(x) == 0:
+                # Degenerate spline part: the two bracketing neighbors are sub-pixel
+                # apart, so this knot is sandwiched between essentially identical
+                # points and is safe to remove.
+                return True
+            tolsq = tolerance ** 2
+            dx = point[0] - x
+            dy = point[1] - y
+            return bool(np.any(dx * dx + dy * dy <= tolsq))
 
         newSpline = SplineInterpROIClass()
-        #curve = self.getCurve()
-        #newSpline.addKnots(curve)
         newSpline.addKnots(self.knots)
         optimizeFurther = True
         while optimizeFurther:
             optimizeFurther = False
-            if len(newSpline.knots) < 5: return newSpline
-            knotRange = list(range(len(newSpline.knots)))
-            random.shuffle(knotRange)
-            #for i,k in enumerate(newSpline.knots):
-            for i in knotRange:
+            if len(newSpline.knots) < 5:
+                return newSpline
+            knots_arr = np.array(newSpline.knots)
+            # Crowding score: minimum distance to either circular neighbor.
+            # Interior knots of a cluster score lowest and are tried first,
+            # which lets the degenerate-spline-part check above handle them.
+            prev_knots = np.roll(knots_arr, 1, axis=0)
+            next_knots = np.roll(knots_arr, -1, axis=0)
+            crowding = np.minimum(
+                np.linalg.norm(knots_arr - prev_knots, axis=1),
+                np.linalg.norm(knots_arr - next_knots, axis=1),
+            )
+            for i in np.argsort(crowding):  # most crowded first
+                i = int(i)
                 k = newSpline.getKnot(i)
-                newKnots = []
-                # get the spline part missing the current knot
-                newKnots.append(newSpline.getKnot(i-2))
-                newKnots.append(newSpline.getKnot(i-1))
-                newKnots.append(newSpline.getKnot(i+1))
-                newKnots.append(newSpline.getKnot(i+2))
+                newKnots = [
+                    newSpline.getKnot(i - 2),
+                    newSpline.getKnot(i - 1),
+                    newSpline.getKnot(i + 1),
+                    newSpline.getKnot(i + 2),
+                ]
                 spPart = newSpline.getSplinePart(newKnots)
-                #nearest = nearestPoint(k, spPart)
-                if isNear(k, spPart, 0.5):
-                    #print("Removing knot", i)
+                # For clustered knots (< 3px to nearest neighbor), scale the removal
+                # tolerance to the crowding distance so that interior cluster knots are
+                # caught even when npoints > 0 (i.e. the degenerate-spline check above
+                # doesn't fire). Well-spaced knots keep the original 0.5px tolerance.
+                tol = float(crowding[i]) if crowding[i] < 3.0 else 0.5
+                if isNear(k, spPart, tol):
                     optimizeFurther = True
                     newSpline.removeKnot(i)
                     break

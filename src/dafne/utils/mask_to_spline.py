@@ -8,143 +8,40 @@ import numpy as np
 
 from .pySplineInterp import SplineInterpROIClass
 
-MAX_POINTS = 10000
 MAX_CONTOURS = 100
 
-# sometimes this function is not correctly packaged, so checking it now prevents a crash later
-flood_exist_check = skimage.segmentation.flood
-
-def get_point_context(img, point):
-    x, y = point
-    context_coords = []
-    context_coords.append((x - 1, y - 1))
-    context_coords.append((x - 1, y))
-    context_coords.append((x - 1, y + 1))
-    context_coords.append((x, y + 1))
-    context_coords.append((x + 1, y + 1))
-    context_coords.append((x + 1, y))
-    context_coords.append((x + 1, y - 1))
-    context_coords.append((x, y - 1))
-    context = []
-    for c in context_coords:
-        try:
-            context.append(img[c])
-        except IndexError:
-            context.append(0)
-    # img[point] = 0 # unsure about this
-    return context_coords, context
-
-
-def get_next_coord(context_coords, context):
-    bg_found = not context[0]
-
-    def examine_context():
-        nonlocal bg_found
-        for i, val in enumerate(context):
-            if bg_found and val:
-                return context_coords[i]
-            elif not val:
-                bg_found = True
-        return None
-
-    next_coord = examine_context()
-    if next_coord is None:
-        # if we are here, we have not found a next coord.
-        # it means we have done a whole circle around the initial point.
-        # we must have found a bg point by now, if not, we have a problem
-        if not bg_found:
-            raise ValueError('Initial point was inside the shape')
-
-        # we have found a bg point, but we have not found a fg point.
-        # rerun the procedure, but now the bg point is already found
-        next_coord = examine_context()
-        if next_coord is None:
-            raise ValueError('Initial point was outside the shape')
-
-    return next_coord
-
-
-def find_contour(mask):
-    # the first point needs to be more reproducible
-    # first_point = np.unravel_index(np.argmax(mask > 0), mask.shape)
-    # contour_list = [first_point]
-
-    # calculate center of mass
-    label = skimage.measure.label(mask, connectivity=1)
-    props = skimage.measure.regionprops(label)
-    centerx = int(props[0].centroid[0])
-    centery = int(props[0].centroid[1])
-    first_point = None
-    last_x = centerx
-    last_y = centery
-    active_point_found = False
-    for x in range(centerx, mask.shape[0]):
-        for y in range(centery, mask.shape[1]):
-            if mask[x, y]:
-                active_point_found = True
-            else:
-                if active_point_found:
-                    first_point = (last_x, last_y)  # the first point is the last coordinate where there was a signal
-                    break
-            last_x = x
-            last_y = y
-    if first_point is None:
-        first_point = np.unravel_index(np.argmax(mask > 0), mask.shape)
-
-    contour_list = [first_point]
-
-    context_coords, context = get_point_context(mask, first_point)
-    next_point = get_next_coord(context_coords, context)
-    mask[next_point] = True  # reset the first point so we can find it again
-    while next_point != first_point:
-        contour_list.append(next_point)
-        if len(contour_list) > MAX_POINTS:
-            raise ValueError('Too many points')
-        # print(len(contour_list))
-        context_coords, context = get_point_context(mask, next_point)
-        # print(context)
-        # print(context_coords)
-        next_point = get_next_coord(context_coords, context)
-
-    return contour_list
-
-
 def find_all_contours(original_mask, erode=True):
-    contours = []
-    mask = original_mask.copy()
+    mask = original_mask.copy().astype(bool)
     if erode:
         mask = ndimage.binary_erosion(mask)
     mask = ndimage.binary_dilation(mask)
-    n_contours = 0
-    while np.any(mask):
-        try:
-            contour_points = find_contour(mask)
-        except ValueError as e:
-            print('Error finding contour')
-            break
-        contours.append(contour_points)
-        contour_image = np.zeros_like(mask)
-        for p in contour_points:
-            contour_image[p] = 1
-        flood_mask = skimage.segmentation.flood(contour_image, (0, 0), connectivity=1)
-        mask = np.logical_xor(mask, np.logical_not(flood_mask))
-        n_contours += 1
-        if n_contours > MAX_CONTOURS:
-            print('Too many contours')
-            break
+
+    if not np.any(mask):
+        return []
+
+    raw_contours = skimage.measure.find_contours(mask, level=0.5)
+
+    if len(raw_contours) > MAX_CONTOURS:
+        print('Too many contours')
+        raw_contours = raw_contours[:MAX_CONTOURS]
+
+    contours = []
+    for raw_c in raw_contours:
+        # find_contours returns (row, col) float arrays; convert to list of tuples
+        contour = [tuple(p) for p in raw_c]
+        if len(contour) >= 3:
+            contours.append(contour)
 
     return contours
 
 
 def calc_contour_distance(contour1, contour2):
-    distances = []
-    contour2_step = float(len(contour2)) / len(contour1)
-    for i, p in enumerate(contour1):
-        contour2_index = int(i * contour2_step)
-        # print(len(contour2), contour2_index, p, contour2[(contour2_index) % len(contour2)])
-        distances.append(np.linalg.norm(np.array(p) - np.array(contour2[contour2_index])))
-
-    return np.mean(distances), distances
+    arr1 = np.array(contour1)
+    arr2 = np.array(contour2)
+    contour2_step = len(arr2) / len(arr1)
+    indices = (np.arange(len(arr1)) * contour2_step).astype(int)
+    distances = np.linalg.norm(arr1 - arr2[indices], axis=1)
+    return float(distances.mean()), distances
 
 
 def invert_point(p):
@@ -152,7 +49,7 @@ def invert_point(p):
 
 
 def contour_to_spline(contour, precision=1):
-    MAX_KNOTS = 20
+    MAX_KNOTS = int(len(contour)/8) # make up to 1 knot every 8 contour points
 
     if len(contour) < 8:
         return None
@@ -173,8 +70,15 @@ def contour_to_spline(contour, precision=1):
     mean_d, distances = calc_contour_distance(contour, new_contour)
 
     # add up to MAX_KNOTS
+    exhausted_segments = []  # (start, end) contour index pairs too short to subdivide
     for n_knots in range(MAX_KNOTS):
-        # print(distances)
+        # Re-apply zeroing for segments already known to be unsplittable
+        for s, e in exhausted_segments:
+            distances[s:e] = 0
+
+        if not np.any(distances):
+            break
+
         max_d_index = np.argmax(distances)
         # Find insertion point in the added indices list
         insertion_point = bisect(contour_added_indices, max_d_index)
@@ -186,14 +90,15 @@ def contour_to_spline(contour, precision=1):
         else:
             end_handle_point = contour_added_indices[insertion_point]
         if end_handle_point - start_handle_point < 2:
-            # we cannot add a knot here
-            break
+            # segment too short to subdivide; skip it and try other segments
+            exhausted_segments.append((start_handle_point, end_handle_point))
+            distances[start_handle_point:end_handle_point] = 0
+            continue
         spline_out.insertKnot(insertion_point, contour[start_handle_point + 1])
         current_d = 1000
         min_point = start_handle_point + 1
         for test_point in range(start_handle_point + 1, end_handle_point):
             if test_point in contour_added_indices:
-                print('test point already in contour_added_indices')
                 continue
             spline_out.replaceKnot(insertion_point, contour[test_point])
 
@@ -207,10 +112,24 @@ def contour_to_spline(contour, precision=1):
 
         contour_added_indices.insert(insertion_point, min_point)
         spline_out.replaceKnot(insertion_point, contour[min_point])
-        # exit if average distance is less than 1px
+        # exit if average distance is less than precision
         if current_d < precision:
             break
-    return spline_out
+
+    # Pruning pass: remove knots that don't contribute beyond the required precision.
+    # Iterating backwards keeps indices stable as knots are removed.
+    i = len(contour_added_indices) - 1
+    while i >= 0 and len(spline_out.knots) > 4:
+        spline_out.removeKnot(i)
+        test_curve = spline_out.getCurve(shift_curve=True)
+        keep_removed = test_curve is not None and calc_contour_distance(contour, test_curve)[0] < precision
+        if keep_removed:
+            contour_added_indices.pop(i)
+        else:
+            spline_out.insertKnot(i, contour[contour_added_indices[i]])
+        i -= 1
+
+    return spline_out.getSimplifiedSpline()
 
 
 def mask_to_splines(mask, precision=1):
