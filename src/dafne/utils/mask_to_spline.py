@@ -9,6 +9,7 @@ import numpy as np
 from .pySplineInterp import SplineInterpROIClass
 
 MAX_CONTOURS = 100
+MAX_FIT_PASSES = 3
 
 def find_all_contours(original_mask, erode=True):
     mask = original_mask.copy().astype(bool)
@@ -49,7 +50,7 @@ def invert_point(p):
 
 
 def contour_to_spline(contour, precision=1):
-    MAX_KNOTS = max(20, int(len(contour)/20)) # make up to 1 knot every 20 contour points on average
+    MAX_KNOTS = max(20, int(len(contour) / 10))  # up to 1 knot every 10 contour points
 
     if len(contour) < 8:
         return None
@@ -67,67 +68,119 @@ def contour_to_spline(contour, precision=1):
     if new_contour is None:
         return None
 
-    mean_d, distances = calc_contour_distance(contour, new_contour)
+    # Convert once; all distance calls reuse this array.
+    arr_contour = np.array(contour)
 
-    # add up to MAX_KNOTS
-    exhausted_segments = []  # (start, end) contour index pairs too short to subdivide
-    for n_knots in range(MAX_KNOTS):
-        # Re-apply zeroing for segments already known to be unsplittable
-        for s, e in exhausted_segments:
-            distances[s:e] = 0
+    for pass_num in range(MAX_FIT_PASSES):
+        # Recompute distances from the current spline at the start of each pass.
+        # After pruning/simplification the spline state changes, so stale distances
+        # from the previous pass would send new knots to the wrong locations.
+        cur_curve = spline_out.getCurve(shift_curve=True)
+        if cur_curve is None:
+            break
+        mean_d, distances = calc_contour_distance(arr_contour, cur_curve)
 
-        if not np.any(distances):
+        # Early exit: spline already fits within tolerance.
+        if mean_d < precision and float(distances.max()) < precision * 3:
             break
 
-        max_d_index = np.argmax(distances)
-        # Find insertion point in the added indices list
-        insertion_point = bisect(contour_added_indices, max_d_index)
+        # Rebuild the index set from the current knot list so it stays in sync
+        # with spline_out across passes.
+        contour_added_set = set(contour_added_indices)
 
-        # try adding a knot at any point between the previous and the next index
-        start_handle_point = contour_added_indices[insertion_point - 1]
-        if insertion_point == len(contour_added_indices):
-            end_handle_point = len(contour) - 1
-        else:
-            end_handle_point = contour_added_indices[insertion_point]
-        if end_handle_point - start_handle_point < 2:
-            # segment too short to subdivide; skip it and try other segments
-            exhausted_segments.append((start_handle_point, end_handle_point))
-            distances[start_handle_point:end_handle_point] = 0
-            continue
-        spline_out.insertKnot(insertion_point, contour[start_handle_point + 1])
-        current_d = 1000
-        min_point = start_handle_point + 1
-        for test_point in range(start_handle_point + 1, end_handle_point):
-            if test_point in contour_added_indices:
+        # add up to MAX_KNOTS
+        exhausted_segments = []  # (start, end) contour index pairs too short to subdivide
+        for n_knots in range(MAX_KNOTS):
+            for s, e in exhausted_segments:
+                distances[s:e] = 0
+
+            if not np.any(distances):
+                break
+
+            max_d_index = int(np.argmax(distances))
+            insertion_point = bisect(contour_added_indices, max_d_index)
+
+            start_handle_point = contour_added_indices[insertion_point - 1]
+            if insertion_point == len(contour_added_indices):
+                end_handle_point = len(contour) - 1
+            else:
+                end_handle_point = contour_added_indices[insertion_point]
+            if end_handle_point - start_handle_point < 2:
+                exhausted_segments.append((start_handle_point, end_handle_point))
+                distances[start_handle_point:end_handle_point] = 0
                 continue
-            spline_out.replaceKnot(insertion_point, contour[test_point])
 
-            # calculate the new average distance of the whole path
-            new_d, new_distances = calc_contour_distance(contour, spline_out.getCurve(shift_curve=True))
-            # if the new distance is smaller than the one found, save the new distance and the new point
-            if new_d < current_d:
-                current_d = new_d
-                min_point = test_point
-                distances = new_distances
+            # Context knots are fixed for every candidate in this segment.
+            k_prev2 = spline_out.getKnot(insertion_point - 2)
+            k_prev1 = spline_out.getKnot(insertion_point - 1)
+            k_next1 = spline_out.getKnot(insertion_point + 1)
+            k_next2 = spline_out.getKnot(insertion_point + 2)
 
-        contour_added_indices.insert(insertion_point, min_point)
-        spline_out.replaceKnot(insertion_point, contour[min_point])
-        # exit if average distance is less than precision
-        if current_d < precision:
-            break
+            # Distances outside the segment don't change regardless of which candidate
+            # we pick, so compute their sum once and reuse it.
+            local_slice = slice(start_handle_point, end_handle_point)
+            baseline_sum = float(distances[:start_handle_point].sum()
+                                 + distances[end_handle_point:].sum())
+            local_contour_arr = arr_contour[local_slice]
 
-    # Pruning pass: remove knots that don't contribute beyond the required precision.
-    # Iterating backwards keeps indices stable as knots are removed.
-    i = len(contour_added_indices) - 1
-    while i >= 0 and len(spline_out.knots) > 4:
-        spline_out.removeKnot(i)
-        test_curve = spline_out.getCurve(shift_curve=True)
-        keep_removed = test_curve is not None and calc_contour_distance(contour, test_curve)[0] < precision
-        if keep_removed:
-            contour_added_indices.pop(i)
-        else:
-            spline_out.insertKnot(i, contour[contour_added_indices[i]])
-        i -= 1
+            current_d = float('inf')
+            min_point = start_handle_point + 1
+            best_local_distances = None
+
+            for test_point in range(start_handle_point + 1, end_handle_point):
+                if test_point in contour_added_set:
+                    continue
+
+                new_knot = contour[test_point]
+
+                # Only compute the two spline parts that actually change when this
+                # candidate knot is inserted.  getSplinePart uses only its arguments
+                # (no instance state), so this is safe without touching spline_out.
+                x1, y1 = spline_out.getSplinePart([k_prev2, k_prev1, new_knot, k_next1])
+                x2, y2 = spline_out.getSplinePart([k_prev1, new_knot, k_next1, k_next2])
+                local_x = np.concatenate([x1, x2])
+                local_y = np.concatenate([y1, y2])
+                if len(local_x) == 0:
+                    continue  # degenerate (sub-pixel knot spacing)
+
+                local_curve = np.column_stack([local_x, local_y])
+                _, local_d_arr = calc_contour_distance(local_contour_arr, local_curve)
+                new_d = (baseline_sum + float(local_d_arr.sum())) / len(contour)
+
+                if new_d < current_d:
+                    current_d = new_d
+                    min_point = test_point
+                    best_local_distances = local_d_arr
+
+            # Insert the winner once — no replaceKnot/getCurve inside the loop.
+            spline_out.insertKnot(insertion_point, contour[min_point])
+            contour_added_indices.insert(insertion_point, min_point)
+            contour_added_set.add(min_point)
+
+            if best_local_distances is not None:
+                distances[local_slice] = best_local_distances
+
+            if current_d < precision:
+                break
+
+        # Pruning pass: remove knots that don't contribute beyond the required precision.
+        # Iterating backwards keeps indices stable as knots are removed.
+        # Guard on both mean AND max distance: the mean alone can mask a large local spike
+        # (e.g. 4 points jumping to 8px in a 400-point contour changes the mean by < 0.1px).
+        i = len(contour_added_indices) - 1
+        while i >= 0 and len(spline_out.knots) > 4:
+            spline_out.removeKnot(i)
+            test_curve = spline_out.getCurve(shift_curve=True)
+            if test_curve is not None:
+                mean_d, d_arr = calc_contour_distance(arr_contour, test_curve)
+                keep_removed = mean_d < precision and float(d_arr.max()) < precision * 3
+            else:
+                keep_removed = False
+            if keep_removed:
+                contour_added_indices.pop(i)
+            else:
+                spline_out.insertKnot(i, contour[contour_added_indices[i]])
+            i -= 1
 
     return spline_out.getSimplifiedSpline()
 

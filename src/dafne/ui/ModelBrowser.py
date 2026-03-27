@@ -147,6 +147,8 @@ class ModelBrowser(QDialog, Ui_ModelBrowser):
         self.add_table_row('Name', model_name)
         dimensionality = self.details_dict[model_name].get('dimensionality', '2')
         self.add_table_row('Dimensionality', dimensionality + 'D')
+        is_federated = self.details_dict[model_name].get('can_incremental_learn', True)
+        self.add_table_row('Federated', 'Yes' if is_federated else 'No')
         try:
             orientation = self.details_dict[model_name]['orientation']
         except KeyError:
