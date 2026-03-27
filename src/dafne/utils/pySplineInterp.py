@@ -360,7 +360,7 @@ class SplineInterpROIClass:
             return bool(np.any(dx * dx + dy * dy <= tolsq))
 
         newSpline = SplineInterpROIClass()
-        newSpline.addKnots(self.knots)
+        newSpline.addKnots(self.knots, checkProximity=False)
         optimizeFurther = True
         while optimizeFurther:
             optimizeFurther = False

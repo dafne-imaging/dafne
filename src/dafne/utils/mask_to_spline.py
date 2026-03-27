@@ -49,7 +49,7 @@ def invert_point(p):
 
 
 def contour_to_spline(contour, precision=1):
-    MAX_KNOTS = int(len(contour)/8) # make up to 1 knot every 8 contour points
+    MAX_KNOTS = max(20, int(len(contour)/20)) # make up to 1 knot every 20 contour points on average
 
     if len(contour) < 8:
         return None
