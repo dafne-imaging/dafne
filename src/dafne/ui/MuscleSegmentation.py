@@ -844,8 +844,8 @@ class MuscleSegmentation(ImageShow, QObject):
         return final_mask
 
     def _is_current_model_3D(self):
-        model_dimensionality = get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality')
-        return str(model_dimensionality) == '3'
+        model, _ = self.get_model_for_class(self.classifications[int(self.curImage)])
+        return model.data_dimensionality == 3
 
     def calcOutputData(self, setSplash=False):
         imSize = self.image.shape
@@ -3568,7 +3568,10 @@ class MuscleSegmentation(ImageShow, QObject):
 
         image = self.medical_volume[:,:,imIndex[0]:imIndex[-1]+1]
         image = ensure_compatible_orientation(image, segmenter.get_metadata())
-        inputData = {'image': image.volume.astype(np.float32), 'affine': self.affine, 'resolution': self.resolution, 
+        print("Resolution", self.resolution)
+        affine = self.affine or np.diag([*self.resolution, 1.0])
+        #affine = self.affine or np.diag([1.0, 1.0, 1.0, 1.0])
+        inputData = {'image': image.volume.astype(np.float32), 'affine': affine, 'resolution': self.resolution,
                     'split_laterality': False, 'classification': class_str}
                 
         print("Segmenting image...")
@@ -3581,6 +3584,8 @@ class MuscleSegmentation(ImageShow, QObject):
     def doSegmentation(self):
         # run the segmentation
         imIndex = int(self.curImage)
+
+        print("2D Segmentation")
 
         t = time.time()
         masks_out=self.getSegmentedMasks(imIndex, True, True)
@@ -3601,6 +3606,8 @@ class MuscleSegmentation(ImageShow, QObject):
         # run the segmentation
         image=self.medical_volume
         imIndex = range(min_slice,max_slice+1)
+
+        print("3D segmentation")
 
         t = time.time()
         masks_out=self.getSegmentedMasks_3D(imIndex, True, True)
