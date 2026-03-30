@@ -44,6 +44,7 @@ def save_npy_masks(base_path, mask_dict, affine):
 
 def save_npz_masks(filename, mask_dict, affine):
     mask_dict["orientation"]=nib.aff2axcodes(affine)
+    mask_dict['affine'] = affine
     np.savez_compressed(filename, **mask_dict)
 
 

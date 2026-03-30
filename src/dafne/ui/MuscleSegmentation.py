@@ -259,6 +259,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.incrLearnSegTrain = {}
         self.incrementalLearningAffine = {}
         self.incrLearnMeanDice = {}
+        self.bundle_saved_for_IL = False
 
     @pyqtSlot(list, str)
     def show_news(self, news, index_address):
@@ -420,6 +421,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.rotationDelta = None
         self.scroll_debounce_time = float(GlobalConfig['MOUSE_SCROLL_DEBOUNCE_TIME'])/1000.0
         self.threshold_mask = None
+
+        self.bundle_saved_for_IL = False
 
 
     #############################################################################################
@@ -809,7 +812,7 @@ class MuscleSegmentation(ImageShow, QObject):
     def process_orientation(self, orientation, segm):
         """Verify category of orientation"""
 
-        def transpose_mask(self, case, segm):
+        def transpose_mask(case, segm):
             """Transpose the stack based on the orientation."""
             if case == "Case axial: AP-RL-IS":
                 mask = np.transpose(np.stack(segm), [1, 0, 2])
@@ -836,7 +839,7 @@ class MuscleSegmentation(ImageShow, QObject):
         if mapped_orientation in axial_cases:
             # print(f"{axial_cases[mapped_orientation]}")
             case = axial_cases[mapped_orientation]
-            final_mask = self.transpose_mask(case, segm)
+            final_mask = transpose_mask(case, segm)
         else:
             print("Orientation not recognized.")
             final_mask = segm
@@ -2578,13 +2581,19 @@ class MuscleSegmentation(ImageShow, QObject):
                 __error(e)
                 return
 
+            if 'affine' in bundle:
+                self.affine = bundle['affine']
+                self.medical_volume._affine = self.affine
+
             if 'resolution' in bundle:
                 self.resolution = list(bundle['resolution'])
                 if len(self.resolution) == 2:
                     self.resolution.append(1.0)
                 self.resolution_valid = True
                 print('Resolution', self.resolution)
-                self.medical_volume._affine = np.diag(self.resolution + [1])
+                if self.affine is None:
+                    self.affine = np.diag(self.resolution + [1])
+                    self.medical_volume._affine = self.affine
 
             mask_dictionary = {}
             for key in bundle:
@@ -2803,6 +2812,58 @@ class MuscleSegmentation(ImageShow, QObject):
         except Exception as e:
             print(f"Error loading NPZ files: {e}")
 
+    def save_3D_bundle_for_IL(self, dataForTraining, segForTraining, meanDiceScore, set_splash=False, force_save=False):
+        if not force_save and self.bundle_saved_for_IL:
+            return 0
+        self.bundle_saved_for_IL = True
+        next_index, key, value_image = self.add_to_incrLearnData(self.incrLearnDataTrain, dataForTraining)
+        next_index, key, value_segm = self.add_to_incrLearnData(self.incrLearnSegTrain, segForTraining)
+
+        if key not in self.incrLearnMeanDice:
+            self.incrLearnMeanDice[key] = {}
+            self.incrLearnMeanDice[key][next_index] = meanDiceScore
+        else:
+            self.incrLearnMeanDice[key][next_index] = meanDiceScore
+
+        if set_splash:
+            self.setSplash(True, 3, 4, "Saving file...")
+
+        affine_transform = self.original_affine
+        # for incremental learning
+        if key not in self.incrementalLearningAffine:
+            self.incrementalLearningAffine[key] = {}
+            self.incrementalLearningAffine[key][next_index] = self.affine
+        else:
+            self.incrementalLearningAffine[key][next_index] = self.affine
+
+        if GlobalConfig['DO_INCREMENTAL_LEARNING']:
+            # saving as bundle
+            if set_splash:
+                self.setSplash(True, 0, 1, "Saving bundle...")
+            bundle = self.prepare_numpy_bundle_IL_3D(value_image, value_segm, meanDiceScore, key)
+            directory = os.path.join(GlobalConfig['NUMPY_FILE_3D'],
+                                     get_model_detail(self.model_details, self.classifications[int(self.curImage)],
+                                                      'model_name'))
+
+            if not os.path.isdir(directory):
+                os.makedirs(directory)
+
+            np.savez_compressed(os.path.join(directory, f'temp_{next_index}'), **bundle)
+            if set_splash:
+                self.setSplash(False)
+
+        return next_index
+
+    def update_3D_incrLearn_objects(self):
+        saved_files_count = self.count_saved_files()
+        print(f"saved_files_count {saved_files_count}")
+        current_model = self.classifications[int(self.curImage)]
+        total_next_indices = len(self.incrLearnDataTrain.get(current_model, {}))
+
+        if saved_files_count > total_next_indices:
+            self.load_saved_npz()
+            total_next_indices = len(self.incrLearnDataTrain.get(current_model, {}))
+            print(f"files count {total_next_indices}")
 
     @pyqtSlot(str, str)
     @separate_thread_decorator
@@ -2813,54 +2874,12 @@ class MuscleSegmentation(ImageShow, QObject):
         self.setSplash(True, 0, 4, "Calculating maps...")
 
         if self._is_current_model_3D():
-
-            saved_files_count = self.count_saved_files()
-            print(f"saved_files_count {saved_files_count}")
-            current_model = self.classifications[int(self.curImage)]
-            total_next_indices = len(self.incrLearnDataTrain.get(current_model, {}))
-
-            if saved_files_count > total_next_indices:
-                self.load_saved_npz()
-                total_next_indices = len(self.incrLearnDataTrain.get(current_model, {}))
-                print(f"files count {total_next_indices}")
+            self.update_3D_incrLearn_objects()
 
         allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
 
         if self._is_current_model_3D():
-           
-            next_index, key, value_image = self.add_to_incrLearnData(self.incrLearnDataTrain, dataForTraining) 
-            next_index, key, value_segm = self.add_to_incrLearnData(self.incrLearnSegTrain, segForTraining) 
-            
-            if key not in self.incrLearnMeanDice:
-                self.incrLearnMeanDice[key] = {} 
-                self.incrLearnMeanDice[key][next_index] = meanDiceScore
-            else:
-                self.incrLearnMeanDice[key][next_index] = meanDiceScore
-    
-        self.setSplash(True, 3, 4, "Saving file...")
-
-        if self._is_current_model_3D():
-            affine_transform = self.original_affine 
-            # for incremental learning
-            if key not in self.incrementalLearningAffine:
-                self.incrementalLearningAffine[key] = {} 
-                self.incrementalLearningAffine[key][next_index] = self.affine
-            else:
-                self.incrementalLearningAffine[key][next_index] = self.affine
-            
-
-        if GlobalConfig['DO_INCREMENTAL_LEARNING']:
-            # saving as bundle
-            if self._is_current_model_3D():
-                self.setSplash(True, 0, 1, "Saving bundle...")
-                bundle = self.prepare_numpy_bundle_IL_3D(value_image, value_segm, meanDiceScore, key)
-                directory=os.path.join(GlobalConfig['NUMPY_FILE_3D'], get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'model_name'))
-                
-                if not os.path.isdir(directory):
-                    os.makedirs(directory)
-
-                np.savez_compressed(os.path.join(directory, f'temp_{next_index}'), **bundle)
-                self.setSplash(False)
+            next_index = self.save_3D_bundle_for_IL(dataForTraining, segForTraining, meanDiceScore, set_splash=True, force_save=True)
 
         if outputType == 'dicom':
             save_dicom_masks(pathOut, allMasks, self.affine, self.dicomHeaderList)
@@ -2882,9 +2901,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         # perform incremental learning
         if GlobalConfig['DO_INCREMENTAL_LEARNING']:
-
             if self._is_current_model_3D():
-
                 self.incrementalLearn(dataForTraining, segForTraining, meanDiceScore, True)
 
         self.setSplash(False, 4, 4, "End")
@@ -3569,13 +3586,19 @@ class MuscleSegmentation(ImageShow, QObject):
         image = self.medical_volume[:,:,imIndex[0]:imIndex[-1]+1]
         image = ensure_compatible_orientation(image, segmenter.get_metadata())
         print("Resolution", self.resolution)
-        affine = self.affine or np.diag([*self.resolution, 1.0])
+        print("Affine", self.affine)
+        if self.affine is not None:
+            affine = self.affine
+        else:
+            affine = np.diag([*self.resolution, 1.0])
         #affine = self.affine or np.diag([1.0, 1.0, 1.0, 1.0])
         inputData = {'image': image.volume.astype(np.float32), 'affine': affine, 'resolution': self.resolution,
                     'split_laterality': False, 'classification': class_str}
                 
         print("Segmenting image...")
         masks_out = segmenter(inputData)
+        for key, mask in masks_out.items():
+            print("Total mask voxels", key, np.sum(mask))
         torch.cuda.empty_cache()
         return masks_out
     
@@ -3644,17 +3667,8 @@ class MuscleSegmentation(ImageShow, QObject):
 
         # perform incremental learning
         if self._is_current_model_3D():
-            
-            saved_files_count = self.count_saved_files()
-            print(f"saved_files_count {saved_files_count}")
-            current_model = self.classifications[int(self.curImage)]
-            total_next_indices = len(self.incrLearnDataTrain.get(current_model, {}))
-
-            if saved_files_count > total_next_indices:
-                self.load_saved_npz()
-                total_next_indices = len(self.incrLearnDataTrain.get(current_model, {}))
-                print(f"files count {total_next_indices}")
-
+            self.update_3D_incrLearn_objects()
+            self.save_3D_bundle_for_IL(dataForTraining, segForTraining, meanDiceScore) # save current bundle if called
             self.incrementalLearn_3D(self.incrLearnDataTrain, self.incrLearnSegTrain, self.incrementalLearningAffine, self.incrLearnMeanDice, True)
         else:
             self.incrementalLearn(dataForTraining, segForTraining, meanDiceScore, True)
