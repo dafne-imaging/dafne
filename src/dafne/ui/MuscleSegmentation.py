@@ -94,8 +94,6 @@ from dafne_dl.LocalModelProvider import LocalModelProvider
 from dafne_dl.RemoteModelProvider import RemoteModelProvider
 from dafne_dl.MixedModelProvider import MixedModelProvider
 
-from dafne_dl.DynamicDLModel import DynamicDLModel
-
 from ..utils.RegistrationManager import RegistrationManager
 
 import requests
@@ -3741,16 +3739,25 @@ class MuscleSegmentation(ImageShow, QObject):
         performed = False
         for classification_name in dataForTraining:
             if classification_name == 'None': continue
+            
+            performed = True
+            model = None
+
+            # do not load the model yet, in case it cannot do incremental learning
+            try:
+                can_learn = self.model_details[classification_name]['can_incremental_learn']
+            except KeyError:
+                # incremental learning capability is not in the details. Load the model now
+                model, model_str = self.get_model_for_class(classification_name)
+                can_learn = model.can_incremental_learn()
+            if not can_learn:
+                print("This model cannot perform incremental learning")
+                continue
+
             print(f'Performing incremental learning for {classification_name}')
             if len(dataForTraining[classification_name]) < GlobalConfig['IL_3D_MIN_IMAGES']:
                 print(f"Not enough images for {classification_name}")
                 continue
-            
-            performed = True
-            model, model_str = self.get_model_for_class(classification_name)
-            if not model.can_incremental_learn():
-                print("This model cannot perform incremental learning")
-                return
 
             # mean dice scores
             diceScores = []
@@ -3777,6 +3784,9 @@ class MuscleSegmentation(ImageShow, QObject):
             for imageIndex in segForTraining[classification_name]:
                 for sub_key in segForTraining[classification_name][0].keys(): 
                     training_outputs[imageIndex] = {sub_key: segForTraining[classification_name][imageIndex][sub_key].astype(np.uint8)}
+
+            if model is None:
+                model, model_str = self.get_model_for_class(classification_name) # if we didn't need to load the model before, do it now
 
             try:
                 gc.collect()
@@ -3806,4 +3816,4 @@ class MuscleSegmentation(ImageShow, QObject):
             self.model_provider.upload_model(model_str, model, meanDiceScore)
             print(f"took {time.time() - st:.2f}s")
         if not performed:
-            self.alert("Not enough images for incremental learning")
+            self.alert(f"Not enough data points for 3D incremental learning. Required: {GlobalConfig['IL_3D_MIN_IMAGES']}.\nThe current data point was saved for future learning")
