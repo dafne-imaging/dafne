@@ -23,7 +23,7 @@ import sys
 
 from .Viewer3D import Viewer3D
 from ..ui.ToolboxUI import Ui_SegmentationToolbox
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QSize
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QSize, QMutex, QWaitCondition
 from PyQt5.QtGui import QMovie, QIcon, QPixmap
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QInputDialog, QFileDialog, QApplication, QDialog, \
                             QVBoxLayout, QPushButton, QTableWidget, QTableWidgetItem
@@ -191,6 +191,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     quit = pyqtSignal()
 
     editmode_changed = pyqtSignal(str)
+    question_signal = pyqtSignal(str, str)
 
     undo = pyqtSignal()
     redo = pyqtSignal()
@@ -454,6 +455,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.segment_area_del_button.clicked.connect(self.delete_subregion.emit)
         self.segment_area_deleteall_button.clicked.connect(self.delete_all_subregions_confirm)
         self.segment_area_copyall_button.clicked.connect(self.copy_all_subregions_confirm)
+
+        self.confirmation_mutex = QMutex()
+        self.confirmation_condition = QWaitCondition()
+        self.confirmation_result_value = False
+        self.question_signal.connect(self._show_question_dialog, Qt.QueuedConnection)
 
         self.general_enable(False)
 
@@ -793,6 +799,34 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             QMessageBox.critical(self, "Error", text, QMessageBox.Ok)
         elif type == "Info":
             QMessageBox.information(self, "Info", text, QMessageBox.Ok)
+
+    @pyqtSlot(str)
+    @pyqtSlot(str, str)
+    def _show_question_dialog(self, text, question_type="YesNo"):
+        if question_type == "YesNo":
+            buttons = QMessageBox.Yes | QMessageBox.No
+            def_button = QMessageBox.No
+        else:
+            buttons = QMessageBox.Ok | QMessageBox.Cancel
+            def_button = QMessageBox.Cancel
+        answer = QMessageBox.question(self, "Question", text,
+                                      buttons, def_button)
+        self.confirmation_mutex.lock()
+        if answer == QMessageBox.Yes or answer == QMessageBox.Ok:
+            self.confirmation_result_value = True
+        else:
+            self.confirmation_result_value = False
+        self.confirmation_mutex.unlock()
+        self.confirmation_condition.wakeAll()
+
+    def question(self, text, question_type="YesNo"):
+        self.confirmation_result_value = False
+        self.question_signal.emit(text, question_type)
+        self.confirmation_mutex.lock()
+        self.confirmation_condition.wait(self.confirmation_mutex)
+        result = self.confirmation_result_value
+        self.confirmation_mutex.unlock()
+        return result
 
     @pyqtSlot(list, dict)
     def set_available_classes(self, classes, model_details):

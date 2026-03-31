@@ -581,6 +581,9 @@ class MuscleSegmentation(ImageShow, QObject):
     def alert(self, text, type="Warning"):
         self.alert_signal.emit(text, type)
 
+    def question(self, text, question_type="YesNo"):
+        return self.toolbox_window.question(text, question_type)
+
     #############################################################################################
     ###
     ### History
@@ -2895,11 +2898,16 @@ class MuscleSegmentation(ImageShow, QObject):
         else: # assume the most generic outputType == 'npz':
             save_npz_masks(pathOut, allMasks, self.affine)
 
-        self.setSplash(True, 1, 4, "Incremental learning...")
-
         # perform incremental learning
         if GlobalConfig['DO_INCREMENTAL_LEARNING']:
             if self._is_current_model_3D():
+                # Ask for confirmation as it can take a long time
+                answer = self.question('Do you want to perform incremental learning with the new data? This can take a long time')
+                if answer:
+                    self.setSplash(True, 1, 4, "Incremental learning...")
+                    self.incrementalLearn_3D(self.incrLearnDataTrain, self.incrLearnSegTrain, self.incrementalLearningAffine, self.incrLearnMeanDice, True)
+            else:
+                self.setSplash(True, 1, 4, "Incremental learning...")
                 self.incrementalLearn(dataForTraining, segForTraining, meanDiceScore, True)
 
         self.setSplash(False, 4, 4, "End")
@@ -3648,10 +3656,9 @@ class MuscleSegmentation(ImageShow, QObject):
         self.redraw()
 
     #@pyqtSlot()
-    #@separate_thread_decorator # this crashes tensorflow!!
+    @separate_thread_decorator # this might crash tensorflow. Remove in case of problems
     @pyqtSlot()
     def incrementalLearnStandalone(self):
-
         model, model_str = self.get_model_for_class(self.classifications[int(self.curImage)])
         if not model.can_incremental_learn():
             self.alert("This model cannot perform incremental learning")
