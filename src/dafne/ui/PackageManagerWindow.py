@@ -322,7 +322,7 @@ class PackageManagerWindow(QDialog):
         if self._update_queue:
             self._install_next_in_queue()
         else:
-            QMessageBox.information(self, "Done", "Package installed successfully.")
+            QMessageBox.information(self, "Done", "Package installed successfully. Restart Dafne to apply changes.")
             self._load_packages()
 
     def _do_uninstall(self, package_name):
@@ -341,7 +341,7 @@ class PackageManagerWindow(QDialog):
             QMessageBox.warning(self, "Uninstall Failed",
                                 "The package uninstallation failed. Check the log for details.")
         else:
-            QMessageBox.information(self, "Done", "Package uninstalled successfully.")
+            QMessageBox.information(self, "Done", "Package uninstalled successfully. Restart Dafne to apply changes.")
         self._load_packages()
 
     # --- Update All ---

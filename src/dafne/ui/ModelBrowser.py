@@ -149,7 +149,7 @@ class ModelBrowser(QDialog, Ui_ModelBrowser):
         answer = QMessageBox.question(self, "Install dependencies", message, QMessageBox.Yes | QMessageBox.No)
         if answer == QMessageBox.Yes:
             # replace info box with information
-            wait_label = QLabel("Installing dependencies, please wait...")
+            wait_label = QLabel("(Re)installing dependencies, please wait...")
             wait_label.setAlignment(Qt.AlignCenter)
             self.details_table.hide()
             self.details_table.parentWidget().layout().replaceWidget(self.details_table, wait_label)
@@ -158,6 +158,7 @@ class ModelBrowser(QDialog, Ui_ModelBrowser):
             self.details_table.parentWidget().layout().replaceWidget(wait_label, self.details_table)
             wait_label.deleteLater()
             self.details_table.show()
+            QMessageBox.information(self, "Done", "Dependencies installed successfully. Restart Dafne to apply changes.")
 
     def show_info(self, model_name):
         def add_to_string(string, value):
