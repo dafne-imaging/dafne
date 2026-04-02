@@ -96,6 +96,10 @@ class PackageManagerWindow(QDialog):
 
         self.packages = {}
         self._update_queue = []
+        self._is_busy = False
+
+        self.busy_start.connect(lambda _: setattr(self, '_is_busy', True))
+        self.busy_end.connect(lambda: setattr(self, '_is_busy', False))
 
         if is_conda_environment():
             self.package_manager = PackageManagers.conda
@@ -107,6 +111,12 @@ class PackageManagerWindow(QDialog):
     def exec(self):
         self._load_packages()
         return QDialog.exec(self)
+
+    def closeEvent(self, event):
+        if self._is_busy:
+            event.ignore()
+        else:
+            event.accept()
 
     def _setup_ui(self):
         main_layout = QVBoxLayout(self)
