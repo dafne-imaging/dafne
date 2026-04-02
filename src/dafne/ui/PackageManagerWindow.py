@@ -33,9 +33,13 @@ from .. import config
 
 class _PackageLoaderThread(QThread):
     packages_loaded = pyqtSignal(object)
+    loading_start = pyqtSignal(object)
+    progress_signal = pyqtSignal(int, int)
 
     def run(self):
-        packages = get_installed_packages_with_available_versions()
+        def emit_progress(current, total):
+            self.progress_signal.emit(current, total)
+        packages = get_installed_packages_with_available_versions(callback=emit_progress)
         self.packages_loaded.emit(packages)
 
 
@@ -67,8 +71,13 @@ class _VersionFetcherThread(QThread):
 
 class PackageManagerWindow(QDialog):
 
+    busy_start = pyqtSignal(str)
+    busy_end = pyqtSignal()
+    progress = pyqtSignal(int, int, str)
+
     def __init__(self, parent=None):
         QDialog.__init__(self, parent)
+        self.setWindowModality(Qt.NonModal)
         self.setWindowTitle("Package Manager")
         self.resize(800, 600)
 
@@ -81,7 +90,10 @@ class PackageManagerWindow(QDialog):
             self.package_manager = PackageManagers.pip
 
         self._setup_ui()
+
+    def exec(self):
         self._load_packages()
+        return QDialog.exec(self)
 
     def _setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -153,13 +165,18 @@ class PackageManagerWindow(QDialog):
         self.stacked_widget.setCurrentIndex(1)
 
     def _load_packages(self):
+        self.busy_start.emit("Loading packages")
+        QApplication.processEvents()
         self._show_loading()
         self.loader_thread = _PackageLoaderThread(self)
         self.loader_thread.packages_loaded.connect(self._on_packages_loaded)
+        self.loader_thread.progress_signal.connect(lambda i,j: self.progress.emit(i, j, 'Loading Packages'), Qt.QueuedConnection)
         self.loader_thread.start()
 
     @pyqtSlot(object)
     def _on_packages_loaded(self, packages):
+        self.busy_end.emit()
+        QApplication.processEvents()
         self.packages = packages
         self._populate_table()
         self._show_main()
@@ -232,6 +249,8 @@ class PackageManagerWindow(QDialog):
                 combo.setCurrentIndex(idx)
 
     def _do_install(self, package_name, version, reload=True):
+        self.busy_start.emit(f"Installing {package_name}=={version}")
+        QApplication.processEvents()
         self._reload_after_install = reload
         self._show_loading(f"Installing {package_name}=={version}...")
         self.install_thread = _InstallThread(
@@ -242,10 +261,13 @@ class PackageManagerWindow(QDialog):
 
     @pyqtSlot(bool)
     def _on_install_done(self, success):
+        self.busy_end.emit()
+        QApplication.processEvents()
         if not success:
             QMessageBox.warning(self, "Installation Failed",
                                 "The package installation failed. Check the log for details.")
             self._update_queue = []
+            self._original_queue_length = 0
             self._load_packages()
             return
 
@@ -280,11 +302,13 @@ class PackageManagerWindow(QDialog):
             return
 
         self._update_queue = outdated
+        self._original_queue_length = len(self._update_queue)
         self._install_next_in_queue()
 
     def _install_next_in_queue(self):
         if not self._update_queue:
             QMessageBox.information(self, "Done", "All packages updated successfully.")
+            self._original_queue_length = 0
             self._load_packages()
             return
 
@@ -300,10 +324,12 @@ class PackageManagerWindow(QDialog):
 
     @pyqtSlot(bool)
     def _on_update_one_done(self, success):
+        self.progress.emit(self._original_queue_length - len(self._update_queue), self._original_queue_length, 'Installing Packages')
         if not success:
             QMessageBox.warning(self, "Update Failed",
                                 "A package update failed. Remaining updates cancelled.")
             self._update_queue = []
+            self._original_queue_length = 0
             self._load_packages()
             return
         self._install_next_in_queue()

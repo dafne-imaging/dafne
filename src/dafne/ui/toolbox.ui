@@ -84,9 +84,9 @@
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>-612</y>
-            <width>556</width>
-            <height>1443</height>
+            <y>0</y>
+            <width>560</width>
+            <height>1436</height>
            </rect>
           </property>
           <property name="sizePolicy">
@@ -1099,6 +1099,7 @@ padding-right: 10px;</string>
     <addaction name="separator"/>
     <addaction name="actionPreferences"/>
     <addaction name="actionModel_browser"/>
+    <addaction name="actionPython_package_manager"/>
     <addaction name="action_Restore_factory_settings"/>
     <addaction name="menuOpen_folder"/>
    </widget>
@@ -1329,6 +1330,11 @@ padding-right: 10px;</string>
   <action name="actionCalculate_statistics_slicewise">
    <property name="text">
     <string>Slicewise...</string>
+   </property>
+  </action>
+  <action name="actionPython_package_manager">
+   <property name="text">
+    <string>Python package manager...</string>
    </property>
   </action>
  </widget>
