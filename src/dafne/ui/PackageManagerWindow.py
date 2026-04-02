@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from flexidep.utils import (get_installed_packages_with_available_versions,
                              get_pypi_available_versions, is_conda_environment)
-from flexidep.installers import install_package_version
+from flexidep.installers import install_package_version, uninstall_package
 from flexidep.config import PackageManagers
 
 from PyQt5.QtWidgets import (QDialog, QWidget, QVBoxLayout, QHBoxLayout,
@@ -55,6 +55,19 @@ class _InstallThread(QThread):
     def run(self):
         result = install_package_version(self.package_manager, self.package_name, self.version)
         self.install_done.emit(result)
+
+
+class _UninstallThread(QThread):
+    uninstall_done = pyqtSignal(bool)
+
+    def __init__(self, package_manager, package_name, parent=None):
+        QThread.__init__(self, parent)
+        self.package_manager = package_manager
+        self.package_name = package_name
+
+    def run(self):
+        result = uninstall_package(self.package_manager, self.package_name)
+        self.uninstall_done.emit(result)
 
 
 class _VersionFetcherThread(QThread):
@@ -205,6 +218,8 @@ class PackageManagerWindow(QDialog):
             if installed_index >= 0:
                 combo.setCurrentIndex(installed_index)
 
+            combo.addItem("Uninstall")
+
             combo.setProperty('installed_version', installed_str)
             combo.setProperty('package_name', package_name)
             combo.activated[str].connect(self._on_version_activated)
@@ -231,6 +246,29 @@ class PackageManagerWindow(QDialog):
         package_name = combo.property('package_name')
 
         if selected_version == installed_version:
+            return
+
+        if selected_version == "Uninstall":
+            reply = QMessageBox.question(
+                self,
+                "Uninstall Package",
+                f"Uninstall {package_name}?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            really_uninstalled = False
+            if reply == QMessageBox.Yes:
+                reply = QMessageBox.warning(self, "Uninstall Package",
+                                            f"Warning! Uninstalling packages might break Dafne and prevent it from starting! Do you really want to continue?",
+                                            QMessageBox.Yes | QMessageBox.No,
+                                            QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    really_uninstalled = True
+                    self._do_uninstall(package_name)
+
+            if not really_uninstalled:
+                idx = combo.findText(installed_version)
+                if idx >= 0:
+                    combo.setCurrentIndex(idx)
             return
 
         reply = QMessageBox.question(
@@ -276,6 +314,25 @@ class PackageManagerWindow(QDialog):
         else:
             QMessageBox.information(self, "Done", "Package installed successfully.")
             self._load_packages()
+
+    def _do_uninstall(self, package_name):
+        self.busy_start.emit(f"Uninstalling {package_name}")
+        QApplication.processEvents()
+        self._show_loading(f"Uninstalling {package_name}...")
+        self.uninstall_thread = _UninstallThread(self.package_manager, package_name, self)
+        self.uninstall_thread.uninstall_done.connect(self._on_uninstall_done)
+        self.uninstall_thread.start()
+
+    @pyqtSlot(bool)
+    def _on_uninstall_done(self, success):
+        self.busy_end.emit()
+        QApplication.processEvents()
+        if not success:
+            QMessageBox.warning(self, "Uninstall Failed",
+                                "The package uninstallation failed. Check the log for details.")
+        else:
+            QMessageBox.information(self, "Done", "Package uninstalled successfully.")
+        self._load_packages()
 
     # --- Update All ---
 
