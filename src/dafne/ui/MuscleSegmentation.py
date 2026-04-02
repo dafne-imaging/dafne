@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import gc
-
-import flexidep
-from dafne_dl.model_loaders import ensure_compatible_orientation_inplace, ensure_compatible_orientation
-
 #  Copyright (c) 2021 Dafne-Imaging Team
 #
 #  This program is free software: you can redistribute it and/or modify
@@ -19,6 +14,12 @@ from dafne_dl.model_loaders import ensure_compatible_orientation_inplace, ensure
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import gc
+
+import flexidep
+from dafne_dl.model_loaders import ensure_compatible_orientation_inplace, ensure_compatible_orientation
+
 from ..config import GlobalConfig, load_config
 load_config()
 
