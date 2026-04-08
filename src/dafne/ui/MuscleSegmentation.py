@@ -3709,7 +3709,7 @@ class MuscleSegmentation(ImageShow, QObject):
             if model is None:
                 self.setSplash(False, 0, 3, "Loading model...")
                 self.alert(f"Error loading model {model_str}", 'Error')
-                return
+                return None, None
             self.dl_segmenters[model_str] = model
         return model, model_str
 
