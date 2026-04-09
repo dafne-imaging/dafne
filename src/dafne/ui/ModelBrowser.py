@@ -2,10 +2,11 @@ import sys
 import webbrowser
 from copy import copy
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSlot
 from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QDialog, QTreeWidgetItem, QApplication, QTableWidgetItem
+from PyQt5.QtWidgets import QDialog, QTreeWidgetItem, QApplication, QTableWidgetItem, QMessageBox, QLabel
 from voxel.orientation import orientation_nib_to_standard
+from dafne_dl.model_loaders import ensure_dependencies
 
 from .ModelBrowserUI import Ui_ModelBrowser
 
@@ -15,10 +16,12 @@ class ModelBrowser(QDialog, Ui_ModelBrowser):
         self.setupUi(self)
         self.buttonBox.accepted.connect(lambda: self.exit_dialog(True))
         self.buttonBox.rejected.connect(lambda: self.exit_dialog(False))
+        self.installdeps_button.clicked.connect(self.fix_dependencies)
         self.details_table.cellDoubleClicked.connect(self.onCellDoubleClicked)
         self.accepted = False
         self.details_dict = details_dict
         self.selected_set = set(selected_list)
+        self._dependencies_to_install = None
         if model_for_info:
             self.buttonBox.button(self.buttonBox.Ok).setText('Close')
             self.buttonBox.button(self.buttonBox.Cancel).hide()
@@ -135,6 +138,27 @@ class ModelBrowser(QDialog, Ui_ModelBrowser):
         self.details_table.setItem(row, 0, QTableWidgetItem(name + '   '))
         self.details_table.setItem(row, 1, value_item)
 
+    @pyqtSlot()
+    def fix_dependencies(self):
+        if not self._dependencies_to_install:
+            return
+        message = "Do you want to (re)install the following dependencies?"
+        for dep, alternatives in self._dependencies_to_install.items():
+            first_alternative = alternatives.split('\n')[0]
+            message += f'\n{dep} -> {first_alternative}'
+        answer = QMessageBox.question(self, "Install dependencies", message, QMessageBox.Yes | QMessageBox.No)
+        if answer == QMessageBox.Yes:
+            # replace info box with information
+            wait_label = QLabel("(Re)installing dependencies, please wait...")
+            wait_label.setAlignment(Qt.AlignCenter)
+            self.details_table.hide()
+            self.details_table.parentWidget().layout().replaceWidget(self.details_table, wait_label)
+            QApplication.processEvents()
+            ensure_dependencies(self._dependencies_to_install, force_reinstall=True)
+            self.details_table.parentWidget().layout().replaceWidget(wait_label, self.details_table)
+            wait_label.deleteLater()
+            self.details_table.show()
+            QMessageBox.information(self, "Done", "Dependencies installed successfully. Restart Dafne to apply changes.")
 
     def show_info(self, model_name):
         def add_to_string(string, value):
@@ -160,7 +184,7 @@ class ModelBrowser(QDialog, Ui_ModelBrowser):
         except KeyError:
             pass
         else:
-            for name, value in self.details_dict[model_name]['info'].items():
+            for name, value in info.items():
                 self.add_table_row(name, value)
 
         try:
@@ -181,6 +205,18 @@ class ModelBrowser(QDialog, Ui_ModelBrowser):
 
         self.details_table.resizeColumnToContents(0)
         self.details_table.resizeRowsToContents()
+        try:
+            dependencies = self.details_dict[model_name]['dependencies']
+        except KeyError:
+            self.installdeps_button.setEnabled(False)
+            self._dependencies_to_install = None
+        else:
+            if dependencies:
+                self.installdeps_button.setEnabled(True)
+                self._dependencies_to_install = dependencies
+            else:
+                self.installdeps_button.setEnabled(False)
+                self._dependencies_to_install = None
 
     def item_clicked(self, item, column):
         self.details_table.setRowCount(0)

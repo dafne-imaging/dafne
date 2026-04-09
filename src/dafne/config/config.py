@@ -59,6 +59,8 @@ defaults = {
     'USE_CLASSIFIER': (False, 'bool', None),
     'MODEL_PROVIDER': ('Local', 'option', ['Local', 'Remote', 'Mixed'], 'Model source'),
     'API_KEY': ('', 'string', 'Personal server access key'),
+    'CHECK_UPDATES': (True, 'bool', 'Check for updates on startup'),
+    'SHOW_MAX_PACKAGE_VER': (20, 'int', 1, 200, 1, None),
     'DICOM_SORT': ('InstanceNumber', 'option', ['InstanceNumber', 'SlicePosition', 'None'], 'Sort DICOM files by'),
     'SPLIT_LATERALITY': (True, 'bool', 'Separate L/R in autosegment'),
     'FORCE_MODEL_DOWNLOAD': (False, 'bool', 'Force download of models from server'),

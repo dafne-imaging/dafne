@@ -21,6 +21,7 @@ import functools
 import os
 import sys
 
+from .PackageManagerWindow import PackageManagerWindow
 from .Viewer3D import Viewer3D
 from ..ui.ToolboxUI import Ui_SegmentationToolbox
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QSize, QMutex, QWaitCondition
@@ -414,6 +415,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionPreferences.triggered.connect(self.edit_preferences)
         self.action_Restore_factory_settings.triggered.connect(self.clear_preferences)
         self.actionModel_browser.triggered.connect(self.open_model_browser)
+        self.actionPython_package_manager.triggered.connect(self.open_python_package_manager)
 
         self.actionOpen_model_folder.triggered.connect(lambda: open_folder(config.GlobalConfig['MODEL_PATH']))
         self.actionOpen_log_folder.triggered.connect(lambda: open_folder(config.GlobalConfig['OUTPUT_LOG_FILE']))
@@ -599,6 +601,28 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             config.GlobalConfig['API_KEY'] = api_key
             config.save_config()
         self.config_changed.emit()
+
+    @pyqtSlot(str)
+    def package_splash_on(self, message):
+        self.set_splash(True, 0, 1, message)
+
+    @pyqtSlot()
+    def package_splash_off(self):
+        self.set_splash(False, 0, 1, '')
+
+    @pyqtSlot(int, int, str)
+    def package_progress(self, current, total, message):
+        self.set_splash(True, current, total, message)
+
+    @pyqtSlot()
+    def open_python_package_manager(self):
+        package_manager = PackageManagerWindow()
+
+        package_manager.busy_start.connect(self.package_splash_on)
+        package_manager.busy_end.connect(self.package_splash_off)
+        package_manager.progress.connect(self.package_progress)
+
+        package_manager.exec()
 
     @pyqtSlot()
     def open_model_browser(self):

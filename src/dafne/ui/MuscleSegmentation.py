@@ -16,6 +16,7 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import gc
 import re
+import flexidep
 
 from dafne_dl.model_loaders import ensure_compatible_orientation_inplace, ensure_compatible_orientation
 
@@ -187,6 +188,9 @@ class MuscleSegmentation(ImageShow, QObject):
             'g': self.gotoImageDialog
         }
 
+        if GlobalConfig['CHECK_UPDATES']:
+            self.check_updates()
+
         self.news_checker = NewsChecker()
         self.news_checker.news_ready.connect(self.show_news)
         self.news_checker.check_news()
@@ -264,6 +268,21 @@ class MuscleSegmentation(ImageShow, QObject):
     def show_news(self, news, index_address):
         d = WhatsNewDialog(news, index_address)
         d.exec()
+
+    def check_updates(self):
+        versions = flexidep.get_installed_packages_with_available_versions(['dafne', 'dafne-dl'])
+        if not (versions['dafne-dl']['latest'] and versions['dafne-dl']['latest']):
+            # either dafne or dafne-dl are not latest versions
+            answer = QMessageBox.question(None, 'Update available',
+                                          'An update is available. Do you want to update dafne?',
+                                          QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if answer == QMessageBox.Yes:
+                flexidep.install_package(flexidep.PackageManagers.pip, 'dafne-dl', extra_command_line='-U')
+                flexidep.install_package(flexidep.PackageManagers.pip, 'dafne', extra_command_line='-U')
+                QMessageBox.information(None, 'Update complete', 'Dafne was updated. Please restart the application to use the new version.')
+
+
+
 
     def get_app(self):
         if not self.app:
