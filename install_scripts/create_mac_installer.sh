@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DAFNE_VERSION="1.9a2"
+DAFNE_VERSION="2.0.1b0"
 PKG_NAME="dafne_mac_${DAFNE_VERSION}.pkg"
 CODESIGN_IDENTITY="Francesco Santini"
 
@@ -20,7 +20,7 @@ mkdir -p /tmp/pkg_root/tmp/resources
 mkdir -p /tmp/scripts
 
 # Copy your existing icon file to the resources directory
-cp ./dafne.icns /tmp/pkg_root/tmp/resources
+cp ../icons/dafne.icns /tmp/pkg_root/tmp/resources
 
 # Create the postinstall script
 echo "#!/bin/bash" > /tmp/scripts/postinstall
@@ -33,8 +33,8 @@ set -e
 set -x
 
 # Set variables
-PYTHON_VERSION="3.11.9"
-PYTHON_MAJOR_MINOR="3.11"
+PYTHON_VERSION="3.12.12"
+PYTHON_MAJOR_MINOR="3.12"
 VENV_DIR="/usr/local/dafne"
 PIP_PACKAGE="dafne"
 APP_BUNDLE="/Applications/Dafne.app"
