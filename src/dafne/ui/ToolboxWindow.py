@@ -131,8 +131,9 @@ class ShortcutDialog(QDialog):
 def get_incremental_learn_message(toolbox_window_obj):
     if get_model_detail(toolbox_window_obj.model_details, toolbox_window_obj.classification_combo.currentText(), 'dimensionality') == '3':
         return f'This action will improve the model significantly.\n' \
-            f'At least {config.GlobalConfig["IL_3D_MIN_IMAGES"]} images are required.\n' \
-            f'Proceed with caution: It might take hours. Continue?'
+            f'At least {config.GlobalConfig["IL_3D_MIN_IMAGES"]} datasets are required.\n' \
+               f'If not enough datasets are available, this dataset will be stored on your computer for next use.\n' \
+               f'Proceed with caution: It might take hours. Continue?'
     else:
         return f'This action will improve the model significantly.\n' \
             f'At least {config.GlobalConfig["IL_MIN_SLICES"]} slices are required.\n' \
@@ -416,6 +417,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionOpen_model_folder.triggered.connect(lambda: open_folder(config.GlobalConfig['MODEL_PATH']))
         self.actionOpen_log_folder.triggered.connect(lambda: open_folder(config.GlobalConfig['OUTPUT_LOG_FILE']))
+        self.actionOpen_train_data_folder.triggered.connect(lambda: open_folder(config.GlobalConfig['NUMPY_FILE_3D']))
 
         self.actionCopy_roi.triggered.connect(self.do_copy_roi)
         self.actionCombine_roi.triggered.connect(self.do_combine_roi)
@@ -605,6 +607,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             return
 
         config.GlobalConfig['ENABLED_MODELS'] = new_model_list
+        config.save_config()
         self.config_changed.emit()
 
 

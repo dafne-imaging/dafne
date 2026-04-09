@@ -84,9 +84,9 @@
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>-612</y>
+            <y>0</y>
             <width>556</width>
-            <height>1443</height>
+            <height>1375</height>
            </rect>
           </property>
           <property name="sizePolicy">
@@ -1011,7 +1011,7 @@ padding-right: 10px;</string>
      <x>0</x>
      <y>0</y>
      <width>581</width>
-     <height>32</height>
+     <height>30</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -1082,6 +1082,7 @@ padding-right: 10px;</string>
      </property>
      <addaction name="actionOpen_model_folder"/>
      <addaction name="actionOpen_log_folder"/>
+     <addaction name="actionOpen_train_data_folder"/>
     </widget>
     <widget class="QMenu" name="menuCalculate_statistics">
      <property name="title">
@@ -1329,6 +1330,11 @@ padding-right: 10px;</string>
   <action name="actionCalculate_statistics_slicewise">
    <property name="text">
     <string>Slicewise...</string>
+   </property>
+  </action>
+  <action name="actionOpen_train_data_folder">
+   <property name="text">
+    <string>3D training data folder...</string>
    </property>
   </action>
  </widget>

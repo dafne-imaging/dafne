@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import gc
-
-from dafne_dl.model_loaders import ensure_compatible_orientation_inplace, ensure_compatible_orientation
-
 #  Copyright (c) 2021 Dafne-Imaging Team
 #
 #  This program is free software: you can redistribute it and/or modify
@@ -18,6 +14,11 @@ from dafne_dl.model_loaders import ensure_compatible_orientation_inplace, ensure
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import gc
+import re
+
+from dafne_dl.model_loaders import ensure_compatible_orientation_inplace, ensure_compatible_orientation
+
 from ..config import GlobalConfig, load_config
 load_config()
 
@@ -522,6 +523,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.volume_loaded_signal.connect(self.toolbox_window.viewer3D.set_spacing_and_anatomy)
 
     def setSplash(self, is_splash, current_value = 0, maximum_value = 1, text= ""):
+        #print("setSplash", is_splash, current_value, maximum_value, text)
         self.splash_signal.emit(is_splash, current_value, maximum_value, text)
 
     #dis/enable interface callbacks
@@ -848,8 +850,12 @@ class MuscleSegmentation(ImageShow, QObject):
         return final_mask
 
     def _is_current_model_3D(self):
-        model, _ = self.get_model_for_class(self.classifications[int(self.curImage)])
-        return model.data_dimensionality == 3
+        dimensionality = get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality', None)
+        if dimensionality is None:
+            model, _ = self.get_model_for_class(self.classifications[int(self.curImage)], True, True)
+            self.setSplash(False, 0, 1, '') # clear splash
+            dimensionality = model.data_dimensionality
+        return str(dimensionality) == '3'
 
     def calcOutputData(self, setSplash=False):
         imSize = self.image.shape
@@ -2744,8 +2750,8 @@ class MuscleSegmentation(ImageShow, QObject):
             if GlobalConfig['DO_INCREMENTAL_LEARNING']:
 
                 bundle = self.prepare_numpy_bundle_IL_3D(value_image, value_segm, meanDiceScore, key)
-                directory=os.path.join(GlobalConfig['NUMPY_FILE_3D'], get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'model_name'))
-                
+                directory=os.path.join(GlobalConfig['NUMPY_FILE_3D'], self.classifications[int(self.curImage)])
+
                 if not os.path.isdir(directory):
                     os.makedirs(directory)
 
@@ -2769,7 +2775,7 @@ class MuscleSegmentation(ImageShow, QObject):
     
     def count_saved_files(self):
         """Count the number of files saved in the temporary directory."""
-        directory=os.path.join(GlobalConfig['NUMPY_FILE_3D'], get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'model_name'))
+        directory=os.path.join(GlobalConfig['NUMPY_FILE_3D'], self.classifications[int(self.curImage)])
         if not os.path.isdir(directory):
             os.makedirs(directory)
         folder_path = os.listdir(directory)
@@ -2777,16 +2783,17 @@ class MuscleSegmentation(ImageShow, QObject):
     
     def load_saved_npz(self):
         """Load the data from saved NPZ files."""
+        class_str = self.classifications[int(self.curImage)]
         try:
-            folder_path = os.listdir(os.path.join(GlobalConfig['NUMPY_FILE_3D'], get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'model_name')))
+            folder_path = os.listdir(os.path.join(GlobalConfig['NUMPY_FILE_3D'], class_str))
             temp_files = sorted([f for f in folder_path if f.startswith('temp_') and f.endswith('.npz')],
                                 key=lambda x: int(x.split('_')[1].split('.npz')[0]))
             
             for file in temp_files:
-                file_path = os.path.join(GlobalConfig['NUMPY_FILE_3D'], get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'model_name'), file)
+                file_path = os.path.join(GlobalConfig['NUMPY_FILE_3D'], class_str, file)
                 data = np.load(file_path, allow_pickle=True)
 
-                key = str(data['model'])
+                key = class_str
 
                 if key not in self.incrLearnDataTrain:
                     self.incrLearnDataTrain[key] = {}
@@ -2842,9 +2849,7 @@ class MuscleSegmentation(ImageShow, QObject):
             if set_splash:
                 self.setSplash(True, 0, 1, "Saving bundle...")
             bundle = self.prepare_numpy_bundle_IL_3D(value_image, value_segm, meanDiceScore, key)
-            directory = os.path.join(GlobalConfig['NUMPY_FILE_3D'],
-                                     get_model_detail(self.model_details, self.classifications[int(self.curImage)],
-                                                      'model_name'))
+            directory = os.path.join(GlobalConfig['NUMPY_FILE_3D'], self.classifications[int(self.curImage)])
 
             if not os.path.isdir(directory):
                 os.makedirs(directory)
@@ -3499,7 +3504,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.doSegmentation()
                 self.setSplash(True, 0, 3, "Loading model...")
                 time.sleep(0.5)
-        self.setSplash(False, 0, 3, "")
+        self.setSplash(False, 0, 3, "End of SegmentationMultislice")
 
     def getSegmentedMasks(self, imIndex, setSplash=False, downloadModel=True):
         class_str = self.classifications[imIndex]
@@ -3507,30 +3512,10 @@ class MuscleSegmentation(ImageShow, QObject):
             self.alert('Segmentation with "None" model is impossible!', 'Error')
             return
 
-        model_str = class_str.split(',')[0].strip()  # get the base model string in case of multiple variants.
-        # variants are identified by "Model, Variant"
-
         if setSplash:
             self.setSplash(True, 0, 3, "Loading model...")
 
-        try:
-            segmenter = self.dl_segmenters[model_str]
-        except KeyError:
-            if downloadModel:
-                if setSplash:
-                    splashCallback = lambda cur_val, max_val: self.setSplash(True, cur_val, max_val,
-                                                                                               'Downloading Model...')
-                else:
-                    splashCallback = None
-                segmenter = self.model_provider.load_model(model_str, splashCallback,
-                                                       force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
-                if segmenter is None:
-                    self.setSplash(False, 0, 3, "Loading model...")
-                    self.alert(f"Error loading model {model_str}", 'Error')
-                    return None
-                self.dl_segmenters[class_str] = segmenter
-            else:
-                return None
+        segmenter, model_str = self.get_model_for_class(class_str, downloadModel, setSplash)
 
         if setSplash:
             self.setSplash(True, 1, 3, "Running segmentation...")
@@ -3554,8 +3539,9 @@ class MuscleSegmentation(ImageShow, QObject):
         return masks_out
 
     def getSegmentedMasks_3D(self, imIndex, setSplash=False, downloadModel=True):
+        print("Set splash:", setSplash)
 
-        class_str = self.classifications[imIndex[0]]
+        class_str = self.classifications[int(imIndex[0])]
 
         if class_str == 'None':
             self.alert('Segmentation with "None" model is impossible!', 'Error')
@@ -3565,26 +3551,10 @@ class MuscleSegmentation(ImageShow, QObject):
         # variants are identified by "Model, Variant"
 
         if setSplash:
+            print("Setting splash")
             self.setSplash(True, 0, 3, "Loading model...")
 
-        try:
-            segmenter = self.dl_segmenters[model_str]
-        except KeyError:
-            if downloadModel:
-                if setSplash:
-                    splashCallback = lambda cur_val, max_val: self.setSplash(True, cur_val, max_val,
-                                                                                               'Downloading Model...')
-                else:
-                    splashCallback = None
-                segmenter = self.model_provider.load_model(model_str, splashCallback,
-                                                       force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
-                if segmenter is None:
-                    self.setSplash(False, 0, 3, "Loading model...")
-                    self.alert(f"Error loading model {model_str}", 'Error')
-                    return None
-                self.dl_segmenters[class_str] = segmenter
-            else:
-                return None
+        segmenter, model_str = self.get_model_for_class(class_str, downloadModel, setSplash)
 
         if setSplash:
             self.setSplash(True, 1, 3, "Running segmentation...")
@@ -3631,6 +3601,8 @@ class MuscleSegmentation(ImageShow, QObject):
         time.sleep(0.1)
         self.redraw()
 
+    @pyqtSlot(int, int)
+    @snapshotSaver
     def doSegmentation_3D(self, min_slice, max_slice):
         # run the segmentation
         image=self.medical_volume
@@ -3679,18 +3651,28 @@ class MuscleSegmentation(ImageShow, QObject):
             self.incrementalLearn(dataForTraining, segForTraining, meanDiceScore, True)
         self.setSplash(False, 3, 4, "Saving file...")
 
-    def get_model_for_class(self, classification_name):
+    def get_model_for_class(self, classification_name, download_model=True, set_splash=True):
         model_str = classification_name.split(',')[0].strip()  # get the base model string in case of multiple variants.
         # variants are identified by "Model, Variant"
+
         try:
             model = self.dl_segmenters[model_str]
         except KeyError:
-            model = self.model_provider.load_model(model_str, force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
-            if model is None:
-                self.setSplash(False, 0, 3, "Loading model...")
-                self.alert(f"Error loading model {model_str}", 'Error')
-                return
-            self.dl_segmenters[model_str] = model
+            if download_model:
+                if set_splash:
+                    splashCallback = lambda cur_val, max_val: self.setSplash(True, cur_val, max_val,
+                                                                                               'Downloading Model...')
+                else:
+                    splashCallback = None
+                model = self.model_provider.load_model(model_str, splashCallback,
+                                                       force_download=GlobalConfig['FORCE_MODEL_DOWNLOAD'])
+                if model is None:
+                    self.setSplash(False, 0, 3, "Loading model...")
+                    self.alert(f"Error loading model {model_str}", 'Error')
+                    return None, model_str
+                self.dl_segmenters[classification_name] = model
+            else:
+                return None, model_str
         return model, model_str
 
     def incrementalLearn(self, dataForTraining, segForTraining, meanDiceScore, setSplash=False):
@@ -3744,19 +3726,22 @@ class MuscleSegmentation(ImageShow, QObject):
 
     def incrementalLearn_3D(self, dataForTraining, segForTraining, incrementalLearningAffine, incrLearnDiceScore, setSplash=False):
         performed = False
+        print("Classifications in Training data:", list(dataForTraining.keys()))
         for classification_name in dataForTraining:
             if classification_name == 'None': continue
-            
-            performed = True
+
             model = None
 
             # do not load the model yet, in case it cannot do incremental learning
-            try:
-                can_learn = self.model_details[classification_name]['can_incremental_learn']
-            except KeyError:
+            can_learn = get_model_detail(self.model_details, classification_name, 'can_incremental_learn', None)
+
+            if can_learn is None:
                 # incremental learning capability is not in the details. Load the model now
                 model, model_str = self.get_model_for_class(classification_name)
-                can_learn = model.can_incremental_learn()
+                if model is None:
+                    can_learn = False
+                else:
+                    can_learn = model.can_incremental_learn()
             if not can_learn:
                 print("This model cannot perform incremental learning")
                 continue
@@ -3766,6 +3751,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 print(f"Not enough images for {classification_name}")
                 continue
 
+            performed = True # if we reached here, then we can perform IL
             # mean dice scores
             diceScores = []
 
@@ -3822,5 +3808,17 @@ class MuscleSegmentation(ImageShow, QObject):
 
             self.model_provider.upload_model(model_str, model, meanDiceScore)
             print(f"took {time.time() - st:.2f}s")
+            # Cleanup training data
+            directory = os.path.join(GlobalConfig['NUMPY_FILE_3D'], classification_name)
+            for file in os.listdir(directory):
+                if re.fullmatch(r'temp_[0-9]+\.npz', file):
+                    print('Deleting', file)
+                    os.unlink(os.path.join(directory, file))
+
+
         if not performed:
-            self.alert(f"Not enough data points for 3D incremental learning. Required: {GlobalConfig['IL_3D_MIN_IMAGES']}.\nThe current data point was saved for future learning")
+            alert_text = f'Not enough data points for 3D incremental learning. Required: {GlobalConfig['IL_3D_MIN_IMAGES']}.\nAvailable datasets:'
+            for class_name in dataForTraining.keys():
+                alert_text += f'\n{class_name} -> {len(dataForTraining[class_name])}'
+            alert_text += '\nThe current data point was saved for future learning'
+            self.alert(alert_text)
