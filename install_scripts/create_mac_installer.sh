@@ -105,6 +105,15 @@ if ! [ -x "$PYTHON_BIN" ]; then
     exit 1
 fi
 
+# Run Install Certificates.command as root to set up SSL certificates
+CERT_COMMAND="/Applications/Python ${PYTHON_MAJOR_MINOR}/Install Certificates.command"
+if [ -f "$CERT_COMMAND" ]; then
+    echo "Installing SSL certificates..." | tee -a "$LOG_FILE"
+    bash "$CERT_COMMAND" 2>&1 | tee -a "$LOG_FILE"
+else
+    echo "Warning: Install Certificates.command not found at: $CERT_COMMAND" | tee -a "$LOG_FILE"
+fi
+
 # Create virtual environment
 echo "Creating virtual environment..." | tee -a "$LOG_FILE"
 if [ -d "$VENV_DIR" ]; then
