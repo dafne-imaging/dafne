@@ -39,6 +39,7 @@ VENV_DIR="/usr/local/dafne"
 PIP_PACKAGE="dafne"
 APP_BUNDLE="/Applications/Dafne.app"
 LOG_FILE="/tmp/dafne_install.log"
+REAL_USER=$(stat -f "%Su" /dev/console)
 
 cpu_brand=$(sysctl -n machdep.cpu.brand_string)
     
@@ -86,10 +87,13 @@ PYTHON_BIN=""
 if [ -x "$HOMEBREW_PYTHON_BIN" ]; then
     echo "Found Homebrew Python ${PYTHON_MAJOR_MINOR} at ${HOMEBREW_PYTHON_BIN}" | tee -a "$LOG_FILE"
     PYTHON_BIN="$HOMEBREW_PYTHON_BIN"
-    if ! "${HOMEBREW_PREFIX}/bin/brew" list "python-tk@${PYTHON_MAJOR_MINOR}" &>/dev/null; then                                                                                                    
-        echo "Installing python-tk@${PYTHON_MAJOR_MINOR} via Homebrew..." | tee -a "$LOG_FILE"     
-        "${HOMEBREW_PREFIX}/bin/brew" install "python-tk@${PYTHON_MAJOR_MINOR}" 2>&1 | tee -a "$LOG_FILE" || \                                                                                     
-        echo "Warning: failed to install python-tk@${PYTHON_MAJOR_MINOR}" | tee -a "$LOG_FILE"                                                                                                 
+    if ! sudo -u "$REAL_USER" "${HOMEBREW_PREFIX}/bin/brew" list "python-tk@${PYTHON_MAJOR_MINOR}" &>/dev/null; then
+        echo "Installing python-tk@${PYTHON_MAJOR_MINOR} via Homebrew..." | tee -a "$LOG_FILE"
+        sudo -u "$REAL_USER" $ARCH_CMD "${HOMEBREW_PREFIX}/bin/brew" install "python-tk@${PYTHON_MAJOR_MINOR}" 2>&1 | tee -a "$LOG_FILE" 
+        if ! sudo -u "$REAL_USER" "${HOMEBREW_PREFIX}/bin/brew" list "python-tk@${PYTHON_MAJOR_MINOR}" &>/dev/null; then
+            echo "Error: failed to install python-tk@${PYTHON_MAJOR_MINOR}" | tee -a "$LOG_FILE"
+            exit 1
+        fi                                                                                         
     else                                                                                             
         echo "python-tk@${PYTHON_MAJOR_MINOR} already installed" | tee -a "$LOG_FILE"                
     fi
@@ -126,8 +130,6 @@ else
     else
         echo "Warning: Install Certificates.command not found at: $CERT_COMMAND" | tee -a "$LOG_FILE"
     fi
-else
-    echo "Python ${PYTHON_VERSION} framework already installed" | tee -a "$LOG_FILE"
 fi
 
 if ! [ -x "$PYTHON_BIN" ]; then
@@ -307,9 +309,7 @@ pkgbuild --root /tmp/pkg_root \
          --version $DAFNE_VERSION \
          --install-location "/" \
          --sign "$CODESIGN_IDENTITY" \
-         dafne-component.pkg 
-
-codesign --force --sign "$CODESIGN_IDENTITY" --timestamp dafne-component.pkg 
+         dafne-component.pkg
 
 # Build the final product package with license
 echo "Building final package with license..."
@@ -324,7 +324,6 @@ rm -rf /tmp/pkg_root /tmp/scripts /tmp/LICENSE.txt /tmp/distribution.xml dafne-c
 
 echo "Signing and notarizing..."
 
-codesign --force --sign "$CODESIGN_IDENTITY" --timestamp $PKG_NAME
 NOTARYTOOL submit $PKG_NAME --wait --keychain-profile "AC_PASSWORD"
 xcrun stapler staple $PKG_NAME
 
