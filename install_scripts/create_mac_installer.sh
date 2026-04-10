@@ -73,8 +73,30 @@ install_python_framework() {
     installer -pkg "/tmp/python-${PYTHON_VERSION}-macos11.pkg" -target /
 }
 
+# Determine Homebrew prefix based on architecture
+if [[ "$cpu_brand" == *"Apple"* ]]; then
+    HOMEBREW_PREFIX="/opt/homebrew"
+else
+    HOMEBREW_PREFIX="/usr/local"
+fi
+HOMEBREW_PYTHON_BIN="${HOMEBREW_PREFIX}/opt/python@${PYTHON_MAJOR_MINOR}/bin/python${PYTHON_MAJOR_MINOR}"
+
 # Check and install Python if needed
-if ! check_python_framework; then
+PYTHON_BIN=""
+if [ -x "$HOMEBREW_PYTHON_BIN" ]; then
+    echo "Found Homebrew Python ${PYTHON_MAJOR_MINOR} at ${HOMEBREW_PYTHON_BIN}" | tee -a "$LOG_FILE"
+    PYTHON_BIN="$HOMEBREW_PYTHON_BIN"
+    if ! "${HOMEBREW_PREFIX}/bin/brew" list "python-tk@${PYTHON_MAJOR_MINOR}" &>/dev/null; then                                                                                                    
+        echo "Installing python-tk@${PYTHON_MAJOR_MINOR} via Homebrew..." | tee -a "$LOG_FILE"     
+        "${HOMEBREW_PREFIX}/bin/brew" install "python-tk@${PYTHON_MAJOR_MINOR}" 2>&1 | tee -a "$LOG_FILE" || \                                                                                     
+        echo "Warning: failed to install python-tk@${PYTHON_MAJOR_MINOR}" | tee -a "$LOG_FILE"                                                                                                 
+    else                                                                                             
+        echo "python-tk@${PYTHON_MAJOR_MINOR} already installed" | tee -a "$LOG_FILE"                
+    fi
+elif check_python_framework; then
+    echo "Python ${PYTHON_MAJOR_MINOR} framework already installed" | tee -a "$LOG_FILE"
+    PYTHON_BIN="/Library/Frameworks/Python.framework/Versions/${PYTHON_MAJOR_MINOR}/bin/python3"
+else
     echo "Python ${PYTHON_VERSION} framework not found. Installing..." | tee -a "$LOG_FILE"
     
     if ! check_python_installer; then
@@ -93,25 +115,24 @@ if ! check_python_framework; then
     
     # Clean up installer
     rm -f "/tmp/python-${PYTHON_VERSION}-macos11.pkg"
+
+    PYTHON_BIN="/Library/Frameworks/Python.framework/Versions/${PYTHON_MAJOR_MINOR}/bin/python3"
+
+    # Run Install Certificates.command as root to set up SSL certificates
+    CERT_COMMAND="/Applications/Python ${PYTHON_MAJOR_MINOR}/Install Certificates.command"
+    if [ -f "$CERT_COMMAND" ]; then
+        echo "Installing SSL certificates..." | tee -a "$LOG_FILE"
+        bash "$CERT_COMMAND" 2>&1 | tee -a "$LOG_FILE"
+    else
+        echo "Warning: Install Certificates.command not found at: $CERT_COMMAND" | tee -a "$LOG_FILE"
+    fi
 else
     echo "Python ${PYTHON_VERSION} framework already installed" | tee -a "$LOG_FILE"
 fi
 
-# Verify Python installation
-PYTHON_BIN="/Library/Frameworks/Python.framework/Versions/${PYTHON_MAJOR_MINOR}/bin/python3"
-
 if ! [ -x "$PYTHON_BIN" ]; then
     echo "Python installation verification failed" | tee -a "$LOG_FILE"
     exit 1
-fi
-
-# Run Install Certificates.command as root to set up SSL certificates
-CERT_COMMAND="/Applications/Python ${PYTHON_MAJOR_MINOR}/Install Certificates.command"
-if [ -f "$CERT_COMMAND" ]; then
-    echo "Installing SSL certificates..." | tee -a "$LOG_FILE"
-    bash "$CERT_COMMAND" 2>&1 | tee -a "$LOG_FILE"
-else
-    echo "Warning: Install Certificates.command not found at: $CERT_COMMAND" | tee -a "$LOG_FILE"
 fi
 
 # Create virtual environment
