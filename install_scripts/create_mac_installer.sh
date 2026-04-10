@@ -20,7 +20,7 @@ mkdir -p /tmp/pkg_root/tmp/resources
 mkdir -p /tmp/scripts
 
 # Copy your existing icon file to the resources directory
-cp ../icons/dafne.icns /tmp/pkg_root/tmp/resources
+cp ../icons/dafne_icon.icns /tmp/pkg_root/tmp/resources/dafne.icns
 
 # Create the postinstall script
 echo "#!/bin/bash" > /tmp/scripts/postinstall
