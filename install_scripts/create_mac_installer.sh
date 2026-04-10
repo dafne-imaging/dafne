@@ -33,8 +33,8 @@ set -e
 set -x
 
 # Set variables
-PYTHON_VERSION="3.12.12"
-PYTHON_MAJOR_MINOR="3.12"
+PYTHON_VERSION="3.13.13"
+PYTHON_MAJOR_MINOR="3.13"
 VENV_DIR="/usr/local/dafne"
 PIP_PACKAGE="dafne"
 APP_BUNDLE="/Applications/Dafne.app"
