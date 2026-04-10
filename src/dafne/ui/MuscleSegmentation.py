@@ -3836,7 +3836,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
 
         if not performed:
-            alert_text = f'Not enough data points for 3D incremental learning. Required: {GlobalConfig['IL_3D_MIN_IMAGES']}.\nAvailable datasets:'
+            alert_text = f'Not enough data points for 3D incremental learning. Required: {GlobalConfig["IL_3D_MIN_IMAGES"]}.\nAvailable datasets:'
             for class_name in dataForTraining.keys():
                 alert_text += f'\n{class_name} -> {len(dataForTraining[class_name])}'
             alert_text += '\nThe current data point was saved for future learning'
