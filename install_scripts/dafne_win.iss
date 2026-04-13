@@ -185,11 +185,15 @@ begin
            mbError, MB_OK);
     Exit;
   end;
+  
+  Log('Upgrading flexidep...');
+  Exec(VenvPython, '-m pip install --upgrade flexidep',
+       '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
 
   { --- Grant Users modify access on the venv so pip works unprivileged -- }
   Log('Setting permissions on virtual environment...');
   Exec('icacls.exe', '"' + VenvDir + '" /grant Users:(OI)(CI)M /T /Q',
-       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+       '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
 
   Log('Dafne installation completed successfully.');
 end;
