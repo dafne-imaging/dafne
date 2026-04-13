@@ -45,9 +45,6 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\venv\Scripts\dafne.exe"; IconFile
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\venv\Scripts\dafne.exe"; IconFilename: "{app}\dafne_icon.ico"; Tasks: desktopicon
 
-[Dirs]
-Name: "{app}\venv"; Permissions: users-modify
-
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\venv"
 
@@ -188,6 +185,11 @@ begin
            mbError, MB_OK);
     Exit;
   end;
+
+  { --- Grant Users modify access on the venv so pip works unprivileged -- }
+  Log('Setting permissions on virtual environment...');
+  Exec('icacls.exe', '"' + VenvDir + '" /grant Users:(OI)(CI)M /T /Q',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
   Log('Dafne installation completed successfully.');
 end;
