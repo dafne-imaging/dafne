@@ -56,15 +56,18 @@ var
 { Find an existing Python 3.11 installation in common locations }
 function GetSystemPythonExe: String;
 var
-  PF64Path, LocalPath: String;
+  PF64Path, LocalPath, RootPath: String;
 begin
   PF64Path  := ExpandConstant('{pf64}\{#PythonDirName}\python.exe');
   LocalPath := ExpandConstant('{localappdata}\Programs\Python\{#PythonDirName}\python.exe');
+  RootPath  := ExpandConstant('\{#PythonDirName}\python.exe');
 
   if FileExists(PF64Path) then
     Result := PF64Path
   else if FileExists(LocalPath) then
     Result := LocalPath
+  else if FileExists(RootPath) then
+    Result := RootPath
   else
     Result := '';
 end;
@@ -98,7 +101,7 @@ begin
           'Invoke-WebRequest -Uri ''' + Url + ''' ' +
           '-OutFile ''' + Dest + ''' -UseBasicParsing }"';
 
-  if not Exec('powershell.exe', Cmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+  if not Exec('powershell.exe', Cmd, '', SW_SHOW, ewWaitUntilTerminated, ResultCode)
      or (ResultCode <> 0) then
   begin
     Result := 'Failed to download Python {#PythonVersion}.' + #13#10 +
@@ -127,7 +130,7 @@ begin
     if not Exec(ExpandConstant('{tmp}') + '\python_installer.exe',
                 '/quiet InstallAllUsers=1 PrependPath=0 ' +
                 'Include_test=0 Include_doc=0 Include_launcher=1',
-                '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+                '', SW_SHOW, ewWaitUntilTerminated, ResultCode)
        or (ResultCode <> 0) then
     begin
       MsgBox('Failed to install Python {#PythonVersion}.' + #13#10 +
@@ -157,7 +160,7 @@ begin
   { --- Create virtual environment -------------------------------------- }
   Log('Creating virtual environment in: ' + VenvDir);
   if not Exec(PythonExePath, '-m venv "' + VenvDir + '"',
-              '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+              '', SW_SHOW, ewWaitUntilTerminated, ResultCode)
      or (ResultCode <> 0) then
   begin
     MsgBox('Failed to create Python virtual environment.' + #13#10 +
@@ -169,12 +172,12 @@ begin
   { --- Upgrade pip inside the venv ------------------------------------- }
   Log('Upgrading pip...');
   Exec(VenvPython, '-m pip install --upgrade pip',
-       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+       '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
 
   { --- Install Dafne --------------------------------------------------- }
   Log('Installing {#PipPackage}=={#MyAppVersion}...');
   if not Exec(VenvPip, 'install {#PipPackage}=={#MyAppVersion}',
-              '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+              '', SW_SHOW, ewWaitUntilTerminated, ResultCode)
      or (ResultCode <> 0) then
   begin
     MsgBox('Failed to install Dafne.' + #13#10 +
