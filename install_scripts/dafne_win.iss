@@ -6,8 +6,8 @@
 #define MyAppVersion "2.0.1b0"
 #define MyAppPublisher "Dafne-imaging"
 #define MyAppURL "https://dafne.network/"
-#define PythonVersion "3.12.12"
-#define PythonDirName "Python312"
+#define PythonVersion "3.13.13"
+#define PythonDirName "Python313"
 #define PipPackage "dafne"
 
 [Setup]
