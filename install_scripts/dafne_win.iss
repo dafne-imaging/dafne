@@ -45,6 +45,9 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\venv\Scripts\dafne.exe"; IconFile
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\venv\Scripts\dafne.exe"; IconFilename: "{app}\dafne_icon.ico"; Tasks: desktopicon
 
+[Dirs]
+Name: "{app}\venv"; Permissions: users-modify
+
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\venv"
 
