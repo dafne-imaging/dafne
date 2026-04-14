@@ -182,7 +182,7 @@ begin
 
   { --- Install Dafne --------------------------------------------------- }
   Log('Installing {#PipPackage}=={#MyAppVersion}...');
-  if not Exec(VenvPip, 'install {#PipPackage}=={#MyAppVersion}',
+  if not Exec(VenvPip, 'install --upgrade {#PipPackage}',
               '', SW_SHOW, ewWaitUntilTerminated, ResultCode)
      or (ResultCode <> 0) then
   begin

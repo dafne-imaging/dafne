@@ -150,8 +150,8 @@ if ! "$PYTHON_BIN" -m venv "$VENV_DIR" 2>&1 | tee -a "$LOG_FILE"; then
 fi
 
 # Install pip package in virtual environment
-echo "Installing $PIP_PACKAGE==${DAFNE_VERSION}..." | tee -a "$LOG_FILE"
-if ! $ARCH_CMD "$VENV_DIR/bin/pip" install "$PIP_PACKAGE==${DAFNE_VERSION}" 2>&1 | tee -a "$LOG_FILE"; then
+echo "Installing $PIP_PACKAGE..." | tee -a "$LOG_FILE"
+if ! $ARCH_CMD "$VENV_DIR/bin/pip" install -U "$PIP_PACKAGE" 2>&1 | tee -a "$LOG_FILE"; then
     echo "Failed to install pip package" | tee -a "$LOG_FILE"
     exit 1
 fi
