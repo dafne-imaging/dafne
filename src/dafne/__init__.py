@@ -1,8 +1,5 @@
 #  Copyright (c) 2022 Dafne-Imaging Team
 
-from .config.version import VERSION
-__version__ = VERSION
-
 from . import resources
 
 import sys
@@ -20,3 +17,10 @@ if not flexidep.is_frozen():
     with pkg_resources.files(resources).joinpath('runtime_dependencies.cfg').open() as f:
         dm = flexidep.DependencyManager(config_file=f)
     dm.install_interactive()
+
+# the following need to be imported before .config initializes the Qt environment, otherwise under windows there are DLL conflicts
+import tensorflow as tf
+import torch
+
+from .config.version import VERSION
+__version__ = VERSION

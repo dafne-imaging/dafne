@@ -13,7 +13,7 @@ scikit-image
 ormir-pyvoxel
 importlib_resources ; python_version < "3.10"
 dafne-dl >= 2.0.1b0
-flexidep>=0.0.15
+flexidep>=0.0.16
 pyvistaqt
 torch
 torchvision
