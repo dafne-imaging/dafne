@@ -98,6 +98,7 @@ begin
   Url  := 'https://www.python.org/ftp/python/{#PythonVersion}/python-{#PythonVersion}-amd64.exe';
   Dest := ExpandConstant('{tmp}') + '\python_installer.exe';
   Cmd  := '-Command "& { $ProgressPreference = ''SilentlyContinue''; ' +
+          '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ' +
           'Invoke-WebRequest -Uri ''' + Url + ''' ' +
           '-OutFile ''' + Dest + ''' -UseBasicParsing }"';
 
@@ -128,7 +129,7 @@ begin
   begin
     Log('Installing Python {#PythonVersion} silently...');
     if not Exec(ExpandConstant('{tmp}') + '\python_installer.exe',
-                '/quiet InstallAllUsers=1 PrependPath=0 ' +
+                'InstallAllUsers=1 PrependPath=0 ' +
                 'Include_test=0 Include_doc=0 Include_launcher=1',
                 '', SW_SHOW, ewWaitUntilTerminated, ResultCode)
        or (ResultCode <> 0) then
