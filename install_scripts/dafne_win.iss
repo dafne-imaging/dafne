@@ -3,7 +3,7 @@
 ; Mirrors the approach used in dafne-mac-pkg-build.sh for macOS.
 
 #define MyAppName "Dafne"
-#define MyAppVersion "2.0.1b2"
+#define MyAppVersion "2.0.1b3"
 #define MyAppPublisher "Dafne-imaging"
 #define MyAppURL "https://dafne.network/"
 #define PythonVersion "3.13.13"

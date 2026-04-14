@@ -1,2 +1,2 @@
 #  Copyright (c) 2022 Dafne-Imaging Team
-VERSION='2.0.1-beta2'
+VERSION='2.0.1-beta3'
