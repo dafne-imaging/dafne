@@ -26,6 +26,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # or any {'0', '1', '2', '3'}
 
 from ..ui.MuscleSegmentation import MuscleSegmentation
 from ..config import GlobalConfig, load_config
+from ..utils.app_identity import setup_app_identity
 
 import matplotlib
 matplotlib.use("Qt5Agg")
@@ -47,6 +48,9 @@ def main():
     parser.add_argument('-lm', '--local-model', action='store_true', help='Force local model')
     
     args = parser.parse_args()
+
+    # must happen before any Qt object is created
+    setup_app_identity()
 
     load_config()
 
