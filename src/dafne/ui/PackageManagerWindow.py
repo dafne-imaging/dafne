@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from flexidep.utils import (get_installed_packages_with_available_versions,
                              get_pypi_available_versions, is_conda_environment)
-from flexidep.installers import install_package_version, uninstall_package
+from flexidep.installers import install_package_version, uninstall_package, install_package
 from flexidep.config import PackageManagers
 
 from PyQt5.QtWidgets import (QDialog, QWidget, QVBoxLayout, QHBoxLayout,
@@ -43,21 +43,24 @@ class _PackageLoaderThread(QThread):
         self.packages_loaded.emit(packages)
 
 
-class _InstallThread(QThread):
+class InstallThread(QThread):
     install_done = pyqtSignal(bool)
 
-    def __init__(self, package_manager, package_name, version, parent=None):
+    def __init__(self, package_manager, package_name, version = None, parent=None):
         QThread.__init__(self, parent)
         self.package_manager = package_manager
         self.package_name = package_name
         self.version = version
 
     def run(self):
-        result = install_package_version(self.package_manager, self.package_name, self.version)
+        if self.version:
+            result = install_package_version(self.package_manager, self.package_name, self.version)
+        else:
+            result = install_package(self.package_manager, self.package_name)
         self.install_done.emit(result)
 
 
-class _UninstallThread(QThread):
+class UninstallThread(QThread):
     uninstall_done = pyqtSignal(bool)
 
     def __init__(self, package_manager, package_name, parent=None):
@@ -301,7 +304,7 @@ class PackageManagerWindow(QDialog):
         QApplication.processEvents()
         self._reload_after_install = reload
         self._show_loading(f"Installing {package_name}=={version}...")
-        self.install_thread = _InstallThread(
+        self.install_thread = InstallThread(
             self.package_manager, package_name, version, self
         )
         self.install_thread.install_done.connect(self._on_install_done)
@@ -329,7 +332,7 @@ class PackageManagerWindow(QDialog):
         self.busy_start.emit(f"Uninstalling {package_name}")
         QApplication.processEvents()
         self._show_loading(f"Uninstalling {package_name}...")
-        self.uninstall_thread = _UninstallThread(self.package_manager, package_name, self)
+        self.uninstall_thread = UninstallThread(self.package_manager, package_name, self)
         self.uninstall_thread.uninstall_done.connect(self._on_uninstall_done)
         self.uninstall_thread.start()
 
@@ -383,7 +386,7 @@ class PackageManagerWindow(QDialog):
         remaining = len(self._update_queue)
         self._show_loading(f"Updating {package_name}=={version}..."
                            + (f" ({remaining} remaining)" if remaining else ""))
-        self.install_thread = _InstallThread(
+        self.install_thread = InstallThread(
             self.package_manager, package_name, version, self
         )
         self.install_thread.install_done.connect(self._on_update_one_done)

@@ -85,8 +85,8 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>560</width>
-            <height>1436</height>
+            <width>556</width>
+            <height>1375</height>
            </rect>
           </property>
           <property name="sizePolicy">
@@ -1096,11 +1096,12 @@ padding-right: 10px;</string>
     <addaction name="actionPyRadiomics"/>
     <addaction name="menuCalculate_statistics"/>
     <addaction name="separator"/>
-    <addaction name="actionOpen_transform_calculator"/>
-    <addaction name="separator"/>
-    <addaction name="actionPreferences"/>
     <addaction name="actionModel_browser"/>
     <addaction name="actionPython_package_manager"/>
+    <addaction name="actionOpen_transform_calculator"/>
+    <addaction name="actionInstall_Dante_model_trainer"/>
+    <addaction name="separator"/>
+    <addaction name="actionPreferences"/>
     <addaction name="action_Restore_factory_settings"/>
     <addaction name="menuOpen_folder"/>
    </widget>
@@ -1222,7 +1223,7 @@ padding-right: 10px;</string>
   </action>
   <action name="actionOpen_transform_calculator">
    <property name="text">
-    <string>Open transform calculator</string>
+    <string>Open transform calculator...</string>
    </property>
   </action>
   <action name="actionIncremental_Learn">
@@ -1341,6 +1342,11 @@ padding-right: 10px;</string>
   <action name="actionPython_package_manager">
    <property name="text">
     <string>Python package manager...</string>
+   </property>
+  </action>
+  <action name="actionInstall_Dante_model_trainer">
+   <property name="text">
+    <string>Install Dante model trainer...</string>
    </property>
   </action>
  </widget>

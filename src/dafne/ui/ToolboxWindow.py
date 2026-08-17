@@ -19,9 +19,12 @@
 import functools
 
 import os
+import subprocess
 import sys
 
-from .PackageManagerWindow import PackageManagerWindow
+from flexidep import PackageManagers
+
+from .PackageManagerWindow import PackageManagerWindow, InstallThread
 from .Viewer3D import Viewer3D
 from ..ui.ToolboxUI import Ui_SegmentationToolbox
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QSize, QMutex, QWaitCondition
@@ -465,6 +468,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.confirmation_result_value = False
         self.question_signal.connect(self._show_question_dialog, Qt.QueuedConnection)
 
+        self.check_dante()
+
         self.general_enable(False)
 
         self.resize_to_fit()
@@ -479,9 +484,51 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
                          QApplication.primaryScreen().geometry().height()-100))
 
 
+    @pyqtSlot()
+    def check_dante(self):
+        # check if model trainer is installed
+        dante_available = True
+        try:
+            import dante.ui.ModelTrainerSplit
+        except ImportError:
+            dante_available = False
+
+        if dante_available:
+            self.actionInstall_Dante_model_trainer.setText("Launch Dante Trainer...")
+            try:
+                self.actionInstall_Dante_model_trainer.triggered.disconnect(self.install_dante)
+            except TypeError:
+                pass # the connection does not exist. Doesn't matter
+            self.actionInstall_Dante_model_trainer.triggered.connect(self.launch_dante)
+        else:
+            self.actionInstall_Dante_model_trainer.setText("Install Dante Trainer...")
+            try:
+                self.actionInstall_Dante_model_trainer.triggered.disconnect(self.launch_dante)
+            except TypeError:
+                pass
+            self.actionInstall_Dante_model_trainer.triggered.connect(self.install_dante)
+
+    @pyqtSlot()
+    def install_dante_done(self):
+        self.check_dante()
+        self.set_splash(False, 0, 1)
+
+    @pyqtSlot()
+    def install_dante(self):
+        dante_install_thread = InstallThread(PackageManagers.pip, "dante_trainer", None, self)
+        dante_install_thread.install_done.connect(self.install_dante_done)
+        self.set_splash(True, 0, 1)
+        dante_install_thread.start()
+
+    @pyqtSlot()
+    def launch_dante(self):
+        subprocess.Popen([sys.executable, '-c',
+                           'from dante.ui.ModelTrainerSplit import main; main()'])
+
     def resize_to_fit(self):
         self.setMinimumSize(self.sizeHint().width() + 5, 0)
         self.resize(self.sizeHint().width()+5, self.sizeHint().height())
+
     @pyqtSlot(int)
     def toggle_subregion_group(self, enabled):
         self.segment_area_group.setVisible(enabled)
@@ -608,6 +655,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot()
     def package_splash_off(self):
+        self.check_dante()
         self.set_splash(False, 0, 1, '')
 
     @pyqtSlot(int, int, str)
