@@ -567,6 +567,13 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         config.GlobalConfig['MASK_LAYER_ALPHA'] = float(value) / 100
         self.reblit.emit()
 
+    def conditionally_enable_incremental_learn(self):
+        current_model = self.get_class(return_base_model=True)
+        if not current_model or current_model not in self.model_details:
+            self.actionIncremental_Learn.setEnabled(False)
+            return
+        self.actionIncremental_Learn.setEnabled(self.model_details[current_model].get('can_incremental_learn', True))
+
     @pyqtSlot()
     def general_enable(self, enabled = True):
         self.mainUIWidget.setEnabled(enabled)
@@ -578,7 +585,10 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.action_Upload_data.setEnabled(enabled)
         self.menuCalculate_statistics.setEnabled(enabled)
         self.actionPyRadiomics.setEnabled(enabled)
-        self.actionIncremental_Learn.setEnabled(enabled)
+        if not enabled:
+            self.actionIncremental_Learn.setEnabled(False)
+        else:
+            self.conditionally_enable_incremental_learn()
         self.actionSave_data_as_Nifti.setEnabled(enabled)
         self.action3D_Viewer.setEnabled(enabled)
 
@@ -920,15 +930,18 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         return filtered_classes
 
     def show_model_info(self):
-        current_model = self.classification_combo.currentText()
+        current_model = self.get_class(return_base_model=True)
         ModelBrowser.show_model_info(current_model, self.model_details, self)
 
     @pyqtSlot(str)
     def set_class(self, class_str):
         self.classification_combo.setCurrentText(class_str)
 
-    def get_class(self):
-        return self.classification_combo.currentText()
+    def get_class(self, return_base_model=False):
+        classification = self.classification_combo.currentText()
+        if return_base_model:
+            return classification.split(',')[0].strip()
+        return classification
 
     @pyqtSlot()
     def manage_edit_toggle(self):
@@ -1085,19 +1098,20 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     @pyqtSlot()
     def on_classification_changed(self):
-        cur_class = self.classification_combo.currentText()
+        cur_class = self.get_class()
         if cur_class == 'None':
             self.autosegment_button.setEnabled(False)
             self.model_info_button.setEnabled(False)
         else:
             self.autosegment_button.setEnabled(True)
             self.model_info_button.setEnabled(True)
+        self.conditionally_enable_incremental_learn()
         self.classification_changed.emit(cur_class)
 
     @pyqtSlot()
     @ask_confirm("This will replace all the classifications in the dataset")
     def on_classification_change_all(self):
-        self.classification_change_all.emit(self.classification_combo.currentText())
+        self.classification_change_all.emit(self.get_class())
 
     @pyqtSlot()
     def on_do_segmentation(self, *args, **kwargs):
@@ -1108,7 +1122,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         # print(self.muscle_segmentation_window.dictionary con info [self.model_details].data_dimensionality)
 
-        if str(get_model_detail(self.model_details, self.classification_combo.currentText(), 'dimensionality')) == '3':
+        if str(get_model_detail(self.model_details, self.get_class(), 'dimensionality')) == '3':
             accept, values = GenericInputDialog.show_dialog('Define slice range', [
                 GenericInputDialog.IntSpinInput('Min slice', 0, min_slice, max_slice),
                 GenericInputDialog.IntSpinInput('Max slice', max_slice, min_slice, max_slice)
