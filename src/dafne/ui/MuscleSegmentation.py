@@ -17,8 +17,10 @@
 import gc
 import re
 import flexidep
+import os, time, math, sys
 
 from dafne_dl.model_loaders import ensure_compatible_orientation_inplace, ensure_compatible_orientation
+import dafne_sam2.public_api as sam_api
 
 from ..config import GlobalConfig, load_config
 load_config()
@@ -41,6 +43,18 @@ if GlobalConfig['USE_GPU_FOR'] == 'Both (careful!)':
             # Virtual devices must be set before GPUs have been initialized
             print(e)
 
+def determine_sam_device():
+    if GlobalConfig['USE_GPU_FOR'] != 'Tensorflow':
+        if torch.cuda.is_available():
+            print('SAM loaded on GPU')
+            return 'cuda'
+        else:
+            # should use GPU but we don't know what. Let SAM decide
+            return 'auto'
+    # force GPU only for tensorflow, SAM will use CPU
+    print('SAM loaded on CPU')
+    return 'cpu'
+
 import matplotlib
 from dafne_dl.common.biascorrection import biascorrection_image
 from matplotlib.patches import Rectangle
@@ -55,11 +69,8 @@ from . import GenericInputDialog
 from ..utils.mask_to_spline import mask_average, mask_to_trivial_splines, masks_splines_to_splines_masks
 from ..utils.pySplineInterp import SplineInterpROIClass
 from ..utils.resource_utils import get_resource_path
-from ..utils.sam_mask_refine import enhance_mask
 
 matplotlib.use("Qt5Agg")
-
-import os, time, math, sys
 
 from .ToolboxWindow import ToolboxWindow
 from dicomUtils.ui.pyDicomView import ImageShow
@@ -263,6 +274,22 @@ class MuscleSegmentation(ImageShow, QObject):
         self.incrementalLearningAffine = {}
         self.incrLearnMeanDice = {}
         self.bundle_saved_for_IL = False
+
+        # SAM
+        self.sam = None
+
+    def get_sam(self):
+        if self.sam is not None:
+            return self.sam
+
+        def set_progress(progress, total):
+            self.setSplash(True, progress, total, "Loading SAM model...")
+
+        sam_model = GlobalConfig['SAM_MODEL']
+        checkpoint_dir = GlobalConfig['MODEL_PATH']
+
+        self.sam = sam_api.load_segmenter(checkpoint_dir, sam_model, device=determine_sam_device(), progress_callback=set_progress)
+        return self.sam
 
     @pyqtSlot(list, str)
     def show_news(self, news, index_address):
@@ -1373,9 +1400,8 @@ class MuscleSegmentation(ImageShow, QObject):
         def progress_callback(current, maximum):
             self.setSplash(True, current, maximum, "SAM autorefine")
 
-
         try:
-            new_mask = enhance_mask(self.image, self.getCurrentMask(), progress_callback)
+            new_mask = sam_api.SAM_refine(self.image, self.getCurrentMask(), self.get_sam(), GlobalConfig['SAM_PROMPT_MODE'], progress_callback)
         except Exception as e:
             print("Error in SAM autorefine:", e)
             self.alert("Error in SAM autorefine: " + str(e))
