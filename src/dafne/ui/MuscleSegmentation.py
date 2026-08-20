@@ -1401,7 +1401,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.setSplash(True, current, maximum, "SAM autorefine")
 
         try:
-            new_mask = sam_api.SAM_refine(self.image, self.getCurrentMask(), self.get_sam(), GlobalConfig['SAM_PROMPT_MODE'], progress_callback)
+            new_mask = sam_api.SAM_refine(self.image, self.getCurrentMask(), self.get_sam(), GlobalConfig['SAM_PROMPT_MODE'].lower(), progress_callback)
         except Exception as e:
             print("Error in SAM autorefine:", e)
             self.alert("Error in SAM autorefine: " + str(e))
@@ -1412,6 +1412,66 @@ class MuscleSegmentation(ImageShow, QObject):
         self.updateMasksFromROIs()
         self.reblit()
         self.setSplash(False)
+
+    def samPropagateBlock(self, initial_index_sam, final_index_sam, inplace=True):
+        """ Propagate the current ROI's existing masks across
+        [initial_index_sam, final_index_sam] with SAM2 (dafne_sam2.public_api.SAM_propagate),
+        using every already-segmented slice of the current ROI as anchors/support.
+
+        Always prompts SAM2 with the anchor masks themselves (prompt_kind='mask'), trusted
+        as-is (refine_mask_prompt=False) -- these are the user's own confirmed/edited
+        masks, not pseudo-labels to second-guess, so this ignores GlobalConfig['SAM_PROMPT_MODE'].
+
+        inplace=True: overwrite the current ROI's masks in that range in the roiManager.
+        inplace=False: leave the roiManager untouched, and return a volume the size of the
+        loaded dataset (H, W, len(imList)) with the propagated masks in that range and
+        zeros elsewhere. """
+        if not self.roiManager:
+            return None
+        roi_name = self.getCurrentROIName()
+        if not roi_name:
+            return None
+
+        anchors = {int(image_number): mask for (name, image_number), mask
+                  in self.roiManager.all_masks(roi_name=roi_name) if np.any(mask)}
+        if not anchors:
+            self.alert('No existing masks for the current ROI to use as support for SAM propagation')
+            return None
+
+        lo, hi = sorted((int(initial_index_sam), int(final_index_sam)))
+
+        def progress_callback(current, maximum):
+            self.setSplash(True, current, maximum, "SAM propagate")
+
+        try:
+            result = sam_api.SAM_propagate(
+                np.stack(self.imList), {roi_name: anchors}, self.get_sam(),
+                z_bounds={roi_name: (lo, hi)},
+                prompt_kind='mask', refine_mask_prompt=False,
+                progress_callback=progress_callback)
+        except Exception as e:
+            print("Error in SAM propagate:", e)
+            self.alert("Error in SAM propagate: " + str(e))
+            self.setSplash(False)
+            return None
+
+        self.setSplash(False)
+        propagated = result[roi_name]
+
+        if inplace:
+            for image_number in range(lo, hi + 1):
+                mask = propagated.get(image_number)
+                if mask is None:
+                    mask = np.zeros(self.image.shape, dtype=np.uint8)
+                self.roiManager.set_mask(roi_name, image_number, mask.astype(np.uint8))
+            self.updateMasksFromROIs()
+            self.reblit()
+            return None
+
+        out_volume = np.zeros((self.image.shape[0], self.image.shape[1], len(self.imList)), dtype=np.uint8)
+        for image_number, mask in propagated.items():
+            out_volume[:, :, image_number] = mask
+        return out_volume
 
     @pyqtSlot(bool)
     @snapshotSaver
@@ -1751,17 +1811,38 @@ class MuscleSegmentation(ImageShow, QObject):
             registered_mask = self._registerMask()
             self.setCurrentMask(binary_dilation(mask_average([interpolated_mask, registered_mask])))
             self.redraw()
+        if interpolation_method == ToolboxWindow.INTERPOLATE_MASK_SAM:
+            out_volume = self._interpolate_block(interpolation_method, inplace=False)
+            if out_volume is None:
+                return
+            self.setCurrentMask(out_volume[:, :, int(self.curImage)])
+            self.redraw()
 
     @pyqtSlot(str)
+    @snapshotSaver
     @separate_thread_decorator
-    def interpolate_block(self, interpolation_method):
+    def interpolate_block(self, interpolation_method, inplace=True):
+        self._interpolate_block(interpolation_method, inplace)
+
+    def _interpolate_block(self, interpolation_method, inplace=True):
+        """ Shared logic behind the interpolate_block slot -- factored out so
+        do_interpolate's single-slice SAM branch can call it synchronously (interpolate_block
+        itself is @separate_thread_decorator/@snapshotSaver-wrapped and so cannot be called
+        for its return value). """
         #if self.editMode == ToolboxWindow.EDITMODE_CONTOUR: return
 
         # there needs to be at least one segmented slice above and one segmented slice below
         masks_above, masks_above_index, masks_below, masks_below_index = self._get_masks_above_below()
         if not masks_above or not masks_below:
             self.alert('Block interpolation only works if there is at least one segmented slice above and one segmented slice below')
-            return
+            return None
+
+        if interpolation_method == ToolboxWindow.INTERPOLATE_MASK_SAM:
+            # use SAM for volume interpolation
+            initial_index_sam = masks_above_index[-1]
+            final_index_sam = masks_below_index[-1]
+            return self.samPropagateBlock(initial_index_sam, final_index_sam, inplace)
+
         initial_index = masks_above_index[0] + 1
         final_index = masks_below_index[0] - 1
         for i in range(initial_index, final_index+1):
@@ -1769,6 +1850,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.displayImage(self.curImage)
             self.redraw()
             self.do_interpolate(interpolation_method)
+        return None
 
 
     ##############################################################################################################

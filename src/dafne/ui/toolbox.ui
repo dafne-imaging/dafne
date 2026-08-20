@@ -84,9 +84,9 @@
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>0</y>
-            <width>556</width>
-            <height>1375</height>
+            <y>-1008</y>
+            <width>560</width>
+            <height>1584</height>
            </rect>
           </property>
           <property name="sizePolicy">
@@ -891,6 +891,16 @@ padding-right: 10px;</string>
                    <string>Both</string>
                   </property>
                   <property name="checked">
+                   <bool>false</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QRadioButton" name="interpolation_style_SAM">
+                  <property name="text">
+                   <string>SAM</string>
+                  </property>
+                  <property name="checked">
                    <bool>true</bool>
                   </property>
                  </widget>
@@ -1011,7 +1021,7 @@ padding-right: 10px;</string>
      <x>0</x>
      <y>0</y>
      <width>581</width>
-     <height>30</height>
+     <height>36</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

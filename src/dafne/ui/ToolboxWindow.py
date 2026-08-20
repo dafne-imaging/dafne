@@ -180,6 +180,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     INTERPOLATE_MASK_REGISTER = 'register'
     INTERPOLATE_MASK_INTERPOLATE = 'interpolate'
     INTERPOLATE_MASK_BOTH = 'both'
+    INTERPOLATE_MASK_SAM = 'SAM'
 
     interpolate_mask = pyqtSignal(str)
     interpolate_block = pyqtSignal(str)
@@ -1294,6 +1295,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_BOTH
         elif self.interpolation_style_reg.isChecked():
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_REGISTER
+        elif self.interpolation_style_reg.isChecked():
+            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_SAM
         else:
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE
         self.interpolate_mask.emit(interpolation_style)
@@ -1303,6 +1306,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_BOTH
         elif self.interpolation_style_reg.isChecked():
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_REGISTER
+        elif self.interpolation_style_reg.isChecked():
+            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_SAM
         else:
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE
         self.interpolate_block.emit(interpolation_style)

@@ -92,7 +92,7 @@ defaults = {
     'DELETE_OLD_MODELS': (True, 'bool', None),
     'ECHO_OUTPUT': (False, 'bool', None),
     'SAM_MODEL': ('sam2.1_tiny', 'option', AVAILABLE_SAM_MODELS, 'SAM model size (requires restart)'),
-    'SAM_PROMPT_MODE': ('mask', 'option', ['mask', 'box'], 'SAM prompt mode'),
+    'SAM_PROMPT_MODE': ('mask', 'option', ['Mask', 'Box'], 'SAM prompt mode'),
     'USE_GPU_FOR': ('Both (careful!)', 'option', ['Tensorflow', 'Torch', 'Both (careful!)'], 'Use CUDA for (requires restart)'),
     'TENSORFLOW_MEMORY_ALLOCATION': (2.0, 'float_slider', 0.0, 20.0, 0.1, 'Tensorflow max memory (GB) (requires restart)'),
     'ADVANCED_CONFIG': (False, 'bool', 'Show advanced configuration'),
