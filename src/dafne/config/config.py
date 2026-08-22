@@ -79,6 +79,7 @@ defaults = {
     'ROI_COLOR':  ((1, 0, 0, 0.5), 'color', 'Color for active subROI'),  # red with 0.5 opacity,
     'ROI_SAME_COLOR':  ((1, 1, 0, 0.5), 'color', 'Color for inactive subROIs'),  # yellow with 0.5 opacity,
     'ROI_OTHER_COLOR':  ((0, 0, 1, 0.4), 'color', 'Color for inactive ROIs'),
+    'USE_MULTIPLE_OTHER_COLORS': (True, 'bool', 'Use multiple colors for inactive ROIs'),
     'MASK_LAYER_ALPHA':  (0.4, 'float_slider', 0.0, 1.0, 0.1, 'Alpha channel of masks'),
     'ROI_COLOR_WACOM':  ((1, 0, 0, 1), 'color', None),  # red with 1 opacity,
     'ROI_SAME_COLOR_WACOM':  ((1, 1, 0, 1), 'color', None),  # yellow with 1 opacity,

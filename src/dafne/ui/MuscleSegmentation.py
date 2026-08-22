@@ -65,7 +65,7 @@ from skimage.morphology import area_opening, area_closing
 from .WhatsNew import NewsChecker, WhatsNewDialog
 from dicomUtils.misc import realign_medical_volume, dosma_volume_from_path, reorient_data_ui, \
     get_nifti_orientation
-from . import GenericInputDialog
+from . import GenericInputDialog, hue_compass_colormap
 from ..utils.mask_to_spline import mask_average, mask_to_trivial_splines, masks_splines_to_splines_masks
 from ..utils.pySplineInterp import SplineInterpROIClass
 from ..utils.resource_utils import get_resource_path
@@ -1918,6 +1918,7 @@ class MuscleSegmentation(ImageShow, QObject):
         mask_size = self.image.shape
         self.otherMask = np.zeros(mask_size, dtype=np.uint8)
         self.activeMask = np.zeros(mask_size, dtype=np.uint8)
+        current_other_mask_index = 2
         for key_tuple, mask in self.roiManager.all_masks(image_number=self.curImage):
             mask_name = key_tuple[0]
             if mask_name == roi_name:
@@ -1925,7 +1926,8 @@ class MuscleSegmentation(ImageShow, QObject):
                     self.activeMask = mask.copy()
             else:
                 if mask is not None:
-                    self.otherMask = np.logical_or(self.otherMask, mask)
+                    self.otherMask += (current_other_mask_index*mask).astype(np.uint8)
+                    current_other_mask_index += 1
         self.emit_mask_slice_changed()
 
     def emit_mask_changed(self):
@@ -1993,9 +1995,9 @@ class MuscleSegmentation(ImageShow, QObject):
             original_xlim = self.axes.get_xlim()
             original_ylim = self.axes.get_ylim()
             relativeAlphaROI = GlobalConfig['ROI_OTHER_COLOR'][3] / GlobalConfig['ROI_COLOR'][3]
-            self.maskOtherImPlot = self.axes.imshow(other_mask, cmap=self.mask_layer_other_colormap,
+            self.maskOtherImPlot = self.axes.imshow(other_mask,
                                                     alpha=relativeAlphaROI*GlobalConfig['MASK_LAYER_ALPHA'],
-                                                    vmin=0, vmax=1, zorder=101, aspect=self.resolution[0]/self.resolution[1])
+                                                    zorder=101, aspect=self.resolution[0]/self.resolution[1])
             try:
                 self.axes.set_xlim(original_xlim)
                 self.axes.set_ylim(original_ylim)
@@ -2004,6 +2006,14 @@ class MuscleSegmentation(ImageShow, QObject):
             self.maskOtherImPlot.set_animated(True)
 
         self.maskOtherImPlot.set_data(other_mask.astype(np.uint8))
+        if GlobalConfig['USE_MULTIPLE_OTHER_COLORS']:
+            other_colormap = hue_compass_colormap.generate_colormap(GlobalConfig['ROI_COLOR'], other_mask.max()-1)
+            self.maskOtherImPlot.set_cmap(other_colormap)
+            self.maskOtherImPlot.set_clim(vmin=0, vmax=other_colormap.N - 1)
+            #('Other mask max', other_mask.max())
+        else:
+            self.maskOtherImPlot.set_cmap(self.mask_layer_other_colormap)
+            self.maskOtherImPlot.set_clim(vmin=0, vmax=1)
         self.maskOtherImPlot.set_alpha(GlobalConfig['MASK_LAYER_ALPHA'])
         self.axes.draw_artist(self.maskOtherImPlot)
 
@@ -2324,7 +2334,7 @@ class MuscleSegmentation(ImageShow, QObject):
             eraseMask = np.logical_not(brush_mask)
             np.logical_and(self.activeMask, eraseMask, out=self.activeMask)
             if self.toolbox_window.get_erase_from_all_rois():
-                np.logical_and(self.otherMask, eraseMask, out=self.otherMask)
+                self.otherMask = self.otherMask*eraseMask
         #self.do_reblit()
 
     # override from ImageShow
@@ -2489,9 +2499,10 @@ class MuscleSegmentation(ImageShow, QObject):
             if self.roiManager is not None:
                 self.roiManager.set_mask(self.getCurrentROIName(), self.curImage, self.activeMask)
             if self.toolbox_window.get_erase_from_all_rois():
+                other_mask_bool = self.otherMask.astype(np.bool)
                 for (key_tuple, mask) in self.roiManager.all_masks(image_number=self.curImage):
                     if key_tuple[0] == self.getCurrentROIName(): continue
-                    self.roiManager.set_mask(key_tuple[0], key_tuple[1], np.logical_and(mask, self.otherMask))
+                    self.roiManager.set_mask(key_tuple[0], key_tuple[1], np.logical_and(mask, other_mask_bool))
         self.emit_mask_slice_changed()
 
     def rightPressCB(self, event):

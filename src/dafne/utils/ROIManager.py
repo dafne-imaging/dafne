@@ -12,6 +12,7 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from collections import OrderedDict
 
 import numpy as np
 
@@ -250,7 +251,7 @@ class ROIManager:
     """
 
     def __init__(self, mask_size):
-        self.allROIs = {}
+        self.allROIs = OrderedDict({})
         self.mask_size = mask_size
         self.autosegment_subregions = {}
 
