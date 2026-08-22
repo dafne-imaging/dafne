@@ -255,6 +255,14 @@ class ROIManager:
         self.mask_size = mask_size
         self.autosegment_subregions = {}
 
+    # define a setstate to update older pickles
+    def __setstate__(self, state):
+        rois = state.get('allROIs')
+        # older pickles have rois has dict, not OrderedDict. Upgrade to it for consistent behavior
+        if rois is not None and not isinstance(rois, OrderedDict):
+            state['allROIs'] = OrderedDict(rois)
+        self.__dict__.update(state)
+
     def get_autosegment_subregion(self, slice):
         if slice not in self.autosegment_subregions:
             self.autosegment_subregions[slice] = (0,0,self.mask_size[0],self.mask_size[1])
