@@ -1793,12 +1793,12 @@ class MuscleSegmentation(ImageShow, QObject):
             return binary_dilation(mask_average([registered_mask_above, registered_mask_below],
                                 [self.curImage-mask_below_index, mask_above_index-self.curImage]))
 
-    @pyqtSlot(str)
+    @pyqtSlot(str, bool)
     @separate_thread_decorator
-    def interpolate(self, interpolation_method):
-        self.do_interpolate(interpolation_method)
+    def interpolate(self, interpolation_method, all_rois):
+        self.do_interpolate(interpolation_method, all_rois)
 
-    def do_interpolate(self, interpolation_method):
+    def do_interpolate(self, interpolation_method, all_rois):
         #if self.editMode == ToolboxWindow.EDITMODE_CONTOUR: return
         if interpolation_method == ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE:
             interpolated_mask = self._calculateInterpolatedMask()
@@ -1820,13 +1820,13 @@ class MuscleSegmentation(ImageShow, QObject):
             self.setCurrentMask(out_volume[:, :, int(self.curImage)])
             self.redraw()
 
-    @pyqtSlot(str)
+    @pyqtSlot(str, bool)
     @snapshotSaver
     @separate_thread_decorator
-    def interpolate_block(self, interpolation_method, inplace=True):
-        self._interpolate_block(interpolation_method, inplace)
+    def interpolate_block(self, interpolation_method, all_rois, inplace=True):
+        self._interpolate_block(interpolation_method, all_rois, inplace)
 
-    def _interpolate_block(self, interpolation_method, inplace=True):
+    def _interpolate_block(self, interpolation_method, all_rois, inplace=True):
         """ Shared logic behind the interpolate_block slot -- factored out so
         do_interpolate's single-slice SAM branch can call it synchronously (interpolate_block
         itself is @separate_thread_decorator/@snapshotSaver-wrapped and so cannot be called

@@ -84,9 +84,9 @@
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>0</y>
+            <y>-1042</y>
             <width>560</width>
-            <height>1584</height>
+            <height>1618</height>
            </rect>
           </property>
           <property name="sizePolicy">
@@ -906,6 +906,13 @@ padding-right: 10px;</string>
                  </widget>
                 </item>
                </layout>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="checkBox_Interpolate_all_ROIs">
+                <property name="text">
+                 <string>Interpolate all ROIs</string>
+                </property>
+               </widget>
               </item>
              </layout>
             </widget>

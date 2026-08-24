@@ -184,8 +184,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     INTERPOLATE_MASK_BOTH = 'both'
     INTERPOLATE_MASK_SAM = 'SAM'
 
-    interpolate_mask = pyqtSignal(str)
-    interpolate_block = pyqtSignal(str)
+    interpolate_mask = pyqtSignal(str, bool)
+    interpolate_block = pyqtSignal(str, bool)
 
     roi_added = pyqtSignal(str)
     roi_deleted = pyqtSignal(str)
@@ -1315,7 +1315,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_SAM
         else:
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE
-        self.interpolate_mask.emit(interpolation_style)
+        self.interpolate_mask.emit(interpolation_style, self.checkBox_Interpolate_all_ROIs.isChecked())
 
     def interpolate_block_emit(self):
         if self.interpolation_style_both.isChecked():
@@ -1326,4 +1326,4 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_SAM
         else:
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE
-        self.interpolate_block.emit(interpolation_style)
+        self.interpolate_block.emit(interpolation_style, self.checkBox_Interpolate_all_ROIs.isChecked())
