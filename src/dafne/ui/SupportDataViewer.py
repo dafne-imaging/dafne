@@ -137,6 +137,8 @@ class SupportDataViewerDialog(QDialog, Ui_SupportDataViewerDialog):
         self.mirrorYButton.clicked.connect(self.imshowWidget.mirror_y_all)
         self.rotateButton.clicked.connect(self.imshowWidget.rotate_90_all)
 
+        self.transferButton.clicked.connect(self.emit_signal)
+
         roiGroup_layout = self.roiGroup.layout()
         colors = self.imshowWidget.mask_colormap.colors
         current_color = 1

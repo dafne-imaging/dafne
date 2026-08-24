@@ -84,7 +84,7 @@
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>-1008</y>
+            <y>0</y>
             <width>560</width>
             <height>1584</height>
            </rect>
@@ -1133,6 +1133,8 @@ padding-right: 10px;</string>
     <addaction name="actionCombine_roi"/>
     <addaction name="actionMultiple_combine"/>
     <addaction name="actionRemove_overlap"/>
+    <addaction name="separator"/>
+    <addaction name="actionROI_transfer_from_npz_bundle"/>
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
@@ -1357,6 +1359,11 @@ padding-right: 10px;</string>
   <action name="actionInstall_Dante_model_trainer">
    <property name="text">
     <string>Install Dante model trainer...</string>
+   </property>
+  </action>
+  <action name="actionROI_transfer_from_npz_bundle">
+   <property name="text">
+    <string>ROI transfer from npz bundle...</string>
    </property>
   </action>
  </widget>

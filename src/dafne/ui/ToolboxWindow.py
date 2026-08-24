@@ -22,9 +22,11 @@ import os
 import subprocess
 import sys
 
+import numpy as np
 from flexidep import PackageManagers
 
 from .PackageManagerWindow import PackageManagerWindow, InstallThread
+from .SupportDataViewer import SupportDataViewerDialog
 from .Viewer3D import Viewer3D
 from ..ui.ToolboxUI import Ui_SegmentationToolbox
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt, QSize, QMutex, QWaitCondition
@@ -246,6 +248,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     show_3D_viewer_signal = pyqtSignal()
 
+    mask_transfer = pyqtSignal(np.ndarray, dict, list)
+
     NO_STATE = 0
     ADD_STATE = 1
     REMOVE_STATE = 2
@@ -436,6 +440,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionRemove_overlap.setEnabled(False)
         self.actionSave_data_as_Nifti.setEnabled(False)
 
+        self.actionROI_transfer_from_npz_bundle.triggered.connect(self.open_transfer_dialog)
+
         self.action_Upload_data.triggered.connect(self.do_upload_data)
 
         self.actionImport_model.triggered.connect(self.do_import_model)
@@ -484,6 +490,15 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
                      max(self.scrollAreaWidgetContents.sizeHint().height()+50,
                          QApplication.primaryScreen().geometry().height()-100))
 
+    @pyqtSlot()
+    def open_transfer_dialog(self):
+
+        support_file, _ = QFileDialog.getOpenFileName(self, caption='Select NPZ template file',
+                                                   filter='NPZ bundle files (*.npz);;All files ()')
+        if support_file:
+            self.support_data_viewer = SupportDataViewerDialog(support_file)
+            self.support_data_viewer.mask_transfer_signal.connect(self.mask_transfer)
+            self.support_data_viewer.show()
 
     @pyqtSlot()
     def check_dante(self):
@@ -592,6 +607,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             self.conditionally_enable_incremental_learn()
         self.actionSave_data_as_Nifti.setEnabled(enabled)
         self.action3D_Viewer.setEnabled(enabled)
+        self.actionROI_transfer_from_npz_bundle.setEnabled(enabled)
 
     @pyqtSlot()
     def reload_config(self):

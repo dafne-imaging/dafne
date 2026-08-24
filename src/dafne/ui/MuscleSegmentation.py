@@ -563,6 +563,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.delete_all_subregions.connect(self.delete_all_subregions)
         self.toolbox_window.copy_all_subregions.connect(self.copy_all_subregions)
 
+        self.toolbox_window.mask_transfer.connect(self.transfer_roi)
+
         self.toolbox_window.show_3D_viewer_signal.connect(self.emit_mask_changed)
         self.mask_changed.connect(self.toolbox_window.viewer3D.set_spacing_and_data)
         self.mask_slice_changed.connect(self.toolbox_window.viewer3D.set_slice)
@@ -1851,6 +1853,20 @@ class MuscleSegmentation(ImageShow, QObject):
             self.redraw()
             self.do_interpolate(interpolation_method)
         return None
+
+    @pyqtSlot(np.ndarray, dict, list)
+    @snapshotSaver
+    @separate_thread_decorator
+    def transfer_roi(self, support_volume, masks, resolution):
+        """ transfer a ROI from a support volume to the current slice """
+        current_image = self.imList[int(self.curImage)]
+
+        def progress_callback(current, maximum):
+            self.setSplash(True, current, maximum, 'Transferring ROI...')
+
+        transferred_rois = sam_api.transfer_slice(current_image, support_volume, masks, self.get_sam(), progress_callback=progress_callback)
+        self.masksToRois(transferred_rois, int(self.curImage))
+        self.setSplash(False)
 
 
     ##############################################################################################################
