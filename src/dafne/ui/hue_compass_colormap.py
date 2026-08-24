@@ -36,7 +36,9 @@ def generate_colormap(
         Number of additional colors to generate. Must be > 1.
     forbidden_angle : float
         Half-width, in degrees, of the excluded hue sector centered on the
-        chosen color's hue. Must be in [1, 179].
+        chosen color's hue. Must be in [0, 179]. If 0, no sector is
+        excluded and the generated colors are spread uniformly around the
+        full circumference of the color wheel.
     name : str
         Name assigned to the returned colormap.
 
@@ -47,8 +49,8 @@ def generate_colormap(
     """
     if n_colors <= 1:
         n_colors = 2
-    if not (1 <= forbidden_angle <= 179):
-        raise ValueError(f"forbidden_angle must be in [1, 179], got {forbidden_angle}")
+    if not (0 <= forbidden_angle <= 179):
+        raise ValueError(f"forbidden_angle must be in [0, 179], got {forbidden_angle}")
 
     # Parse the chosen color and pull out its HSV representation.
     r, g, b = to_rgb(chosen_color)
@@ -61,17 +63,26 @@ def generate_colormap(
         alpha = chosen_color[3]
 
 
-    # Allowed arc is everything outside +/- forbidden_angle around hue_deg.
-    # Points are placed evenly across that arc, starting and ending exactly
-    # at its two edges (right up against the exclusion zone).
-    arc = 360.0 - 2.0 * forbidden_angle
-    step = arc / (n_colors - 1)
-
     derived = []
-    for i in range(n_colors):
-        h_i = (hue_deg + forbidden_angle + i * step) % 360.0
-        rgb_i = colorsys.hsv_to_rgb(h_i / 360.0, s, v)
-        derived.append((*rgb_i, alpha))
+    if forbidden_angle == 0:
+        # No exclusion zone: spread all colors evenly around the full circle.
+        # Offset by half a step so no generated color lands exactly on the
+        # chosen color's hue.
+        step = 360.0 / n_colors
+        for i in range(n_colors):
+            h_i = (hue_deg + step / 2.0 + i * step) % 360.0
+            rgb_i = colorsys.hsv_to_rgb(h_i / 360.0, s, v)
+            derived.append((*rgb_i, alpha))
+    else:
+        # Allowed arc is everything outside +/- forbidden_angle around hue_deg.
+        # Points are placed evenly across that arc, starting and ending exactly
+        # at its two edges (right up against the exclusion zone).
+        arc = 360.0 - 2.0 * forbidden_angle
+        step = arc / (n_colors - 1)
+        for i in range(n_colors):
+            h_i = (hue_deg + forbidden_angle + i * step) % 360.0
+            rgb_i = colorsys.hsv_to_rgb(h_i / 360.0, s, v)
+            derived.append((*rgb_i, alpha))
 
     colors = [
         (0.0, 0.0, 0.0, 0.0),  # index 0: transparent
