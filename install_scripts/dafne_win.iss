@@ -52,6 +52,8 @@ Type: filesandordirs; Name: "{app}\venv"
 var
   NeedPythonInstall: Boolean;
   PythonExePath: String;
+  WhlDirPage: TInputDirWizardPage;
+  LocalWhlDir: String;
 
 { Find an existing Python 3.11 installation in common locations }
 function GetSystemPythonExe: String;
@@ -80,6 +82,35 @@ begin
     Log('Python {#PythonVersion} not found – will download installer.')
   else
     Log('Found existing Python at: ' + PythonExePath);
+
+  { Optional page: let the user point pip at a local folder of .whl files }
+  { (e.g. for offline installs or testing pre-built wheels) instead of,   }
+  { or in addition to, downloading packages from PyPI.                   }
+  WhlDirPage := CreateInputDirPage(wpSelectTasks,
+    'Local Wheel Files (Optional)',
+    'Specify a folder containing .whl files to use during installation',
+    'If you have a local folder with pre-downloaded Python wheel (.whl) files for Dafne ' +
+    'and/or its dependencies, select it below so pip can use it. Leave this blank to install ' +
+    'normally from PyPI.',
+    False, '');
+  WhlDirPage.Add('');
+  WhlDirPage.Values[0] := '';
+end;
+
+{ Allow the local-wheels folder field to be left blank; only validate it }
+{ (must exist) when the user actually enters something.                 }
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if CurPageID = WhlDirPage.ID then
+  begin
+    if (WhlDirPage.Values[0] <> '') and not DirExists(WhlDirPage.Values[0]) then
+    begin
+      MsgBox('The folder you specified does not exist:' + #13#10 + WhlDirPage.Values[0],
+             mbError, MB_OK);
+      Result := False;
+    end;
+  end;
 end;
 
 { Download the Python installer before the file-copy phase so the user }
@@ -113,7 +144,7 @@ end;
 { After Inno Setup has copied its own files, run the environment setup. }
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  AppDir, VenvDir, VenvPython, VenvPip: String;
+  AppDir, VenvDir, VenvPython, VenvPip, FindLinksArg: String;
   ResultCode: Integer;
 begin
   if CurStep <> ssPostInstall then
@@ -123,6 +154,15 @@ begin
   VenvDir   := AppDir + '\venv';
   VenvPython := VenvDir + '\Scripts\python.exe';
   VenvPip   := VenvDir + '\Scripts\pip.exe';
+
+  { --- Local wheel folder, if the user provided one -------------------- }
+  LocalWhlDir := WhlDirPage.Values[0];
+  FindLinksArg := '';
+  if LocalWhlDir <> '' then
+  begin
+    Log('Using local wheel folder: ' + LocalWhlDir);
+    FindLinksArg := ' --find-links="' + LocalWhlDir + '"';
+  end;
 
   { --- Install Python -------------------------------------------------- }
   if NeedPythonInstall then
@@ -182,7 +222,7 @@ begin
 
   { --- Install Dafne --------------------------------------------------- }
   Log('Installing {#PipPackage}=={#MyAppVersion}...');
-  if not Exec(VenvPip, 'install --upgrade {#PipPackage}',
+  if not Exec(VenvPip, 'install --upgrade {#PipPackage}' + FindLinksArg,
               '', SW_SHOW, ewWaitUntilTerminated, ResultCode)
      or (ResultCode <> 0) then
   begin
@@ -191,9 +231,9 @@ begin
            mbError, MB_OK);
     Exit;
   end;
-  
+
   Log('Upgrading flexidep...');
-  Exec(VenvPython, '-m pip install --upgrade flexidep',
+  Exec(VenvPython, '-m pip install --upgrade flexidep' + FindLinksArg,
        '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
 
   Log('Dafne installation completed successfully.');

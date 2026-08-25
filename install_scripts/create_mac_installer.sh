@@ -137,6 +137,34 @@ if ! [ -x "$PYTHON_BIN" ]; then
     exit 1
 fi
 
+# Optionally ask the user (via a GUI folder picker) for a local folder of
+# .whl files to use with pip, e.g. for offline installs or testing
+# pre-built wheels. If no GUI session is available (e.g. unattended/MDM
+# install) or the user cancels, this is silently skipped and pip installs
+# from PyPI as usual.
+LOCAL_WHL_DIR=""
+if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ]; then
+    USER_ID=$(id -u "$REAL_USER" 2>/dev/null || true)
+    if [ -n "$USER_ID" ]; then
+        LOCAL_WHL_DIR=$(launchctl asuser "$USER_ID" sudo -u "$REAL_USER" osascript -e '
+            try
+                POSIX path of (choose folder with prompt "Optional: select a folder containing local .whl files for Dafne (Cancel to install from PyPI instead)")
+            on error
+                return ""
+            end try' 2>/dev/null)
+    fi
+fi
+# Strip any trailing slash
+LOCAL_WHL_DIR="${LOCAL_WHL_DIR%/}"
+
+FIND_LINKS_ARGS=()
+if [ -n "$LOCAL_WHL_DIR" ] && [ -d "$LOCAL_WHL_DIR" ]; then
+    echo "Using local wheel folder: $LOCAL_WHL_DIR" | tee -a "$LOG_FILE"
+    FIND_LINKS_ARGS=(--find-links "$LOCAL_WHL_DIR")
+else
+    echo "No local wheel folder selected; installing from PyPI." | tee -a "$LOG_FILE"
+fi
+
 # Create virtual environment
 echo "Creating virtual environment..." | tee -a "$LOG_FILE"
 if [ -d "$VENV_DIR" ]; then
@@ -151,7 +179,7 @@ fi
 
 # Install pip package in virtual environment
 echo "Installing $PIP_PACKAGE..." | tee -a "$LOG_FILE"
-if ! $ARCH_CMD "$VENV_DIR/bin/pip" install -U "$PIP_PACKAGE" 2>&1 | tee -a "$LOG_FILE"; then
+if ! $ARCH_CMD "$VENV_DIR/bin/pip" install -U "${FIND_LINKS_ARGS[@]}" "$PIP_PACKAGE" 2>&1 | tee -a "$LOG_FILE"; then
     echo "Failed to install pip package" | tee -a "$LOG_FILE"
     exit 1
 fi
