@@ -470,6 +470,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.bundle_saved_for_IL = False
 
         self.additional_contrasts = OrderedDict()
+        self.current_contrast = ToolboxWindow.BASE_CONTRAST_LABEL
         self.toolbox_window.clear_contrast_combo()
 
 
@@ -3698,6 +3699,7 @@ class MuscleSegmentation(ImageShow, QObject):
             return
         medical_volume = self.additional_contrasts[contrast_name]
         self.imList = ImListProxy(medical_volume)
+        self.current_contrast = contrast_name
         self.contrastWindow = None
         self.displayImage(int(self.curImage))
 
@@ -3831,12 +3833,24 @@ class MuscleSegmentation(ImageShow, QObject):
             self.setSplash(True, 1, 3, "Running segmentation...")
 
         image = self.imList[imIndex]
+        subregion = None
         if self.toolbox_window.get_subregion_restriction():
             subregion = self.roiManager.get_autosegment_subregion(imIndex)
             image = image[subregion[0]:(subregion[0] + subregion[2]), subregion[1]:(subregion[1]+subregion[3])]
 
         inputData = {'image': image, 'resolution': self.resolution[0:2],
                      'split_laterality': GlobalConfig['SPLIT_LATERALITY'], 'classification': class_str}
+
+        image_index = 2
+        for contrast_name, contrast_volume in self.additional_contrasts.items():
+            if contrast_name == self.current_contrast:
+                continue
+            other_image = contrast_volume.volume[:, :, imIndex].astype(np.float32)
+            if subregion is not None:
+                other_image = other_image[subregion[0]:(subregion[0] + subregion[2]), subregion[1]:(subregion[1]+subregion[3])]
+            inputData[f'image{image_index}'] = other_image
+            image_index += 1
+
         print("Segmenting image...")
         masks_out = segmenter(inputData)
         if self.toolbox_window.get_subregion_restriction():
@@ -3869,7 +3883,8 @@ class MuscleSegmentation(ImageShow, QObject):
         if setSplash:
             self.setSplash(True, 1, 3, "Running segmentation...")
 
-        image = self.medical_volume[:,:,imIndex[0]:imIndex[-1]+1]
+        current_volume = self.additional_contrasts.get(self.current_contrast, self.medical_volume)
+        image = current_volume[:,:,imIndex[0]:imIndex[-1]+1]
         image = ensure_compatible_orientation(image, segmenter.get_metadata())
         print("Resolution", self.resolution)
         print("Affine", self.affine)
@@ -3880,7 +3895,16 @@ class MuscleSegmentation(ImageShow, QObject):
         #affine = self.affine or np.diag([1.0, 1.0, 1.0, 1.0])
         inputData = {'image': image.volume.astype(np.float32), 'affine': affine, 'resolution': self.resolution,
                     'split_laterality': False, 'classification': class_str}
-                
+
+        image_index = 2
+        for contrast_name, contrast_volume in self.additional_contrasts.items():
+            if contrast_name == self.current_contrast:
+                continue
+            other_image = contrast_volume[:,:,imIndex[0]:imIndex[-1]+1]
+            other_image = ensure_compatible_orientation(other_image, segmenter.get_metadata())
+            inputData[f'image{image_index}'] = other_image.volume.astype(np.float32)
+            image_index += 1
+
         print("Segmenting image...")
         masks_out = segmenter(inputData)
         for key, mask in masks_out.items():
