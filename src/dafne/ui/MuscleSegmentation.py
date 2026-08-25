@@ -570,6 +570,10 @@ class MuscleSegmentation(ImageShow, QObject):
         self.mask_slice_changed.connect(self.toolbox_window.viewer3D.set_slice)
         self.volume_loaded_signal.connect(self.toolbox_window.viewer3D.set_spacing_and_anatomy)
 
+        self.toolbox_window.data_add.connect(self.load_additional_contrast)
+        self.toolbox_window.contrast_changed.connect(self.change_contrast)
+        self.toolbox_window.delete_contrast.connect(self.delete_additional_contrast)
+
     def setSplash(self, is_splash, current_value = 0, maximum_value = 1, text= ""):
         #print("setSplash", is_splash, current_value, maximum_value, text)
         self.splash_signal.emit(is_splash, current_value, maximum_value, text)
@@ -3595,7 +3599,32 @@ class MuscleSegmentation(ImageShow, QObject):
         self.axes.set_xlim(auto=False)
         self.axes.set_ylim(auto=False)
 
+    @pyqtSlot(str)
+    def load_additional_contrast(self, filename):
+        while True:
+            accept, values = GenericInputDialog.show_dialog('Additional Contrast', [
+                GenericInputDialog.TextLineInput('Name for additional contrast')
+            ], self.toolbox_window)
+            if not accept:
+                return
+            name = values[0]
+            if self.toolbox_window.find_contrast_in_combo(name) >= 0:
+                self.alert('Contrast name already in use!')
+            else:
+                break # exit loop if name is acceptable
+        # TODO: Check if dataset is compatible and add it
+        self.toolbox_window.add_contrast_to_combo(name)
 
+
+    @pyqtSlot(str)
+    def delete_additional_contrast(self, contrast_name):
+        # TODO: Delete contrast
+        self.toolbox_window.remove_contrast_combo(contrast_name)
+
+    @pyqtSlot(str)
+    def change_contrast(self, contrast_name):
+        # TODO: Implement change contrast
+        print("Contrast change to", contrast_name)
 
 
 

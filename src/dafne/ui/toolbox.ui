@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>581</width>
+    <width>465</width>
     <height>857</height>
    </rect>
   </property>
@@ -84,9 +84,9 @@
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>-1042</y>
-            <width>560</width>
-            <height>1618</height>
+            <y>0</y>
+            <width>444</width>
+            <height>1676</height>
            </rect>
           </property>
           <property name="sizePolicy">
@@ -193,6 +193,72 @@ padding-right: 10px;</string>
                 </property>
                 <property name="text">
                  <string>Redo</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QFrame" name="contrastFrame">
+             <property name="frameShape">
+              <enum>QFrame::StyledPanel</enum>
+             </property>
+             <property name="frameShadow">
+              <enum>QFrame::Raised</enum>
+             </property>
+             <layout class="QHBoxLayout" name="horizontalLayout_23">
+              <item>
+               <widget class="QLabel" name="contrastLabel">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="text">
+                 <string>Contrast:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QComboBox" name="contrastCombo">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="currentText">
+                 <string/>
+                </property>
+                <property name="currentIndex">
+                 <number>-1</number>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="contrastDeleteButton">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>32</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>32</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>-</string>
                 </property>
                </widget>
               </item>
@@ -1027,7 +1093,7 @@ padding-right: 10px;</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>581</width>
+     <width>465</width>
      <height>36</height>
     </rect>
    </property>
@@ -1076,6 +1142,7 @@ padding-right: 10px;</string>
      <addaction name="action_reorient_invert_slices"/>
     </widget>
     <addaction name="actionLoad_data"/>
+    <addaction name="actionAdd_contrast"/>
     <addaction name="actionSave_data_as_Nifti"/>
     <addaction name="menuReorient_data"/>
     <addaction name="separator"/>
@@ -1371,6 +1438,11 @@ padding-right: 10px;</string>
   <action name="actionROI_transfer_from_npz_bundle">
    <property name="text">
     <string>ROI transfer from npz bundle...</string>
+   </property>
+  </action>
+  <action name="actionAdd_contrast">
+   <property name="text">
+    <string>Add contrast...</string>
    </property>
   </action>
  </widget>

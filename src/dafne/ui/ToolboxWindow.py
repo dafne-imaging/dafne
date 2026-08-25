@@ -250,6 +250,12 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
     mask_transfer = pyqtSignal(np.ndarray, dict, list)
 
+    data_add = pyqtSignal(str)
+    contrast_changed = pyqtSignal(str)
+    delete_contrast = pyqtSignal(str)
+
+    BASE_CONTRAST_LABEL = 'Base contrast'
+
     NO_STATE = 0
     ADD_STATE = 1
     REMOVE_STATE = 2
@@ -452,6 +458,10 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.actionQuit.triggered.connect(self.quit.emit)
 
+        self.actionAdd_contrast.triggered.connect(self.addData_clicked)
+        self.contrastCombo.currentIndexChanged.connect(self.contrast_index_changed)
+        self.contrastDeleteButton.clicked.connect(self.delete_contrast_clicked)
+
         if not config.GlobalConfig['REDIRECT_OUTPUT']:
             self.actionShowLogs.setEnabled(False)
             self.actionShowLogs.setVisible(False)
@@ -478,6 +488,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.check_dante()
 
         self.general_enable(False)
+        self.clear_contrast_combo()
 
         self.resize_to_fit()
         # move window to side of main screen
@@ -608,6 +619,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionSave_data_as_Nifti.setEnabled(enabled)
         self.action3D_Viewer.setEnabled(enabled)
         self.actionROI_transfer_from_npz_bundle.setEnabled(enabled)
+        self.actionAdd_contrast.setEnabled(enabled)
+        self.contrastFrame.setEnabled(enabled)
 
     @pyqtSlot()
     def reload_config(self):
@@ -1195,6 +1208,63 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             if not accepted:
                 return
             self.data_open.emit(dataFile, chosen_class[0])
+
+    @pyqtSlot()
+    def addData_clicked(self):
+        if config.GlobalConfig['ENABLE_NIFTI']:
+            filter = 'Image files (*.dcm *.ima *.nii *.nii.gz *.npy *.npz);;Dicom files (*.dcm *.ima);;Nifti files (*.nii *.nii.gz);;Numpy files (*.npy);;Data + Mask bundle (*npz);;All files ()'
+        else:
+            filter = 'Image files (*.dcm *.ima *.npy *.npz);;Dicom files (*.dcm *.ima);;Numpy files (*.npy);;Data + Mask bundle (*npz);;All files ()'
+
+        dataFile, _ = QFileDialog.getOpenFileName(self, caption='Select dataset to import as additional contrast',
+                                                  filter=filter)
+        if dataFile:
+            self.data_add.emit(dataFile)
+
+    def find_contrast_in_combo(self, contrast_name):
+        for i in range(self.contrastCombo.count()):
+            if self.contrastCombo.itemText(i) == contrast_name:
+                return i
+        return -1
+
+    @pyqtSlot(str)
+    def add_contrast_to_combo(self, contrast_name):
+        if self.find_contrast_in_combo(contrast_name) >= 0:
+            # this should be checked before!
+            self.alert('Contrast already added!')
+            return
+        self.contrastCombo.addItem(contrast_name)
+        if self.contrastCombo.count() > 1:
+            self.contrastFrame.setVisible(True)
+
+    @pyqtSlot()
+    def clear_contrast_combo(self):
+        self.contrastCombo.clear()
+        self.contrastCombo.addItem(ToolboxWindow.BASE_CONTRAST_LABEL)
+        self.contrastDeleteButton.setEnabled(False)
+        self.contrastFrame.setVisible(False)
+
+    @pyqtSlot(str)
+    def remove_contrast_combo(self, contrast_name):
+        index = self.find_contrast_in_combo(contrast_name)
+        if index >= 0:
+            self.contrastCombo.removeItem(index)
+        if self.contrastCombo.count() == 1:
+            self.contrastFrame.setVisible(False)
+
+    @pyqtSlot()
+    def contrast_index_changed(self):
+        if self.contrastCombo.currentIndex() == 0:
+            self.contrastDeleteButton.setEnabled(False)
+        else:
+            self.contrastDeleteButton.setEnabled(True)
+        self.contrast_changed.emit(self.contrastCombo.currentText())
+
+    @pyqtSlot()
+    def delete_contrast_clicked(self):
+        if self.contrastCombo.currentIndex() == 0:
+            return # this should not happen, because the button should be disabled
+        self.delete_contrast.emit(self.contrastCombo.currentText())
 
     @pyqtSlot()
     def saveData_as_nifti_clicked(self):
