@@ -939,6 +939,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
             if self._is_current_model_3D():
 
+                current_volume = self.additional_contrasts.get(self.current_contrast, self.medical_volume)
                 masklist = np.zeros(self.medical_volume.shape, dtype=np.uint8)
 
                 # print("len imList: ", len(self.imList))
@@ -989,7 +990,7 @@ class MuscleSegmentation(ImageShow, QObject):
                         segForTraining[classification_name] = {}
                     
                     if index not in dataForTraining[classification_name]:
-                        dataForTraining[classification_name][index] = self.medical_volume.volume[:,:,index]
+                        dataForTraining[classification_name][index] = current_volume.volume[:,:,index]
                         segForTraining[classification_name][index] = {roiName: masklist[:,:,index]}
 
                 orientation=nib.aff2axcodes(self.affine)
