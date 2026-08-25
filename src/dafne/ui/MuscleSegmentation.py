@@ -3631,6 +3631,12 @@ class MuscleSegmentation(ImageShow, QObject):
             else:
                 break # exit loop if name is acceptable
 
+        self._load_additional_contrast_data(filename, name)
+
+    @separate_thread_decorator
+    def _load_additional_contrast_data(self, filename, name):
+        self.setSplash(True, 0, 1, "Loading additional contrast...")
+
         _, ext = os.path.splitext(filename)
         if ext.lower() == '.npz':
             try:
@@ -3638,6 +3644,7 @@ class MuscleSegmentation(ImageShow, QObject):
             except Exception as e:
                 print(e, file=sys.stderr)
                 self.alert("Error loading dataset. See the log for details", "Error")
+                self.setSplash(False)
                 return
 
             if 'data' in bundle:
@@ -3646,6 +3653,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 data = bundle['image']
             else:
                 self.alert('No data in bundle!', 'Error')
+                self.setSplash(False)
                 return
 
             if 'comment' in bundle:
@@ -3666,6 +3674,7 @@ class MuscleSegmentation(ImageShow, QObject):
             else:
                 if data.shape != self.medical_volume.shape:
                     self.alert('The additional contrast dataset is not compatible with the loaded dataset', 'Error')
+                    self.setSplash(False)
                     return
                 additional_volume = MedicalVolume(data, np.eye(4))
         else:
@@ -3675,6 +3684,7 @@ class MuscleSegmentation(ImageShow, QObject):
             except Exception as e:
                 print(e, file=sys.stderr)
                 self.alert("Error loading dataset. See the log for details", "Error")
+                self.setSplash(False)
                 return
 
             if affine_valid:
@@ -3682,10 +3692,12 @@ class MuscleSegmentation(ImageShow, QObject):
             else:
                 if additional_volume.shape != self.medical_volume.shape:
                     self.alert('The additional contrast dataset is not compatible with the loaded dataset', 'Error')
+                    self.setSplash(False)
                     return
 
         self.additional_contrasts[name] = additional_volume
         self.toolbox_window.add_contrast_to_combo(name)
+        self.setSplash(False, 1, 1, "Loading additional contrast...")
 
 
     @pyqtSlot(str)
