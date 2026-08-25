@@ -73,7 +73,7 @@ from ..utils.resource_utils import get_resource_path
 matplotlib.use("Qt5Agg")
 
 from .ToolboxWindow import ToolboxWindow
-from dicomUtils.ui.pyDicomView import ImageShow
+from dicomUtils.ui.pyDicomView import ImageShow, ImListProxy
 from ..utils.mask_utils import save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks, \
     save_single_dicom_dataset, save_single_nifti, save_nifti_masks_3D
 from dafne_dl.misc import get_model_detail, calc_dice_score_3D, calc_dice_score
@@ -3693,8 +3693,13 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @pyqtSlot(str)
     def change_contrast(self, contrast_name):
-        # TODO: Implement change contrast
-        print("Contrast change to", contrast_name)
+        if contrast_name not in self.additional_contrasts:
+            print("Unknown contrast", contrast_name)
+            return
+        medical_volume = self.additional_contrasts[contrast_name]
+        self.imList = ImListProxy(medical_volume)
+        self.contrastWindow = None
+        self.displayImage(int(self.curImage))
 
 
 
