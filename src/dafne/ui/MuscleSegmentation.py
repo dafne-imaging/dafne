@@ -3690,7 +3690,11 @@ class MuscleSegmentation(ImageShow, QObject):
 
     @pyqtSlot(str)
     def delete_additional_contrast(self, contrast_name):
-        # TODO: Delete contrast
+        if contrast_name == ToolboxWindow.BASE_CONTRAST_LABEL:
+            return
+        if contrast_name not in self.additional_contrasts:
+            return
+        del self.additional_contrasts[contrast_name]
         self.toolbox_window.remove_contrast_combo(contrast_name)
 
     @pyqtSlot(str)
