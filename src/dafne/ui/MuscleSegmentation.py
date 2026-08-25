@@ -58,7 +58,7 @@ def determine_sam_device():
 import matplotlib
 from dafne_dl.common.biascorrection import biascorrection_image
 from matplotlib.patches import Rectangle
-from voxel import NiftiWriter
+from voxel import NiftiWriter, MedicalVolume
 from scipy.interpolate import interp1d
 from skimage.morphology import area_opening, area_closing
 
@@ -3612,7 +3612,61 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.alert('Contrast name already in use!')
             else:
                 break # exit loop if name is acceptable
-        # TODO: Check if dataset is compatible and add it
+
+        _, ext = os.path.splitext(filename)
+        if ext.lower() == '.npz':
+            try:
+                bundle = np.load(filename, allow_pickle=False)
+            except Exception as e:
+                print(e, file=sys.stderr)
+                self.alert("Error loading dataset. See the log for details", "Error")
+                return
+
+            if 'data' in bundle:
+                data = bundle['data']
+            elif 'image' in bundle:
+                data = bundle['image']
+            else:
+                self.alert('No data in bundle!', 'Error')
+                return
+
+            if 'comment' in bundle:
+                self.alert('Loading bundle with comment:\n' + str(bundle['comment']), 'Info')
+
+            affine = None
+            if 'affine' in bundle:
+                affine = bundle['affine']
+            elif 'resolution' in bundle:
+                resolution = list(bundle['resolution'])
+                if len(resolution) == 2:
+                    resolution.append(1.0)
+                affine = np.diag(resolution + [1])
+
+            if affine is not None:
+                additional_volume = MedicalVolume(data, affine)
+                additional_volume = realign_medical_volume(additional_volume, self.medical_volume)
+            else:
+                if data.shape != self.medical_volume.shape:
+                    self.alert('The additional contrast dataset is not compatible with the loaded dataset', 'Error')
+                    return
+                additional_volume = MedicalVolume(data, np.eye(4))
+        else:
+            try:
+                additional_volume, affine_valid, _, _, _ = dosma_volume_from_path(filename, self.fig.canvas,
+                                                                                    sort=GlobalConfig['DICOM_SORT'])
+            except Exception as e:
+                print(e, file=sys.stderr)
+                self.alert("Error loading dataset. See the log for details", "Error")
+                return
+
+            if affine_valid:
+                additional_volume = realign_medical_volume(additional_volume, self.medical_volume)
+            else:
+                if additional_volume.shape != self.medical_volume.shape:
+                    self.alert('The additional contrast dataset is not compatible with the loaded dataset', 'Error')
+                    return
+
+        # TODO: store additional_volume and add it
         self.toolbox_window.add_contrast_to_combo(name)
 
 
