@@ -93,7 +93,7 @@ import scipy.ndimage as ndimage
 from scipy.ndimage.morphology import binary_dilation, binary_erosion
 from ..utils import compressed_pickle as pickle
 import os.path
-from collections import deque
+from collections import deque, OrderedDict
 import functools
 import csv
 
@@ -468,6 +468,9 @@ class MuscleSegmentation(ImageShow, QObject):
         self.threshold_mask = None
 
         self.bundle_saved_for_IL = False
+
+        self.additional_contrasts = OrderedDict()
+        self.toolbox_window.clear_contrast_combo()
 
 
     #############################################################################################
@@ -2858,6 +2861,8 @@ class MuscleSegmentation(ImageShow, QObject):
         if len(self.classifications) == 0:
             self.update_all_classifications()
 
+        self.additional_contrasts[ToolboxWindow.BASE_CONTRAST_LABEL] = self.medical_volume
+
         roi_bak_name = self.getRoiFileName() + '.' + datetime.now().strftime('%Y%m%d%H%M%S')
         try:
             shutil.copyfile(self.getRoiFileName(), roi_bak_name)
@@ -3562,23 +3567,34 @@ class MuscleSegmentation(ImageShow, QObject):
         nifti_writer.save(reoriented_volume, nifti_name)
         self.setSplash(False, 0, 0, "")
 
+    def _reorient_volume(self, volume, orientation):
+        if orientation == 'Invert Slices':
+            current_orientation = volume.orientation
+            slc_orientation = current_orientation[2]
+            new_slc_orientation = slc_orientation[1] + slc_orientation[0]
+            return volume.reformat((current_orientation[0], current_orientation[1], new_slc_orientation))
+        else:
+            reoriented_volume = volume.reformat(get_nifti_orientation(orientation))
+            reoriented_volume._headers = None
+            return reoriented_volume
+
     @pyqtSlot(str)
     def reorient_data(self, orientation):
         print(orientation)
         if self.medical_volume is None:
             return
         medical_volume = self.medical_volume
+        old_additional_contrasts = self.additional_contrasts
         self.resetInternalState()
         self.resetInterface()
-        if orientation == 'Invert Slices':
-            current_orientation = medical_volume.orientation
-            slc_orientation = current_orientation[2]
-            new_slc_orientation = slc_orientation[1] + slc_orientation[0]
-            new_medical_volume = medical_volume.reformat((current_orientation[0], current_orientation[1], new_slc_orientation))
-        else:
-            new_medical_volume = medical_volume.reformat(get_nifti_orientation(orientation))
-            new_medical_volume._headers = None
+        new_medical_volume = self._reorient_volume(medical_volume, orientation)
         self.load_dosma_volume(new_medical_volume)
+        self.additional_contrasts[ToolboxWindow.BASE_CONTRAST_LABEL] = self.medical_volume
+        for name, volume in old_additional_contrasts.items():
+            if name == ToolboxWindow.BASE_CONTRAST_LABEL:
+                continue
+            self.additional_contrasts[name] = self._reorient_volume(volume, orientation)
+            self.toolbox_window.add_contrast_to_combo(name)
         self.roiManager = ROIManager(self.imList[0].shape)
         self.registrationManager = RegistrationManager(self.imList,
                                                        None,
@@ -3666,7 +3682,7 @@ class MuscleSegmentation(ImageShow, QObject):
                     self.alert('The additional contrast dataset is not compatible with the loaded dataset', 'Error')
                     return
 
-        # TODO: store additional_volume and add it
+        self.additional_contrasts[name] = additional_volume
         self.toolbox_window.add_contrast_to_combo(name)
 
 
