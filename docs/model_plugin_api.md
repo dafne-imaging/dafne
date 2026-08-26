@@ -103,7 +103,7 @@ Runs inference. This is the core function of the plugin.
 
 #### Additional optional `data` dictionary keys (all model types)
 
-Any model (2D or 3D) may additionally receive the following keys in the `data` dictionary. Currently, multi-contrast images are only used by FLARE models and model options are not yet exposed in the Dafne user interface, but the API supports them for all model types.
+Any model (2D or 3D) may additionally receive the following keys in the `data` dictionary. The Dafne UI sends these whenever the user has loaded additional contrasts (`getSegmentedMasks`/`getSegmentedMasks_3D` in `MuscleSegmentation.py`), for any model type -- not just FLARE. Model options are not yet exposed in the Dafne user interface, but the API supports them for all model types.
 
 | Key | Type | Description |
 |---|---|---|
@@ -165,7 +165,8 @@ Performs incremental (online) learning from user-corrected segmentations. Option
 
 | Key | Type | Description |
 |---|---|---|
-| `'image_list'` | `list[np.ndarray]` | List of 2D images |
+| `'image_list'` | `list[np.ndarray]` | List of 2D images (base contrast) |
+| `'image2_list'`, `'image3_list'`, ... | `list[np.ndarray]` | Optional additional contrasts, one list per contrast, same length and slice order as `'image_list'` |
 | `'resolution'` | array-like, length 2 | Pixel spacing in mm |
 | `'classification'` | `str` | Body region classification label |
 
@@ -173,10 +174,17 @@ Performs incremental (online) learning from user-corrected segmentations. Option
 
 | Key | Type | Description |
 |---|---|---|
-| `'image_list'` | `list[np.ndarray]` | List of 3D volumes (float32) |
+| `'image_list'` | `list[np.ndarray]` | List of 3D volumes (float32, base contrast) |
+| `'image2_list'`, `'image3_list'`, ... | `list[np.ndarray]` | Optional additional contrasts, one list per contrast, same length and volume order as `'image_list'` |
 | `'affine'` | `list[np.ndarray]` | List of 4x4 affine matrices (float32), one per volume |
 | `'resolution'` | array-like, length 3 | Voxel spacing in mm |
 | `'classification'` | `str` | Body region classification label |
+
+#### Multi-contrast incremental learning
+
+When the user has loaded additional contrasts, the Dafne UI (`MuscleSegmentation.py`, `calcOutputData`/`incrementalLearn`/`incrementalLearn_3D`) saves and forwards every contrast, using the same `'image'`/`'image2'`/`'image3'`... indexing as `apply_model_function`, but as parallel `_list` keys (`'image_list'`, `'image2_list'`, ...). `'image_list'` is always the currently-displayed ("base") contrast; `'image2_list'` etc. follow the load order of the other loaded contrasts. If incremental-learning bundles saved with different sets of contrasts are combined (e.g. an older single-contrast bundle mixed with a newer multi-contrast one), only the contrasts common to every bundle are forwarded -- an `'imageN_list'` key is only present if every training item has that contrast.
+
+As with `apply_model_function`, a model's `incremental_learn_function` that requires additional contrasts should check for the presence of the corresponding `'imageN_list'` key and raise an informative error if it is missing, since not every training item is guaranteed to include every contrast.
 
 ---
 
@@ -275,16 +283,16 @@ The `get_metadata()` method on the base class automatically adds `dimensionality
 ### 2D Segmentation Model (DynamicDLModel or DynamicTorchModel)
 
 - `data_dimensionality = 2`
-- `apply` receives: `{'image': (H,W), 'resolution': [sx, sy], 'split_laterality': bool, 'classification': str}`
+- `apply` receives: `{'image': (H,W), 'resolution': [sx, sy], 'split_laterality': bool, 'classification': str, 'image2': (H,W), ...}` (`'image2'`, `'image3'`, ... only present with additional loaded contrasts)
 - `apply` returns: `{'LabelName': np.ndarray(H,W, uint8), ...}`
-- `incremental_learn` receives: `{'image_list': [...], 'resolution': [sx, sy], 'classification': str}`
+- `incremental_learn` receives: `{'image_list': [...], 'resolution': [sx, sy], 'classification': str, 'image2_list': [...], ...}` (`'image2_list'`, `'image3_list'`, ... only present when every training item has that contrast)
 
 ### 3D Segmentation Model (DynamicTorchModel or DynamicEnsembleModel)
 
 - `data_dimensionality = 3`
-- `apply` receives: `{'image': (H,W,D) float32, 'affine': (4,4) float32, 'resolution': [sx, sy, sz], 'split_laterality': False, 'classification': str}`
+- `apply` receives: `{'image': (H,W,D) float32, 'affine': (4,4) float32, 'resolution': [sx, sy, sz], 'split_laterality': False, 'classification': str, 'image2': (H,W,D) float32, ...}` (`'image2'`, `'image3'`, ... only present with additional loaded contrasts)
 - `apply` returns: `{'LabelName': np.ndarray(H,W,D, uint8), ...}`
-- `incremental_learn` receives: `{'image_list': [...], 'affine': [...], 'resolution': [sx, sy, sz], 'classification': str}`
+- `incremental_learn` receives: `{'image_list': [...], 'affine': [...], 'resolution': [sx, sy, sz], 'classification': str, 'image2_list': [...], ...}` (`'image2_list'`, `'image3_list'`, ... only present when every training item has that contrast)
 
 ### FLARE Model (DynamicTorchFLAREModel)
 
@@ -293,4 +301,4 @@ The `get_metadata()` method on the base class automatically adds `dimensionality
 - `apply` returns: `{'LabelName': np.ndarray(H,W,D, uint8), ...}`
 - Training via `learn(train_dataset, validation_dataset, options)` instead of `incremental_learn`
 
-**Note:** All model types may receive additional contrasts (`'image2'`, `'image3'`, ...) and an `'options'` dict. Currently, multi-contrast input is only implemented for FLARE models, and model options are not yet exposed in the Dafne user interface.
+**Note:** All model types may receive additional contrasts, on both `apply` (`'image2'`, `'image3'`, ...) and `incremental_learn` (`'image2_list'`, `'image3_list'`, ...), whenever the user has loaded more than one contrast in the Dafne UI. Model options (`'options'` dict) are not yet exposed in the Dafne user interface.

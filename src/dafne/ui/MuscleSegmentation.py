@@ -913,6 +913,34 @@ class MuscleSegmentation(ImageShow, QObject):
             dimensionality = model.data_dimensionality
         return str(dimensionality) == '3'
 
+    def _get_IL_contrast_volumes_3D(self):
+        """Return an OrderedDict mapping 'image', 'image2', ... to the contrast volumes
+        to use for incremental learning, in the same order used by getSegmentedMasks_3D()
+        when calling the segmenter."""
+        volumes = OrderedDict()
+        volumes['image'] = self.additional_contrasts.get(self.current_contrast, self.medical_volume)
+        contrast_index = 2
+        for contrast_name, contrast_volume in self.additional_contrasts.items():
+            if contrast_name == self.current_contrast:
+                continue
+            volumes[f'image{contrast_index}'] = contrast_volume
+            contrast_index += 1
+        return volumes
+
+    def _get_IL_contrast_slices_2D(self, image_index):
+        """Return an OrderedDict mapping 'image', 'image2', ... to the contrast slices
+        to use for incremental learning, in the same order used by getSegmentedMasks()
+        when calling the segmenter."""
+        slices = OrderedDict()
+        slices['image'] = self.imList[image_index]
+        contrast_index = 2
+        for contrast_name, contrast_volume in self.additional_contrasts.items():
+            if contrast_name == self.current_contrast:
+                continue
+            slices[f'image{contrast_index}'] = contrast_volume.volume[:, :, image_index]
+            contrast_index += 1
+        return slices
+
     def calcOutputData(self, setSplash=False):
         imSize = self.image.shape
 
@@ -939,7 +967,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
             if self._is_current_model_3D():
 
-                current_volume = self.additional_contrasts.get(self.current_contrast, self.medical_volume)
+                contrast_volumes = self._get_IL_contrast_volumes_3D()
                 masklist = np.zeros(self.medical_volume.shape, dtype=np.uint8)
 
                 # print("len imList: ", len(self.imList))
@@ -990,7 +1018,10 @@ class MuscleSegmentation(ImageShow, QObject):
                         segForTraining[classification_name] = {}
                     
                     if index not in dataForTraining[classification_name]:
-                        dataForTraining[classification_name][index] = current_volume.volume[:,:,index]
+                        dataForTraining[classification_name][index] = {
+                            contrast_key: contrast_volume.volume[:, :, index]
+                            for contrast_key, contrast_volume in contrast_volumes.items()
+                        }
                         segForTraining[classification_name][index] = {roiName: masklist[:,:,index]}
 
                 orientation=nib.aff2axcodes(self.affine)
@@ -1030,7 +1061,7 @@ class MuscleSegmentation(ImageShow, QObject):
                         dataForTraining[classification_name] = {}
                         segForTraining[classification_name] = {}
                     if imageIndex not in dataForTraining[classification_name]:
-                        dataForTraining[classification_name][imageIndex] = self.imList[imageIndex]
+                        dataForTraining[classification_name][imageIndex] = self._get_IL_contrast_slices_2D(imageIndex)
                         segForTraining[classification_name][imageIndex] = {}
 
                     segForTraining[classification_name][imageIndex][roiName] = roi
@@ -1049,8 +1080,13 @@ class MuscleSegmentation(ImageShow, QObject):
 
         if self._is_current_model_3D():
             for key in dataForTraining:
-                dataForTraining[key] = np.stack([dataForTraining[key][i] for i in sorted(dataForTraining[key].keys())], axis=0)
-            
+                indices = sorted(dataForTraining[key].keys())
+                contrast_keys = dataForTraining[key][indices[0]].keys()
+                dataForTraining[key] = {
+                    contrast_key: np.stack([dataForTraining[key][i][contrast_key] for i in indices], axis=0)
+                    for contrast_key in contrast_keys
+                }
+
             for key in segForTraining:
 
                 for sub_key in segForTraining[key][0].keys(): 
@@ -3022,7 +3058,13 @@ class MuscleSegmentation(ImageShow, QObject):
                     # the index is numeric, so get the maximum index and add 1 for the next index
                     next_index = max(self.incrLearnDataTrain[key].keys(), default=-1) + 1
 
-                self.incrLearnDataTrain[key][next_index] = data['data']
+                contrast_values = OrderedDict()
+                for file_key in data.files:
+                    if file_key == 'data':
+                        contrast_values['image'] = data[file_key]
+                    elif re.fullmatch(r'data\d+', file_key):
+                        contrast_values[f'image{file_key[len("data"):]}'] = data[file_key]
+                self.incrLearnDataTrain[key][next_index] = contrast_values
                 self.incrementalLearningAffine[key][next_index] = data['affine']
                 self.incrLearnMeanDice[key][next_index] = data['dice']
 
@@ -3322,11 +3364,15 @@ class MuscleSegmentation(ImageShow, QObject):
     
     def prepare_numpy_bundle_IL_3D(self, value_image, value_segm, meanDice, key, comment = ''):
         resolution = np.array(self.resolution)
-        value_image = np.array(value_image)
         affine = np.array(self.affine)
         dice = np.array(meanDice)
-        out_data = {'data': value_image.astype(np.float32), 'resolution': resolution, 'dice': dice, 'affine': affine.astype(np.float32), 'comment': comment, 'model': key}
-        for sub_key in value_segm.keys(): 
+        out_data = {'resolution': resolution, 'dice': dice, 'affine': affine.astype(np.float32), 'comment': comment, 'model': key}
+        # value_image maps 'image', 'image2', ... to the corresponding contrast volume;
+        # store them as 'data', 'data2', ... to keep the base-contrast key name backward compatible
+        for contrast_key, contrast_value in value_image.items():
+            data_key = 'data' if contrast_key == 'image' else f'data{contrast_key[len("image"):]}'
+            out_data[data_key] = np.array(contrast_value).astype(np.float32)
+        for sub_key in value_segm.keys():
             segm = np.array(value_segm[sub_key])
             out_data[f'mask_{sub_key}'] = segm.astype(np.uint8)
         return out_data
@@ -4041,16 +4087,36 @@ class MuscleSegmentation(ImageShow, QObject):
             if not model.can_incremental_learn():
                 print("This model cannot perform incremental learning")
                 return
-            training_data = []
             training_outputs = []
-            for imageIndex in dataForTraining[classification_name]:
-                training_data.append(dataForTraining[classification_name][imageIndex])
+
+            # dataForTraining[classification_name] maps a slice index to a dict of
+            # 'image', 'image2', ... -> slice. Only contrasts common to every slice
+            # can be aligned into per-contrast lists.
+            slice_indices = list(dataForTraining[classification_name].keys())
+            common_contrast_keys = set(dataForTraining[classification_name][slice_indices[0]].keys())
+            all_contrast_keys = set(common_contrast_keys)
+            for imageIndex in slice_indices[1:]:
+                keys = set(dataForTraining[classification_name][imageIndex].keys())
+                common_contrast_keys &= keys
+                all_contrast_keys |= keys
+            if common_contrast_keys != all_contrast_keys:
+                print(f"Warning: inconsistent contrasts across slices for {classification_name}; "
+                      f"only using contrasts common to all slices: {sorted(common_contrast_keys)}")
+
+            training_data_by_contrast = {contrast_key: [] for contrast_key in common_contrast_keys}
+            for imageIndex in slice_indices:
+                for contrast_key in common_contrast_keys:
+                    training_data_by_contrast[contrast_key].append(dataForTraining[classification_name][imageIndex][contrast_key])
                 training_outputs.append(segForTraining[classification_name][imageIndex])
                 self.slicesUsedForTraining.add(imageIndex) # add the slice to the set of already used ones
 
             try:
                 # todo: adapt bs and minTrainImages if needed
-                model.incremental_learn({'image_list': training_data, 'resolution': self.resolution[0:2], 'classification': classification_name},
+                training_payload = {'resolution': self.resolution[0:2], 'classification': classification_name}
+                for contrast_key, contrast_list in training_data_by_contrast.items():
+                    list_key = 'image_list' if contrast_key == 'image' else f'{contrast_key}_list'
+                    training_payload[list_key] = contrast_list
+                model.incremental_learn(training_payload,
                                         training_outputs, bs=5, minTrainImages=GlobalConfig['IL_MIN_SLICES'])
                 model.reset_timestamp()
             except Exception as e:
@@ -4115,18 +4181,34 @@ class MuscleSegmentation(ImageShow, QObject):
             print("mean dice score: ", meanDiceScore)
 
 
-            training_data = []
             training_outputs = {}
             training_affine = []
 
-            for imageIndex in dataForTraining[classification_name]:
-                training_data.append(dataForTraining[classification_name][imageIndex].astype(np.float32))
+            # dataForTraining[classification_name] maps a session index to a dict of
+            # 'image', 'image2', ... -> volume. Only contrasts common to every saved
+            # session can be aligned into per-contrast lists; sessions saved before a
+            # given additional contrast was loaded (or without it) are missing that key.
+            session_indices = sorted(dataForTraining[classification_name].keys())
+            sessions = [dataForTraining[classification_name][i] for i in session_indices]
+            common_contrast_keys = set(sessions[0].keys())
+            all_contrast_keys = set(sessions[0].keys())
+            for session in sessions[1:]:
+                common_contrast_keys &= set(session.keys())
+                all_contrast_keys |= set(session.keys())
+            if common_contrast_keys != all_contrast_keys:
+                print(f"Warning: inconsistent contrasts across saved incremental-learning sessions for "
+                      f"{classification_name}; only using contrasts common to all sessions: {sorted(common_contrast_keys)}")
+
+            training_data_by_contrast = {
+                contrast_key: [session[contrast_key].astype(np.float32) for session in sessions]
+                for contrast_key in common_contrast_keys
+            }
 
             for imageIndex in incrementalLearningAffine[classification_name]:
                 training_affine.append(incrementalLearningAffine[classification_name][imageIndex].astype(np.float32))
-            
+
             for imageIndex in segForTraining[classification_name]:
-                for sub_key in segForTraining[classification_name][0].keys(): 
+                for sub_key in segForTraining[classification_name][0].keys():
                     training_outputs[imageIndex] = {sub_key: segForTraining[classification_name][imageIndex][sub_key].astype(np.uint8)}
 
             if model is None:
@@ -4136,7 +4218,11 @@ class MuscleSegmentation(ImageShow, QObject):
                 gc.collect()
                 torch.cuda.empty_cache()
                 # todo: adapt bs and minTrainImages if needed
-                model.incremental_learn({'image_list': training_data, 'affine': training_affine, 'resolution': self.resolution, 'classification': classification_name},
+                training_payload = {'affine': training_affine, 'resolution': self.resolution, 'classification': classification_name}
+                for contrast_key, contrast_list in training_data_by_contrast.items():
+                    list_key = 'image_list' if contrast_key == 'image' else f'{contrast_key}_list'
+                    training_payload[list_key] = contrast_list
+                model.incremental_learn(training_payload,
                                         training_outputs, bs=1, minTrainImages=GlobalConfig['IL_3D_MIN_IMAGES'])
                 gc.collect()
                 torch.cuda.empty_cache()
