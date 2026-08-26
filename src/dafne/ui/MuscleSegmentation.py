@@ -473,6 +473,14 @@ class MuscleSegmentation(ImageShow, QObject):
         self.current_contrast = ToolboxWindow.BASE_CONTRAST_LABEL
         self.toolbox_window.clear_contrast_combo()
 
+        # time-resolved (4D) datasets: one 3D MedicalVolume per time frame.
+        # Empty list means the dataset has no time component.
+        self.time_frames = []
+        self.current_timepoint = 0
+        self.roiManagers = {}
+        self.registrationManagers = {}
+        self.toolbox_window.set_timepoints(1)
+
 
     #############################################################################################
     ###
@@ -578,6 +586,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.contrast_changed.connect(self.change_contrast)
         self.toolbox_window.delete_contrast.connect(self.delete_additional_contrast)
 
+        self.toolbox_window.timepoint_changed.connect(self.change_timepoint)
+
     def setSplash(self, is_splash, current_value = 0, maximum_value = 1, text= ""):
         #print("setSplash", is_splash, current_value, maximum_value, text)
         self.splash_signal.emit(is_splash, current_value, maximum_value, text)
@@ -655,7 +665,7 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.roiManager = ROIManager(self.imList[0].shape)
             except:
                 return
-        current_point = pickle.dumps(self.roiManager)
+        current_point = pickle.dumps({'timepoint': self.current_timepoint, 'roiManager': self.roiManager})
         if save_head:
             #print("Saving head state")
             self.historyHead = current_point
@@ -684,14 +694,29 @@ class MuscleSegmentation(ImageShow, QObject):
             return
         roiName = self.getCurrentROIName()
         subRoiNumber = self.getCurrentSubroiNumber()
-        self.clearAllROIs()
         if self.currentHistoryPoint == 0:
             #print("loading head")
-            self.roiManager = pickle.loads(self.historyHead)
+            saved_state = pickle.loads(self.historyHead)
             self.historyHead = None
         else:
             #print("loading", self.currentHistoryPoint-1)
-            self.roiManager = pickle.loads(self.history[self.currentHistoryPoint-1])
+            saved_state = pickle.loads(self.history[self.currentHistoryPoint-1])
+
+        if isinstance(saved_state, dict):
+            saved_timepoint = saved_state.get('timepoint', 0)
+            restored_manager = saved_state['roiManager']
+        else: # old-style snapshot containing the bare ROIManager
+            saved_timepoint = self.current_timepoint
+            restored_manager = saved_state
+
+        if self.has_time_dimension() and saved_timepoint != self.current_timepoint:
+            # the snapshot was taken on another time frame: jump back to it
+            self.toolbox_window.set_current_timepoint(saved_timepoint)
+
+        self.clearAllROIs()
+        self.roiManager = restored_manager
+        if self.roiManagers:
+            self.roiManagers[self.current_timepoint] = restored_manager
 
         self.updateRoiList()
         if self.roiManager.contains(roiName):
@@ -2197,10 +2222,19 @@ class MuscleSegmentation(ImageShow, QObject):
             self.updateRoiList()
             self.redraw()
 
-    # convert a 2D mask or a 3D dataset to rois
+    # convert a 2D mask, a 3D dataset or a 4D (time-resolved) dataset to rois
     def masksToRois(self, maskDict, imIndex):
         for name, mask in maskDict.items():
-            if len(mask.shape) > 2: # multislice
+            if len(mask.shape) == 4: # time-resolved mask
+                if self.has_time_dimension():
+                    n_frames = min(mask.shape[3], self.n_timepoints)
+                    for t in range(n_frames):
+                        for sl in range(mask.shape[2]):
+                            self.roiManagers[t].set_mask(name, sl, mask[:, :, sl, t])
+                else: # 4D mask on a 3D dataset: only load the first time frame
+                    for sl in range(mask.shape[2]):
+                        self.maskToRois2D(name, mask[:, :, sl, 0], sl, False)
+            elif len(mask.shape) > 2: # multislice
                 for sl in range(mask.shape[2]):
                     self.maskToRois2D(name, mask[:,:,sl], sl, False)
             else:
@@ -2678,6 +2712,10 @@ class MuscleSegmentation(ImageShow, QObject):
             self.increase_brush_size.emit()
         elif event.key == 'r':
             self.roiRemoveOverlap()
+        elif event.key in (',', 'shift+left'):
+            self.previous_timepoint()
+        elif event.key in ('.', 'shift+right'):
+            self.next_timepoint()
         else:
             ImageShow.keyPressCB(self, event)
 
@@ -2716,9 +2754,20 @@ class MuscleSegmentation(ImageShow, QObject):
             async_write = True
 
         #print("Saving ROIs", roiPickleName)
-        if self.roiManager and not self.roiManager.is_empty():  # make sure ROIs are not empty
+        if self.has_time_dimension():
+            rois_not_empty = any(manager is not None and not manager.is_empty()
+                                 for manager in self.roiManagers.values())
+        else:
+            rois_not_empty = self.roiManager is not None and not self.roiManager.is_empty()
+
+        if rois_not_empty:  # make sure ROIs are not empty
+            # 'roiManager' always holds the current-timepoint manager, so that older Dafne
+            # versions can still open ROI files saved from a time-resolved dataset
             dumpObj = {'classifications': self.classifications,
                        'roiManager': self.roiManager }
+            if self.has_time_dimension():
+                dumpObj['roiManagers'] = self.roiManagers
+                dumpObj['currentTimepoint'] = self.current_timepoint
             if async_write:
                 bytes_to_write = pickle.dumps(dumpObj)
                 write_file(roiPickleName, bytes_to_write) # write file asynchronously for a smoother experience in autosave
@@ -2743,6 +2792,7 @@ class MuscleSegmentation(ImageShow, QObject):
             return
 
         roiManager = None
+        savedRoiManagers = None
         classifications = self.classifications
 
         if isinstance(dumpObj, (ROIManager, utils.ROIManager.ROIManager)):
@@ -2754,27 +2804,47 @@ class MuscleSegmentation(ImageShow, QObject):
             except KeyError:
                 self.alert("Unrecognized saved ROI type")
                 return
+            savedRoiManagers = dumpObj.get('roiManagers', None)
 
-        try:
-            assert isinstance(roiManager, (ROIManager, utils.ROIManager.ROIManager))
-        except AssertionError:
+        def validate_roi_manager(manager):
+            if not isinstance(manager, (ROIManager, utils.ROIManager.ROIManager)):
+                return False
+            if manager.mask_size[0] != self.image.shape[0] or \
+                manager.mask_size[1] != self.image.shape[1]:
+                return False
+            # compatibility with old versions that don't have autosegment subregions
+            try:
+                manager.autosegment_subregions
+            except AttributeError:
+                manager.autosegment_subregions = {}
+            return True
+
+        if not isinstance(roiManager, (ROIManager, utils.ROIManager.ROIManager)):
             self.alert("Unrecognized saved ROI type")
             return
 
-        if roiManager.mask_size[0] != self.image.shape[0] or \
-            roiManager.mask_size[1] != self.image.shape[1]:
+        if not validate_roi_manager(roiManager):
             self.alert("ROI for wrong dataset")
             return
 
-        # compatibility with old versions that don't have autosegment subregions
-        try:
-            roiManager.autosegment_subregions
-        except AttributeError:
-            roiManager.autosegment_subregions = {}
-
         #print('Rois loaded')
         self.clearAllROIs()
-        self.roiManager = roiManager
+        if self.has_time_dimension():
+            newRoiManagers = {}
+            for t in range(self.n_timepoints):
+                manager = savedRoiManagers.get(t, None) if savedRoiManagers else None
+                if manager is None or not validate_roi_manager(manager):
+                    manager = ROIManager(self.imList[0].shape)
+                newRoiManagers[t] = manager
+            if savedRoiManagers is None:
+                # a 3D ROI file loaded on a time-resolved dataset: load it into the current frame
+                newRoiManagers[self.current_timepoint] = roiManager
+            self.roiManagers = newRoiManagers
+            self.roiManager = self.roiManagers[self.current_timepoint]
+        else:
+            self.roiManager = roiManager
+            if self.roiManagers:
+                self.roiManagers[self.current_timepoint] = roiManager
         available_classes = self.toolbox_window.get_available_classes()
         for i, classification in enumerate(classifications[:]):
             if classification not in available_classes:
@@ -2786,6 +2856,37 @@ class MuscleSegmentation(ImageShow, QObject):
         self.updateContourPainters()
         self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
         self.redraw()
+
+    def _load_volume_from_path(self, path):
+        # Replicates ImageShow.loadDirectory, but splits 4D (time-resolved) volumes into
+        # separate time frames before the first image is displayed
+        medical_volume, affine_valid, title, basepath, basename = dosma_volume_from_path(path, self.fig.canvas)
+
+        self.imList = []
+        self.dicomHeaderList = None
+        self.medical_volume = None
+        self.affine = None
+        self.resolution_valid = False
+        self.resolution = [1, 1, 1]
+
+        self.load_dosma_volume(medical_volume)
+        self.resolution_valid = affine_valid
+        self.basename = basename
+        self.basepath = basepath
+        self.fig.canvas.manager.set_window_title(title)
+
+        self._split_time_frames()
+
+        if len(self.imList) > 0:
+            try:
+                self.imPlot.remove()
+            except:
+                pass
+            self.imPlot = None
+            self.curImage = 0
+            self.displayImage(int(0))
+            self.axes.set_xlim(-0.5, self.image.shape[1] - 0.5)
+            self.axes.set_ylim(self.image.shape[0] - 0.5, -0.5)
 
     @pyqtSlot(str, str)
     @pyqtSlot(str)
@@ -2860,6 +2961,8 @@ class MuscleSegmentation(ImageShow, QObject):
                     mask_dictionary[mask_name] = bundle[key]
                     print('Found mask', mask_name)
 
+            self._split_time_frames() # handle 4D (time-resolved) bundles
+
             # from the parent class
             try:
                 self.imPlot.remove()
@@ -2872,7 +2975,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.axes.set_ylim(self.image.shape[0] - 0.5, -0.5)
         else:
             try:
-                ImageShow.loadDirectory(self, path)
+                self._load_volume_from_path(path)
                 if path.endswith(".nii.gz")| path.endswith(".nii"):
                     # load original informations
                     original_volume = nib.load(path)
@@ -2894,6 +2997,8 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.resolution_valid = True
                 self.axes.set_aspect(aspect=self.resolution[0]/self.resolution[1])
                 self.medical_volume._affine = np.diag(self.resolution + [1])
+                for time_frame in self.time_frames:
+                    time_frame._affine = self.medical_volume._affine
 
         # this is in case appendimage was never called
         if len(self.classifications) == 0:
@@ -2907,12 +3012,7 @@ class MuscleSegmentation(ImageShow, QObject):
         except:
             print("Warning: cannot copy roi file")
 
-        self.roiManager = ROIManager(self.imList[0].shape)
-        self.registrationManager = RegistrationManager(self.imList,
-                                                       None,
-                                                       os.getcwd(),
-                                                       GlobalConfig['TEMP_DIR'])
-        self.registrationManager.set_standard_transforms_name(self.basepath, self.basename)
+        self._setup_timepoint_managers()
         #self.loadROIPickle()
         self.updateRoiList()
         try:
@@ -3633,22 +3733,25 @@ class MuscleSegmentation(ImageShow, QObject):
             return
         medical_volume = self.medical_volume
         old_additional_contrasts = self.additional_contrasts
+        old_time_frames = self.time_frames
         self.resetInternalState()
         self.resetInterface()
         new_medical_volume = self._reorient_volume(medical_volume, orientation)
         self.load_dosma_volume(new_medical_volume)
+        if len(old_time_frames) > 1:
+            # reorient every time frame and make the first one the active volume
+            self.time_frames = [self._reorient_volume(volume, orientation) for volume in old_time_frames]
+            self.current_timepoint = 0
+            self.medical_volume = self.time_frames[0]
+            self.imList = ImListProxy(self.medical_volume)
+            self.dicomHeaderList = None
         self.additional_contrasts[ToolboxWindow.BASE_CONTRAST_LABEL] = self.medical_volume
         for name, volume in old_additional_contrasts.items():
             if name == ToolboxWindow.BASE_CONTRAST_LABEL:
                 continue
             self.additional_contrasts[name] = self._reorient_volume(volume, orientation)
             self.toolbox_window.add_contrast_to_combo(name)
-        self.roiManager = ROIManager(self.imList[0].shape)
-        self.registrationManager = RegistrationManager(self.imList,
-                                                       None,
-                                                       os.getcwd(),
-                                                       GlobalConfig['TEMP_DIR'])
-        self.registrationManager.set_standard_transforms_name(self.basepath, self.basename)
+        self._setup_timepoint_managers()
         # self.loadROIPickle()
         self.updateRoiList()
         self.override_class = None
@@ -3705,6 +3808,11 @@ class MuscleSegmentation(ImageShow, QObject):
             if 'comment' in bundle:
                 self.alert('Loading bundle with comment:\n' + str(bundle['comment']), 'Info')
 
+            if data.ndim > 3:
+                self.alert('Time-resolved datasets are not supported as additional contrasts', 'Error')
+                self.setSplash(False)
+                return
+
             affine = None
             if 'affine' in bundle:
                 affine = bundle['affine']
@@ -3730,6 +3838,11 @@ class MuscleSegmentation(ImageShow, QObject):
             except Exception as e:
                 print(e, file=sys.stderr)
                 self.alert("Error loading dataset. See the log for details", "Error")
+                self.setSplash(False)
+                return
+
+            if additional_volume.volume.ndim > 3:
+                self.alert('Time-resolved datasets are not supported as additional contrasts', 'Error')
                 self.setSplash(False)
                 return
 
@@ -3766,6 +3879,94 @@ class MuscleSegmentation(ImageShow, QObject):
         self.contrastWindow = None
         self.displayImage(int(self.curImage))
 
+
+    ########################################################################################
+    ###
+    ### Time-resolved (4D) dataset support
+    ###
+    ########################################################################################
+
+    @property
+    def n_timepoints(self):
+        return len(self.time_frames) if self.time_frames else 1
+
+    def has_time_dimension(self):
+        return len(self.time_frames) > 1
+
+    def _split_time_frames(self):
+        """ If the currently loaded medical volume is 4D, split it into a list of 3D volumes
+            (one per time frame) and make the first frame the active volume. No-op for 3D data. """
+        self.time_frames = []
+        self.current_timepoint = 0
+        if self.medical_volume is None or self.medical_volume.volume.ndim < 4:
+            return
+        volume_4d = self.medical_volume
+        n_frames = volume_4d.shape[3]
+        if n_frames > 1:
+            self.time_frames = [volume_4d[..., t] for t in range(n_frames)]
+            self.medical_volume = self.time_frames[0]
+        else:
+            self.medical_volume = volume_4d[..., 0] # trivial fourth dimension: treat as 3D
+        self.dicomHeaderList = None # per-slice headers of the 4D stack don't apply to a single frame
+        self.imList = ImListProxy(self.medical_volume)
+
+    def _timepoint_basename(self, timepoint):
+        # timepoint 0 keeps the plain basename, so transform files of 3D datasets remain valid
+        if timepoint == 0:
+            return self.basename
+        return (self.basename if self.basename else '') + '_t{}'.format(timepoint)
+
+    def _setup_timepoint_managers(self):
+        """ Create the per-timepoint ROI and registration managers and point the active ones
+            to the current frame. For 3D datasets this creates a single manager pair. """
+        mask_size = self.imList[0].shape
+        self.roiManagers = {t: ROIManager(mask_size) for t in range(self.n_timepoints)}
+        self.roiManager = self.roiManagers[self.current_timepoint]
+        self.registrationManagers = {}
+        for t in range(self.n_timepoints):
+            if self.has_time_dimension():
+                image_list = ImListProxy(self.time_frames[t])
+            else:
+                image_list = self.imList
+            registration_manager = RegistrationManager(image_list,
+                                                       None,
+                                                       os.getcwd(),
+                                                       GlobalConfig['TEMP_DIR'])
+            registration_manager.set_standard_transforms_name(self.basepath, self._timepoint_basename(t))
+            self.registrationManagers[t] = registration_manager
+        self.registrationManager = self.registrationManagers[self.current_timepoint]
+        self.toolbox_window.set_timepoints(self.n_timepoints)
+
+    @pyqtSlot(int)
+    def change_timepoint(self, timepoint):
+        if not self.has_time_dimension():
+            return
+        timepoint = int(max(0, min(timepoint, len(self.time_frames) - 1)))
+        if timepoint == self.current_timepoint:
+            return
+        self.current_timepoint = timepoint
+        self.medical_volume = self.time_frames[timepoint]
+        self.additional_contrasts[ToolboxWindow.BASE_CONTRAST_LABEL] = self.medical_volume
+        self.roiManager = self.roiManagers[timepoint]
+        self.registrationManager = self.registrationManagers[timepoint]
+        if self.current_contrast == ToolboxWindow.BASE_CONTRAST_LABEL:
+            self.imList = ImListProxy(self.medical_volume)
+        self.activeMask = None
+        self.otherMask = None
+        self.displayImage(int(self.curImage)) # also refreshes roi list, masks and contour painters
+        self.redraw()
+        self.volume_loaded_signal.emit([self.resolution[0], self.resolution[1], self.resolution[2]],
+                                       self.medical_volume.volume)
+        self.emit_mask_changed()
+
+    def next_timepoint(self):
+        if self.has_time_dimension():
+            # drive the toolbox slider, which propagates back to change_timepoint
+            self.toolbox_window.set_current_timepoint(self.current_timepoint + 1)
+
+    def previous_timepoint(self):
+        if self.has_time_dimension():
+            self.toolbox_window.set_current_timepoint(self.current_timepoint - 1)
 
 
     ########################################################################################

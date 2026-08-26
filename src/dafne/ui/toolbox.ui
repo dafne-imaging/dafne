@@ -85,8 +85,8 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>444</width>
-            <height>1664</height>
+            <width>440</width>
+            <height>1472</height>
            </rect>
           </property>
           <property name="sizePolicy">
@@ -242,6 +242,53 @@ padding-right: 10px;</string>
                 </property>
                 <property name="text">
                  <string>-</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QFrame" name="timeFrameFrame">
+             <property name="frameShape">
+              <enum>QFrame::NoFrame</enum>
+             </property>
+             <property name="frameShadow">
+              <enum>QFrame::Raised</enum>
+             </property>
+             <layout class="QHBoxLayout" name="horizontalLayout_24">
+              <property name="spacing">
+               <number>0</number>
+              </property>
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
+              <property name="topMargin">
+               <number>0</number>
+              </property>
+              <property name="rightMargin">
+               <number>0</number>
+              </property>
+              <property name="bottomMargin">
+               <number>0</number>
+              </property>
+              <item>
+               <widget class="QLabel" name="timeFrameLabel">
+                <property name="text">
+                 <string>Time:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSlider" name="timeFrameSlider">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="tickPosition">
+                 <enum>QSlider::TicksBelow</enum>
+                </property>
+                <property name="tickInterval">
+                 <number>1</number>
                 </property>
                </widget>
               </item>
@@ -1112,7 +1159,7 @@ padding-right: 10px;</string>
      <x>0</x>
      <y>0</y>
      <width>465</width>
-     <height>36</height>
+     <height>30</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

@@ -254,6 +254,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     contrast_changed = pyqtSignal(str)
     delete_contrast = pyqtSignal(str)
 
+    timepoint_changed = pyqtSignal(int)
+
     BASE_CONTRAST_LABEL = 'Base contrast'
 
     NO_STATE = 0
@@ -462,6 +464,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.contrastCombo.currentIndexChanged.connect(self.contrast_index_changed)
         self.contrastDeleteButton.clicked.connect(self.delete_contrast_clicked)
 
+        self.timeFrameSlider.valueChanged.connect(self.timeframe_slider_changed)
+
         if not config.GlobalConfig['REDIRECT_OUTPUT']:
             self.actionShowLogs.setEnabled(False)
             self.actionShowLogs.setVisible(False)
@@ -489,6 +493,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         self.general_enable(False)
         self.clear_contrast_combo()
+        self.set_timepoints(1)
 
         self.resize_to_fit()
         # move window to side of main screen
@@ -621,6 +626,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionROI_transfer_from_npz_bundle.setEnabled(enabled)
         self.actionAdd_contrast.setEnabled(enabled)
         self.contrastFrame.setEnabled(enabled)
+        self.timeFrameFrame.setEnabled(enabled)
 
     @pyqtSlot()
     def reload_config(self):
@@ -1259,6 +1265,35 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         else:
             self.contrastDeleteButton.setEnabled(True)
         self.contrast_changed.emit(self.contrastCombo.currentText())
+
+    @pyqtSlot(int)
+    def set_timepoints(self, n_timepoints):
+        """ Configure the time frame slider for a dataset with n_timepoints frames.
+            The time frame controls are hidden if the dataset has no time component. """
+        self.timeFrameSlider.blockSignals(True)
+        self.timeFrameSlider.setMinimum(0)
+        self.timeFrameSlider.setMaximum(max(n_timepoints - 1, 0))
+        self.timeFrameSlider.setValue(0)
+        self.timeFrameSlider.blockSignals(False)
+        self.update_timeframe_label()
+        self.timeFrameFrame.setVisible(n_timepoints > 1)
+
+    @pyqtSlot(int)
+    def set_current_timepoint(self, timepoint):
+        # setValue emits valueChanged, which propagates timepoint_changed
+        self.timeFrameSlider.setValue(timepoint)
+
+    def get_current_timepoint(self):
+        return self.timeFrameSlider.value()
+
+    def update_timeframe_label(self):
+        self.timeFrameLabel.setText('Time: {}/{}'.format(self.timeFrameSlider.value() + 1,
+                                                         self.timeFrameSlider.maximum() + 1))
+
+    @pyqtSlot(int)
+    def timeframe_slider_changed(self, value):
+        self.update_timeframe_label()
+        self.timepoint_changed.emit(value)
 
     @pyqtSlot()
     def delete_contrast_clicked(self):
