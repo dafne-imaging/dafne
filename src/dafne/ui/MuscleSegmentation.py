@@ -59,6 +59,7 @@ import matplotlib
 from dafne_dl.common.biascorrection import biascorrection_image
 from matplotlib.patches import Rectangle
 from voxel import NiftiWriter, MedicalVolume
+from voxel.orientation import to_RAS_affine
 from scipy.interpolate import interp1d
 from skimage.morphology import area_opening, area_closing
 
@@ -2902,6 +2903,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.basepath = basepath
         self.fig.canvas.manager.set_window_title(title)
 
+        self._detect_dicom_time_series()
         self._split_time_frames()
 
         if len(self.imList) > 0:
@@ -3936,6 +3938,97 @@ class MuscleSegmentation(ImageShow, QObject):
             self.medical_volume = volume_4d[..., 0] # trivial fourth dimension: treat as 3D
         self.dicomHeaderList = None # per-slice headers of the 4D stack don't apply to a single frame
         self.imList = ImListProxy(self.medical_volume)
+
+    @staticmethod
+    def _dicom_time_value(header, default=None):
+        """ Extract a time marker from a dicom header, for sorting the frames of a
+            time-resolved acquisition. """
+        for attr in ('TriggerTime', 'TemporalPositionIdentifier', 'FrameReferenceTime'):
+            value = getattr(header, attr, None)
+            if value is not None and value != '':
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    pass
+        value = getattr(header, 'AcquisitionTime', None) # HHMMSS.ffffff string
+        if value:
+            try:
+                time_string = str(value)
+                return int(time_string[0:2]) * 3600 + int(time_string[2:4]) * 60 + float(time_string[4:] or 0)
+            except (TypeError, ValueError):
+                pass
+        return default
+
+    def _detect_dicom_time_series(self):
+        """ Detect whether the loaded DICOM stack is a time-resolved acquisition: multiple
+            slices sharing the same spatial location, possibly carrying time markers
+            (TriggerTime and similar). If so, and the user confirms, rearrange the stack into
+            a 4D volume, which _split_time_frames then turns into separate time frames. """
+        if self.medical_volume is None or self.medical_volume.volume.ndim != 3:
+            return
+        headers = self.dicomHeaderList
+        n_total = self.medical_volume.shape[2]
+        if not headers or len(headers) != n_total or n_total < 2:
+            return
+
+        positions = []
+        for header in headers:
+            try:
+                position = tuple(round(float(x), 2) for x in header.ImagePositionPatient)
+            except (AttributeError, TypeError, ValueError):
+                try:
+                    position = (round(float(header.SliceLocation), 2),)
+                except (AttributeError, TypeError, ValueError):
+                    return # no spatial information: nothing to detect
+            positions.append(position)
+
+        unique_positions = list(dict.fromkeys(positions)) # keep the first-appearance (spatial) order
+        n_slices = len(unique_positions)
+        if n_slices == n_total:
+            return # every image has its own location: plain 3D dataset
+        if n_total % n_slices != 0:
+            print('Repeated slice locations, but not a regular slices x frames grid: loading as 3D')
+            return
+        n_frames = n_total // n_slices
+
+        slice_groups = OrderedDict((position, []) for position in unique_positions)
+        for index, position in enumerate(positions):
+            time_value = self._dicom_time_value(headers[index], default=index)
+            slice_groups[position].append((time_value, index))
+        if any(len(group) != n_frames for group in slice_groups.values()):
+            print('Repeated slice locations, but not a regular slices x frames grid: loading as 3D')
+            return
+
+        answer = QMessageBox.question(None, 'Time-resolved dataset',
+                                      'This dataset looks time-resolved '
+                                      f'({n_slices} slice(s) × {n_frames} time frames).\n'
+                                      'Load it as a time-resolved (4D) dataset?',
+                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        if answer != QMessageBox.Yes:
+            return
+
+        volume = self.medical_volume.volume
+        data_4d = np.empty(volume.shape[:2] + (n_slices, n_frames), dtype=volume.dtype)
+        first_frame_headers = []
+        for z, group in enumerate(slice_groups.values()):
+            group.sort(key=lambda entry: entry[0])
+            for t, (_, index) in enumerate(group):
+                data_4d[:, :, z, t] = volume[:, :, index]
+            first_frame_headers.append(headers[group[0][1]])
+
+        try:
+            affine = to_RAS_affine(first_frame_headers)
+        except Exception as e:
+            print('Could not recalculate the affine of the time-resolved dataset:', e)
+            affine = self.medical_volume.affine
+
+        self.medical_volume = MedicalVolume(data_4d, affine)
+        self.affine = self.medical_volume.affine
+        self.resolution = np.array(self.medical_volume.pixel_spacing)
+        self.resolution_valid = True
+        self.dicomHeaderList = None # the per-slice headers of the mixed stack no longer apply
+        self.imList = ImListProxy(self.medical_volume)
+        print(f'Loading time-resolved dicom dataset: {n_slices} slice(s), {n_frames} time frames')
 
     def _timepoint_basename(self, timepoint):
         # timepoint 0 keeps the plain basename, so transform files of 3D datasets remain valid
