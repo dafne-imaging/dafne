@@ -4032,6 +4032,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.current_contrast = contrast_name
         self.contrastWindow = None
         self.displayImage(int(self.curImage))
+        self.resetContrast()
 
 
     ########################################################################################
