@@ -960,6 +960,8 @@ class MuscleSegmentation(ImageShow, QObject):
         return final_mask
 
     def _is_current_model_3D(self):
+        if self.classifications[int(self.curImage)] == 'None':
+            return False
         dimensionality = get_model_detail(self.model_details, self.classifications[int(self.curImage)], 'dimensionality', None)
         if dimensionality is None:
             model, _ = self.get_model_for_class(self.classifications[int(self.curImage)], True, True)
