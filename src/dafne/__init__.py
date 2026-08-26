@@ -12,6 +12,11 @@ if sys.version_info.minor < 10:
 else:
     import importlib.resources as pkg_resources
 
+if sys.platform == 'linux':
+    print("Linux detected. Uninstalling triton to avoid tensorflow crash on Linux when using the GPU.")
+    # Fix for Linux - triton makes tensorflow crash on Linux when using the GPU. This is a known issue with TensorFlow and Triton.
+    flexidep.uninstall_package(flexidep.PackageManagers.pip, 'triton')
+
 # install the required resources
 if not flexidep.is_frozen():
     with pkg_resources.files(resources).joinpath('runtime_dependencies.cfg').open() as f:
