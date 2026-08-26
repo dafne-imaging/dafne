@@ -481,6 +481,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.bundle_saved_for_IL = False
 
         self.additional_contrasts = OrderedDict()
+        self.additional_contrast_frames = {} # name -> list of per-timepoint volumes (time-resolved contrasts)
         self.current_contrast = ToolboxWindow.BASE_CONTRAST_LABEL
         self.toolbox_window.clear_contrast_combo()
 
@@ -3762,6 +3763,7 @@ class MuscleSegmentation(ImageShow, QObject):
             return
         medical_volume = self.medical_volume
         old_additional_contrasts = self.additional_contrasts
+        old_additional_contrast_frames = self.additional_contrast_frames
         old_time_frames = self.time_frames
         self.resetInternalState()
         self.resetInterface()
@@ -3778,7 +3780,13 @@ class MuscleSegmentation(ImageShow, QObject):
         for name, volume in old_additional_contrasts.items():
             if name == ToolboxWindow.BASE_CONTRAST_LABEL:
                 continue
-            self.additional_contrasts[name] = self._reorient_volume(volume, orientation)
+            if name in old_additional_contrast_frames:
+                new_contrast_frames = [self._reorient_volume(frame, orientation)
+                                       for frame in old_additional_contrast_frames[name]]
+                self.additional_contrast_frames[name] = new_contrast_frames
+                self.additional_contrasts[name] = new_contrast_frames[self.current_timepoint]
+            else:
+                self.additional_contrasts[name] = self._reorient_volume(volume, orientation)
             self.toolbox_window.add_contrast_to_combo(name)
         self._setup_timepoint_managers()
         # self.loadROIPickle()
@@ -3837,11 +3845,6 @@ class MuscleSegmentation(ImageShow, QObject):
             if 'comment' in bundle:
                 self.alert('Loading bundle with comment:\n' + str(bundle['comment']), 'Info')
 
-            if data.ndim > 3:
-                self.alert('Time-resolved datasets are not supported as additional contrasts', 'Error')
-                self.setSplash(False)
-                return
-
             affine = None
             if 'affine' in bundle:
                 affine = bundle['affine']
@@ -3851,15 +3854,8 @@ class MuscleSegmentation(ImageShow, QObject):
                     resolution.append(1.0)
                 affine = np.diag(resolution + [1])
 
-            if affine is not None:
-                additional_volume = MedicalVolume(data, affine)
-                additional_volume = realign_medical_volume(additional_volume, self.medical_volume)
-            else:
-                if data.shape != self.medical_volume.shape:
-                    self.alert('The additional contrast dataset is not compatible with the loaded dataset', 'Error')
-                    self.setSplash(False)
-                    return
-                additional_volume = MedicalVolume(data, np.eye(4))
+            affine_valid = affine is not None
+            additional_volume = MedicalVolume(data, affine if affine_valid else np.eye(4))
         else:
             try:
                 additional_volume, affine_valid, _, _, _ = dosma_volume_from_path(filename, self.fig.canvas,
@@ -3870,20 +3866,38 @@ class MuscleSegmentation(ImageShow, QObject):
                 self.setSplash(False)
                 return
 
-            if additional_volume.volume.ndim > 3:
-                self.alert('Time-resolved datasets are not supported as additional contrasts', 'Error')
+            if self.has_time_dimension() and additional_volume.volume.ndim == 3:
+                # a dicom stack can be a time-resolved acquisition in disguise
+                header_list = self._header_list(additional_volume)
+                regrouped_volume = self._regroup_dicom_time_series(additional_volume, header_list)
+                if regrouped_volume is not None:
+                    additional_volume = regrouped_volume
+
+        if additional_volume.volume.ndim > 3:
+            # time-resolved additional contrast: only allowed if it matches the frames of the dataset
+            if not self.has_time_dimension() or additional_volume.shape[3] != self.n_timepoints:
+                self.alert('The time frames of the additional contrast do not match the loaded dataset', 'Error')
                 self.setSplash(False)
                 return
-
+            contrast_frames = [additional_volume[..., t] for t in range(additional_volume.shape[3])]
+            if affine_valid:
+                contrast_frames = [realign_medical_volume(frame, self.medical_volume)
+                                   for frame in contrast_frames]
+            elif contrast_frames[0].shape != self.medical_volume.shape:
+                self.alert('The additional contrast dataset is not compatible with the loaded dataset', 'Error')
+                self.setSplash(False)
+                return
+            self.additional_contrast_frames[name] = contrast_frames
+            self.additional_contrasts[name] = contrast_frames[self.current_timepoint]
+        else:
             if affine_valid:
                 additional_volume = realign_medical_volume(additional_volume, self.medical_volume)
-            else:
-                if additional_volume.shape != self.medical_volume.shape:
-                    self.alert('The additional contrast dataset is not compatible with the loaded dataset', 'Error')
-                    self.setSplash(False)
-                    return
+            elif additional_volume.shape != self.medical_volume.shape:
+                self.alert('The additional contrast dataset is not compatible with the loaded dataset', 'Error')
+                self.setSplash(False)
+                return
+            self.additional_contrasts[name] = additional_volume
 
-        self.additional_contrasts[name] = additional_volume
         self.toolbox_window.add_contrast_to_combo(name)
         self.setSplash(False, 1, 1, "Loading additional contrast...")
 
@@ -3895,6 +3909,7 @@ class MuscleSegmentation(ImageShow, QObject):
         if contrast_name not in self.additional_contrasts:
             return
         del self.additional_contrasts[contrast_name]
+        self.additional_contrast_frames.pop(contrast_name, None)
         self.toolbox_window.remove_contrast_combo(contrast_name)
 
     @pyqtSlot(str)
@@ -3959,17 +3974,25 @@ class MuscleSegmentation(ImageShow, QObject):
                 pass
         return default
 
-    def _detect_dicom_time_series(self):
-        """ Detect whether the loaded DICOM stack is a time-resolved acquisition: multiple
-            slices sharing the same spatial location, possibly carrying time markers
-            (TriggerTime and similar). If so, and the user confirms, rearrange the stack into
-            a 4D volume, which _split_time_frames then turns into separate time frames. """
-        if self.medical_volume is None or self.medical_volume.volume.ndim != 3:
-            return
-        headers = self.dicomHeaderList
-        n_total = self.medical_volume.shape[2]
+    @staticmethod
+    def _header_list(medical_volume):
+        """ Per-slice pydicom headers of a MedicalVolume as a flat list, or None. """
+        if medical_volume.headers() is None:
+            return None
+        header_obj = medical_volume.headers().squeeze()
+        if header_obj.shape == ():
+            return [header_obj.item()]
+        return list(header_obj)
+
+    def _regroup_dicom_time_series(self, medical_volume, headers):
+        """ Inspect the dicom headers of a 3D stack for repeated slice locations. If the stack
+            is a regular slices x frames grid (a time-resolved acquisition), return the
+            rearranged 4D MedicalVolume (frames sorted by time marker), otherwise None. """
+        if medical_volume is None or medical_volume.volume.ndim != 3:
+            return None
+        n_total = medical_volume.shape[2]
         if not headers or len(headers) != n_total or n_total < 2:
-            return
+            return None
 
         positions = []
         for header in headers:
@@ -3979,16 +4002,16 @@ class MuscleSegmentation(ImageShow, QObject):
                 try:
                     position = (round(float(header.SliceLocation), 2),)
                 except (AttributeError, TypeError, ValueError):
-                    return # no spatial information: nothing to detect
+                    return None # no spatial information: nothing to detect
             positions.append(position)
 
         unique_positions = list(dict.fromkeys(positions)) # keep the first-appearance (spatial) order
         n_slices = len(unique_positions)
         if n_slices == n_total:
-            return # every image has its own location: plain 3D dataset
+            return None # every image has its own location: plain 3D dataset
         if n_total % n_slices != 0:
             print('Repeated slice locations, but not a regular slices x frames grid: loading as 3D')
-            return
+            return None
         n_frames = n_total // n_slices
 
         slice_groups = OrderedDict((position, []) for position in unique_positions)
@@ -3997,17 +4020,9 @@ class MuscleSegmentation(ImageShow, QObject):
             slice_groups[position].append((time_value, index))
         if any(len(group) != n_frames for group in slice_groups.values()):
             print('Repeated slice locations, but not a regular slices x frames grid: loading as 3D')
-            return
+            return None
 
-        answer = QMessageBox.question(None, 'Time-resolved dataset',
-                                      'This dataset looks time-resolved '
-                                      f'({n_slices} slice(s) × {n_frames} time frames).\n'
-                                      'Load it as a time-resolved (4D) dataset?',
-                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
-        if answer != QMessageBox.Yes:
-            return
-
-        volume = self.medical_volume.volume
+        volume = medical_volume.volume
         data_4d = np.empty(volume.shape[:2] + (n_slices, n_frames), dtype=volume.dtype)
         first_frame_headers = []
         for z, group in enumerate(slice_groups.values()):
@@ -4020,9 +4035,30 @@ class MuscleSegmentation(ImageShow, QObject):
             affine = to_RAS_affine(first_frame_headers)
         except Exception as e:
             print('Could not recalculate the affine of the time-resolved dataset:', e)
-            affine = self.medical_volume.affine
+            affine = medical_volume.affine
 
-        self.medical_volume = MedicalVolume(data_4d, affine)
+        return MedicalVolume(data_4d, affine)
+
+    def _detect_dicom_time_series(self):
+        """ Detect whether the loaded DICOM stack is a time-resolved acquisition: multiple
+            slices sharing the same spatial location, possibly carrying time markers
+            (TriggerTime and similar). If so, and the user confirms, rearrange the stack into
+            a 4D volume, which _split_time_frames then turns into separate time frames. """
+        volume_4d = self._regroup_dicom_time_series(self.medical_volume, self.dicomHeaderList)
+        if volume_4d is None:
+            return
+        n_slices = volume_4d.shape[2]
+        n_frames = volume_4d.shape[3]
+
+        answer = QMessageBox.question(None, 'Time-resolved dataset',
+                                      'This dataset looks time-resolved '
+                                      f'({n_slices} slice(s) × {n_frames} time frames).\n'
+                                      'Load it as a time-resolved (4D) dataset?',
+                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        if answer != QMessageBox.Yes:
+            return
+
+        self.medical_volume = volume_4d
         self.affine = self.medical_volume.affine
         self.resolution = np.array(self.medical_volume.pixel_spacing)
         self.resolution_valid = True
@@ -4067,10 +4103,13 @@ class MuscleSegmentation(ImageShow, QObject):
         self.current_timepoint = timepoint
         self.medical_volume = self.time_frames[timepoint]
         self.additional_contrasts[ToolboxWindow.BASE_CONTRAST_LABEL] = self.medical_volume
+        # keep time-resolved additional contrasts in sync with the current frame
+        for contrast_name, contrast_frames in self.additional_contrast_frames.items():
+            self.additional_contrasts[contrast_name] = contrast_frames[timepoint]
         self.roiManager = self.roiManagers[timepoint]
         self.registrationManager = self.registrationManagers[timepoint]
-        if self.current_contrast == ToolboxWindow.BASE_CONTRAST_LABEL:
-            self.imList = ImListProxy(self.medical_volume)
+        display_volume = self.additional_contrasts.get(self.current_contrast, self.medical_volume)
+        self.imList = ImListProxy(display_volume)
         self.activeMask = None
         self.otherMask = None
         self.displayImage(int(self.curImage)) # also refreshes roi list, masks and contour painters
