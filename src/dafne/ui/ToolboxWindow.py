@@ -214,7 +214,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     roi_multi_combine = pyqtSignal(list, str, str)
     roi_remove_overlap = pyqtSignal()
 
-    masks_export = pyqtSignal(str, str)
+    masks_export = pyqtSignal(str, str, bool) # path, format, single_frame
     mask_import = pyqtSignal(str)
     bundle_export = pyqtSignal(str, str)
 
@@ -411,9 +411,15 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionSave_as_Compact_Dicom.triggered.connect(lambda: self.export_masks_dir('compact_dicom'))
         self.actionSaveNPY.triggered.connect(lambda: self.export_masks_dir('npy'))
         self.actionSave_as_Nifti.triggered.connect(lambda: self.export_masks_dir('nifti'))
-        self.actionSaveNPZ.triggered.connect(self.export_masks_npz)
+        self.actionSaveNPZ.triggered.connect(lambda: self.export_masks_npz())
         self.actionSaveNumpyBundle.triggered.connect(self.export_masks_numpy_bundle)
-        self.actionSave_as_Compact_Nifti.triggered.connect(self.export_masks_compact_nifti)
+        self.actionSave_as_Compact_Nifti.triggered.connect(lambda: self.export_masks_compact_nifti())
+
+        # single-frame exports for time-resolved datasets
+        self.actionSaveNPY_single.triggered.connect(lambda: self.export_masks_dir('npy', single_frame=True))
+        self.actionSave_as_Nifti_single.triggered.connect(lambda: self.export_masks_dir('nifti', single_frame=True))
+        self.actionSaveNPZ_single.triggered.connect(lambda: self.export_masks_npz(single_frame=True))
+        self.actionSave_as_Compact_Nifti_single.triggered.connect(lambda: self.export_masks_compact_nifti(single_frame=True))
 
         self.actionAbout.triggered.connect(self.about)
         self.actionOpen_online_documentation.triggered.connect(lambda : webbrowser.open(DOCUMENTATION_URL))
@@ -621,6 +627,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.menuImport.setEnabled(enabled)
         self.menuReorient_data.setEnabled(enabled)
         self.menuSave_masks.setEnabled(enabled)
+        self.menuSave_masks_single.setEnabled(enabled)
         self.action_Upload_data.setEnabled(enabled)
         self.menuCalculate_statistics.setEnabled(enabled)
         self.actionPyRadiomics.setEnabled(enabled)
@@ -641,6 +648,8 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.actionSave_as_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
         self.actionSave_data_as_Nifti.setVisible(False) # Disable save data as Nifti
         self.actionSave_as_Compact_Nifti.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
+        self.actionSave_as_Nifti_single.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
+        self.actionSave_as_Compact_Nifti_single.setVisible(config.GlobalConfig['ENABLE_NIFTI'])
         self.actionImport_model.setVisible(config.GlobalConfig['MODEL_PROVIDER'] in ('Local', 'Mixed'))
         if config.GlobalConfig['ENABLE_DATA_UPLOAD'] and (config.GlobalConfig['MODEL_PROVIDER'] == 'Remote' or
                                                           config.GlobalConfig['FORCE_LOCAL_DATA_UPLOAD']):
@@ -1285,6 +1294,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.update_timeframe_label()
         self.timeFrameFrame.setVisible(n_timepoints > 1)
         self.timePropagationGroup.setVisible(n_timepoints > 1)
+        self.menuSave_masks_single.menuAction().setVisible(n_timepoints > 1)
 
     @pyqtSlot(int)
     def set_current_timepoint(self, timepoint):
@@ -1366,21 +1376,22 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.menuSave_as_Numpy.setEnabled(numpy)
         self.actionSave_as_Nifti.setEnabled(nifti)
         self.actionSave_as_Compact_Nifti.setEnabled(nifti)
+        self.menuSave_as_Numpy_single.setEnabled(numpy)
+        self.actionSave_as_Nifti_single.setEnabled(nifti)
+        self.actionSave_as_Compact_Nifti_single.setEnabled(nifti)
         self.actionSave_data_as_Nifti.setEnabled(nifti)
         self.menuReorient_data.setEnabled(nifti)
 
-    @pyqtSlot(str)
-    def export_masks_dir(self, output_type):
+    def export_masks_dir(self, output_type, single_frame=False):
         dir_out = QFileDialog.getExistingDirectory(self, caption=f'Select directory to export as {output_type}')
         if dir_out:
-            self.masks_export.emit(dir_out, output_type)
+            self.masks_export.emit(dir_out, output_type, single_frame)
 
-    @pyqtSlot()
-    def export_masks_npz(self):
+    def export_masks_npz(self, single_frame=False):
         file_out, _ = QFileDialog.getSaveFileName(self, caption='Select npz file to export',
                                                   filter='Numpy array archive (*.npz);;All files ()')
         if file_out:
-            self.masks_export.emit(file_out, 'npz')
+            self.masks_export.emit(file_out, 'npz', single_frame)
 
     @pyqtSlot()
     def export_masks_numpy_bundle(self):
@@ -1394,12 +1405,11 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             if accept:
                 self.bundle_export.emit(file_out, values[0])
 
-    @pyqtSlot()
-    def export_masks_compact_nifti(self):
+    def export_masks_compact_nifti(self, single_frame=False):
         file_out, _ = QFileDialog.getSaveFileName(self, caption='Select Nifti file to export',
                                                   filter='Nifti files (*.nii *.nii.gz);;All files ()')
         if file_out:
-            self.masks_export.emit(file_out, 'compact_nifti')
+            self.masks_export.emit(file_out, 'compact_nifti', single_frame)
 
     @pyqtSlot()
     def calculate_statistics(self):

@@ -2920,6 +2920,37 @@ class MuscleSegmentation(ImageShow, QObject):
             self.axes.set_xlim(-0.5, self.image.shape[1] - 0.5)
             self.axes.set_ylim(self.image.shape[0] - 0.5, -0.5)
 
+    def _restore_bundle_contrasts(self, contrast_arrays, contrast_names):
+        """ Restore the additional contrasts saved in a bundle as 'data2', 'data3', ...
+            A 4D array becomes a time-resolved contrast, a 3D one a static contrast. """
+        if not contrast_arrays:
+            return
+        affine = self.affine if self.affine is not None else np.eye(4)
+        for list_index, key_index in enumerate(sorted(contrast_arrays)):
+            data = contrast_arrays[key_index]
+            try:
+                name = contrast_names[list_index]
+            except (TypeError, IndexError):
+                name = f'Contrast {key_index}'
+            # avoid collisions with the base contrast label or already-restored names
+            if name == ToolboxWindow.BASE_CONTRAST_LABEL or name in self.additional_contrasts:
+                name = f'{name} ({key_index})'
+            if data.ndim == 4:
+                if not self.has_time_dimension() or data.shape[3] != self.n_timepoints or \
+                        data.shape[:3] != tuple(self.medical_volume.shape):
+                    print(f'Skipping bundle contrast {name}: does not match the dataset')
+                    continue
+                contrast_frames = [MedicalVolume(np.ascontiguousarray(data[..., t]), affine)
+                                   for t in range(data.shape[3])]
+                self.additional_contrast_frames[name] = contrast_frames
+                self.additional_contrasts[name] = contrast_frames[self.current_timepoint]
+            else:
+                if tuple(data.shape) != tuple(self.medical_volume.shape):
+                    print(f'Skipping bundle contrast {name}: does not match the dataset')
+                    continue
+                self.additional_contrasts[name] = MedicalVolume(data, affine)
+            self.toolbox_window.add_contrast_to_combo(name)
+
     @pyqtSlot(str, str)
     @pyqtSlot(str)
     def loadDirectory(self, path, override_class=None):
@@ -2950,6 +2981,8 @@ class MuscleSegmentation(ImageShow, QObject):
         __reset_state()
         _, ext = os.path.splitext(path)
         mask_dictionary = None
+        bundle_contrast_arrays = {}
+        bundle_contrast_names = None
         if ext.lower() == '.npz':
             # data and mask bundle
             bundle = np.load(path, allow_pickle=False)
@@ -2992,6 +3025,13 @@ class MuscleSegmentation(ImageShow, QObject):
                     mask_name = key[len('mask_'):]
                     mask_dictionary[mask_name] = bundle[key]
                     print('Found mask', mask_name)
+                else:
+                    contrast_match = re.fullmatch(r'data(\d+)', key)
+                    if contrast_match:
+                        bundle_contrast_arrays[int(contrast_match.group(1))] = bundle[key]
+                        print('Found additional contrast', key)
+            if 'contrast_names' in bundle:
+                bundle_contrast_names = [str(contrast_name) for contrast_name in bundle['contrast_names']]
 
             self._split_time_frames() # handle 4D (time-resolved) bundles
 
@@ -3037,6 +3077,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.update_all_classifications()
 
         self.additional_contrasts[ToolboxWindow.BASE_CONTRAST_LABEL] = self.medical_volume
+        self._restore_bundle_contrasts(bundle_contrast_arrays, bundle_contrast_names)
 
         roi_bak_name = self.getRoiFileName() + '.' + datetime.now().strftime('%Y%m%d%H%M%S')
         try:
@@ -3262,11 +3303,43 @@ class MuscleSegmentation(ImageShow, QObject):
             total_next_indices = len(self.incrLearnDataTrain.get(current_model, {}))
             print(f"files count {total_next_indices}")
 
-    @pyqtSlot(str, str)
+    def _get_all_frames_masks(self):
+        """ Return dict roi_name -> 4D mask (H, W, slices, timepoints) with the masks of every
+            time frame. """
+        masks = {}
+        n_slices = len(self.imList)
+        mask_shape = (self.image.shape[0], self.image.shape[1], n_slices, self.n_timepoints)
+        for roi_name in self._selected_roi_names(True):
+            mask_4d = np.zeros(mask_shape, dtype=np.uint8)
+            for t in range(self.n_timepoints):
+                manager = self.roiManagers[t]
+                for z in range(n_slices):
+                    if manager.contains(roi_name, z):
+                        mask_4d[:, :, z, t] = manager.get_mask(roi_name, z)
+            masks[roi_name] = mask_4d
+        return masks
+
+    @pyqtSlot(str, str, bool)
     @separate_thread_decorator
-    def saveResults(self, pathOut: str, outputType: str):
+    def saveResults(self, pathOut: str, outputType: str, single_frame: bool = False):
         # outputType is 'dicom', 'npy', 'npz', 'nifti', 'compact_dicom', 'compact_nifti'
         print("Saving results...")
+
+        if self.has_time_dimension() and not single_frame:
+            # export the masks of all the time frames as 4D arrays. This is a pure export:
+            # no incremental-learning bookkeeping, which is frame-based
+            self.setSplash(True, 0, 1, "Saving masks...")
+            allMasks = self._get_all_frames_masks()
+            if outputType == 'nifti':
+                save_nifti_masks(pathOut, allMasks, self.affine)
+            elif outputType == 'npy':
+                save_npy_masks(pathOut, allMasks, self.affine)
+            elif outputType == 'compact_nifti':
+                save_single_nifti(pathOut, allMasks, self.affine)
+            else: # assume the most generic outputType == 'npz':
+                save_npz_masks(pathOut, allMasks, self.affine)
+            self.setSplash(False, 1, 1, "End")
+            return
 
         self.setSplash(True, 0, 4, "Calculating maps...")
 
@@ -3485,11 +3558,46 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.setSplash(False, 2, 2, "Finished")
 
+    def _contrast_data_for_bundle(self, contrast_name):
+        """ Numpy data of a contrast for bundle export: 4D (time frames stacked on the 4th
+            axis) for time-resolved volumes, 3D otherwise (including contrasts that are
+            static over a time-resolved dataset). """
+        if self.has_time_dimension():
+            if contrast_name == ToolboxWindow.BASE_CONTRAST_LABEL:
+                return np.stack([frame.volume for frame in self.time_frames], axis=-1)
+            if contrast_name in self.additional_contrast_frames:
+                return np.stack([frame.volume
+                                 for frame in self.additional_contrast_frames[contrast_name]], axis=-1)
+        return self.additional_contrasts[contrast_name].volume
+
     def prepare_numpy_bundle(self, comment = ''):
-        dataset = self.getDatasetAsNumpy()
-        allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
-        resolution = np.array(self.resolution)
-        out_data = {'data': dataset, 'resolution': resolution, 'comment': comment}
+        out_data = {'resolution': np.array(self.resolution), 'comment': comment}
+        if self.affine is not None:
+            out_data['affine'] = np.array(self.affine)
+
+        # 'data' is the current contrast; the other contrasts are saved as 'data2', 'data3',
+        # ..., mirroring the incremental-learning convention ('image', 'image2', ...).
+        # Their names are kept in 'contrast_names' so that loading can restore them.
+        if self.additional_contrasts:
+            out_data['data'] = self._contrast_data_for_bundle(self.current_contrast)
+            contrast_index = 2
+            contrast_names = []
+            for contrast_name in self.additional_contrasts:
+                if contrast_name == self.current_contrast:
+                    continue
+                out_data[f'data{contrast_index}'] = self._contrast_data_for_bundle(contrast_name)
+                contrast_names.append(contrast_name)
+                contrast_index += 1
+            if contrast_names:
+                out_data['contrast_names'] = np.array(contrast_names)
+        else:
+            out_data['data'] = self.getDatasetAsNumpy()
+
+        if self.has_time_dimension():
+            # 4D masks with all the time frames
+            allMasks = self._get_all_frames_masks()
+        else:
+            allMasks, dataForTraining, segForTraining, meanDiceScore = self.calcOutputData(setSplash=True)
         for mask_name, mask in allMasks.items():
             out_data[f'mask_{mask_name}'] = mask
         return out_data

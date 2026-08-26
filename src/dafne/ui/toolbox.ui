@@ -1275,6 +1275,21 @@ padding-right: 10px;</string>
      <addaction name="actionSave_as_Nifti"/>
      <addaction name="menuSave_as_compact"/>
     </widget>
+    <widget class="QMenu" name="menuSave_masks_single">
+     <property name="title">
+      <string>Save masks (single frame)...</string>
+     </property>
+     <widget class="QMenu" name="menuSave_as_Numpy_single">
+      <property name="title">
+       <string>Save as Numpy...</string>
+      </property>
+      <addaction name="actionSaveNPZ_single"/>
+      <addaction name="actionSaveNPY_single"/>
+     </widget>
+     <addaction name="menuSave_as_Numpy_single"/>
+     <addaction name="actionSave_as_Nifti_single"/>
+     <addaction name="actionSave_as_Compact_Nifti_single"/>
+    </widget>
     <widget class="QMenu" name="menuImport">
      <property name="title">
       <string>Import masks...</string>
@@ -1301,6 +1316,7 @@ padding-right: 10px;</string>
     <addaction name="separator"/>
     <addaction name="menuImport"/>
     <addaction name="menuSave_masks"/>
+    <addaction name="menuSave_masks_single"/>
     <addaction name="separator"/>
     <addaction name="actionImport_model"/>
     <addaction name="action_Upload_data"/>
@@ -1535,6 +1551,26 @@ padding-right: 10px;</string>
   <action name="actionSaveNumpyBundle">
    <property name="text">
     <string>Data and mask bundle</string>
+   </property>
+  </action>
+  <action name="actionSaveNPZ_single">
+   <property name="text">
+    <string>Single file</string>
+   </property>
+  </action>
+  <action name="actionSaveNPY_single">
+   <property name="text">
+    <string>Multiple files</string>
+   </property>
+  </action>
+  <action name="actionSave_as_Nifti_single">
+   <property name="text">
+    <string>Save as Nifti...</string>
+   </property>
+  </action>
+  <action name="actionSave_as_Compact_Nifti_single">
+   <property name="text">
+    <string>Save as Compact Nifti...</string>
    </property>
   </action>
   <action name="actionModel_browser">
