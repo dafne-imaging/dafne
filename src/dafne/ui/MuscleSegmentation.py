@@ -171,6 +171,16 @@ def snapshotSaver(func):
     return wrapper
 
 
+def timeSnapshotSaver(func):
+    # snapshot the ROIs of every time frame: for operations that modify multiple frames
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        self.saveSnapshot(all_timepoints=True)
+        func(self, *args, **kwargs)
+
+    return wrapper
+
+
 class MuscleSegmentation(ImageShow, QObject):
 
     undo_possible = pyqtSignal(bool)
@@ -587,6 +597,9 @@ class MuscleSegmentation(ImageShow, QObject):
         self.toolbox_window.delete_contrast.connect(self.delete_additional_contrast)
 
         self.toolbox_window.timepoint_changed.connect(self.change_timepoint)
+        self.toolbox_window.time_copy.connect(self.time_copy)
+        self.toolbox_window.time_interpolate.connect(self.time_interpolate)
+        self.toolbox_window.time_interpolate_block.connect(self.time_interpolate_block)
 
     def setSplash(self, is_splash, current_value = 0, maximum_value = 1, text= ""):
         #print("setSplash", is_splash, current_value, maximum_value, text)
@@ -658,14 +671,19 @@ class MuscleSegmentation(ImageShow, QObject):
     ###
     #############################################################################################
 
-    def saveSnapshot(self, save_head = False):
+    def saveSnapshot(self, save_head = False, all_timepoints = False):
         #print("Saving snapshot")
         if self.roiManager is None:
             try:
                 self.roiManager = ROIManager(self.imList[0].shape)
             except:
                 return
-        current_point = pickle.dumps({'timepoint': self.current_timepoint, 'roiManager': self.roiManager})
+        # the head snapshot must always capture every frame, because the state being redone
+        # to might have been saved by a multi-frame operation
+        if (all_timepoints or save_head) and self.has_time_dimension():
+            current_point = pickle.dumps({'timepoint': self.current_timepoint, 'roiManagers': self.roiManagers})
+        else:
+            current_point = pickle.dumps({'timepoint': self.current_timepoint, 'roiManager': self.roiManager})
         if save_head:
             #print("Saving head state")
             self.historyHead = current_point
@@ -702,9 +720,14 @@ class MuscleSegmentation(ImageShow, QObject):
             #print("loading", self.currentHistoryPoint-1)
             saved_state = pickle.loads(self.history[self.currentHistoryPoint-1])
 
+        restored_managers = None
         if isinstance(saved_state, dict):
             saved_timepoint = saved_state.get('timepoint', 0)
-            restored_manager = saved_state['roiManager']
+            restored_managers = saved_state.get('roiManagers', None) # multi-frame snapshot
+            if restored_managers is not None:
+                restored_manager = restored_managers[saved_timepoint]
+            else:
+                restored_manager = saved_state['roiManager']
         else: # old-style snapshot containing the bare ROIManager
             saved_timepoint = self.current_timepoint
             restored_manager = saved_state
@@ -714,9 +737,13 @@ class MuscleSegmentation(ImageShow, QObject):
             self.toolbox_window.set_current_timepoint(saved_timepoint)
 
         self.clearAllROIs()
-        self.roiManager = restored_manager
-        if self.roiManagers:
-            self.roiManagers[self.current_timepoint] = restored_manager
+        if restored_managers is not None and self.has_time_dimension():
+            self.roiManagers = restored_managers
+            self.roiManager = restored_managers[self.current_timepoint]
+        else:
+            self.roiManager = restored_manager
+            if self.roiManagers:
+                self.roiManagers[self.current_timepoint] = restored_manager
 
         self.updateRoiList()
         if self.roiManager.contains(roiName):
@@ -3967,6 +3994,238 @@ class MuscleSegmentation(ImageShow, QObject):
     def previous_timepoint(self):
         if self.has_time_dimension():
             self.toolbox_window.set_current_timepoint(self.current_timepoint - 1)
+
+    def _selected_roi_names(self, all_rois):
+        """ ROI names a time operation should act on. With all_rois, take the union of the ROI
+            names across every time frame: a ROI may only be segmented in frames other than
+            the current one. """
+        if not self.roiManager:
+            return []
+        if all_rois:
+            roi_names = []
+            for manager in self.roiManagers.values():
+                for roi_name in manager.get_roi_names():
+                    if roi_name not in roi_names:
+                        roi_names.append(roi_name)
+            return roi_names
+        current_roi_name = self.getCurrentROIName()
+        return [current_roi_name] if current_roi_name else []
+
+    def _get_time_anchors(self, roi_name, slice_number):
+        """ Return a dict timepoint -> mask with the nonempty masks of a ROI at a fixed slice
+            across all the time frames. """
+        anchors = {}
+        for t in range(self.n_timepoints):
+            mask = self.roiManagers[t].get_mask(roi_name, slice_number)
+            if mask is not None and np.any(mask):
+                anchors[t] = mask
+        return anchors
+
+    def _interpolate_mask_pair(self, mask_1, index_1, mask_2, index_2, target_index):
+        """ Linear spline-based interpolation between two masks at generic positions
+            index_1 < target_index < index_2. Returns None if interpolation is impossible. """
+        spline_list_1 = mask_to_trivial_splines(mask_1, spacing=4)
+        spline_list_2 = mask_to_trivial_splines(mask_2, spacing=4)
+        if len(spline_list_1) != len(spline_list_2):
+            self.alert('Different number of subrois in neighboring time frames')
+            return None
+
+        splines_list = masks_splines_to_splines_masks([spline_list_1, spline_list_2])
+        out_mask = np.zeros(self.image.shape, dtype=np.uint8)
+        for subroi_spline in splines_list:
+            out_spline = SplineInterpROIClass()
+            spline_1 = subroi_spline[0]
+            spline_2 = subroi_spline[1]
+            for knot_1, knot_2 in zip(spline_1.knots, spline_2.knots):
+                f_x = interp1d([index_1, index_2], [knot_1[0], knot_2[0]], kind='linear')
+                f_y = interp1d([index_1, index_2], [knot_1[1], knot_2[1]], kind='linear')
+                out_spline.addKnot((f_x(target_index), f_y(target_index)))
+            out_mask += out_spline.toMask(self.image.shape)
+            out_mask = (out_mask > 0).astype(np.uint8)
+            out_mask = binary_dilation(out_mask)
+        return out_mask.astype(np.uint8)
+
+    def _time_interpolate_mask(self, roi_name, slice_number, target_timepoint, anchors=None):
+        """ Calculate the mask of a ROI at a fixed slice for one time frame from the frames
+            where it is already segmented: linear interpolation between the two nearest
+            anchor frames, or a copy of the nearest anchor if all the anchors lie on one side.
+            Returns None if there is nothing to interpolate from. """
+        if anchors is None:
+            anchors = self._get_time_anchors(roi_name, slice_number)
+        anchors = {t: mask for t, mask in anchors.items() if t != target_timepoint}
+        if not anchors:
+            return None
+        timepoints_before = [t for t in anchors if t < target_timepoint]
+        timepoints_after = [t for t in anchors if t > target_timepoint]
+        if timepoints_before and timepoints_after:
+            t_1 = max(timepoints_before)
+            t_2 = min(timepoints_after)
+            return self._interpolate_mask_pair(anchors[t_1], t_1, anchors[t_2], t_2, target_timepoint)
+        nearest_timepoint = max(timepoints_before) if timepoints_before else min(timepoints_after)
+        return anchors[nearest_timepoint].copy()
+
+    def _sam_time_propagate(self, all_rois, inplace=True):
+        """ Propagate the masks of the current slice through the whole time series with SAM2,
+            treating the time frames at the fixed slice as a video and using every frame that
+            already has a mask as an anchor. Mirrors samPropagateBlock, but along time.
+
+            inplace=True: write the propagated masks into every non-anchor frame (the anchor
+            frames -- the user's own masks -- are left untouched).
+            inplace=False: return dict[roi_name -> dict[timepoint -> mask]] without touching
+            the roiManagers. """
+        if not self.has_time_dimension():
+            return None
+        slice_number = int(self.curImage)
+        roi_names = self._selected_roi_names(all_rois)
+        if not roi_names:
+            return None
+
+        masks_by_roi = {}
+        time_bounds = {}
+        for roi_name in roi_names:
+            anchors = self._get_time_anchors(roi_name, slice_number)
+            if not anchors:
+                continue
+            masks_by_roi[roi_name] = anchors
+            time_bounds[roi_name] = (0, self.n_timepoints - 1)
+
+        if not masks_by_roi:
+            self.alert('No ROI is segmented on the current slice in any time frame')
+            return None
+
+        def progress_callback(current, maximum):
+            self.setSplash(True, current, maximum, "SAM time propagation")
+
+        time_stack = np.stack([frame.volume[:, :, slice_number].astype(np.float32)
+                               for frame in self.time_frames])
+
+        try:
+            result = sam_api.SAM_propagate(
+                time_stack, masks_by_roi, self.get_sam(),
+                z_bounds=time_bounds,
+                prompt_kind='mask', refine_mask_prompt=False,
+                progress_callback=progress_callback)
+        except Exception as e:
+            print("Error in SAM time propagation:", e)
+            self.alert("Error in SAM time propagation: " + str(e))
+            self.setSplash(False)
+            return None
+
+        self.setSplash(False)
+
+        if inplace:
+            for roi_name, propagated in result.items():
+                anchor_timepoints = set(masks_by_roi[roi_name])
+                for t, mask in propagated.items():
+                    if t in anchor_timepoints:
+                        continue
+                    if mask is None:
+                        mask = np.zeros(self.image.shape, dtype=np.uint8)
+                    self.roiManagers[t].set_mask(roi_name, slice_number, np.asarray(mask, dtype=np.uint8))
+            return None
+        return result
+
+    @pyqtSlot(int, bool)
+    @timeSnapshotSaver
+    def time_copy(self, direction, all_rois):
+        """ Copy the masks (all slices) of the current frame's ROI(s) to the adjacent time
+            frame and move there. """
+        if not self.has_time_dimension():
+            return
+        source_timepoint = self.current_timepoint
+        target_timepoint = source_timepoint + direction
+        if not (0 <= target_timepoint < self.n_timepoints):
+            return
+        roi_names = self._selected_roi_names(all_rois)
+        if not roi_names:
+            return
+        source_manager = self.roiManagers[source_timepoint]
+        target_manager = self.roiManagers[target_timepoint]
+        copied = False
+        for roi_name in roi_names:
+            for key_tuple, mask in source_manager.all_masks(roi_name=roi_name):
+                if mask is not None and np.any(mask):
+                    target_manager.set_mask(key_tuple[0], key_tuple[1], mask.copy())
+                    copied = True
+        if not copied:
+            self.alert('No masks to copy in the current frame')
+            return
+        self.toolbox_window.set_current_timepoint(target_timepoint)
+
+    @pyqtSlot(str, bool)
+    @timeSnapshotSaver
+    @separate_thread_decorator
+    def time_interpolate(self, interpolation_method, all_rois):
+        """ Calculate the mask of the current slice in the current frame from the time frames
+            where it is already segmented. """
+        if not self.has_time_dimension():
+            return
+        slice_number = int(self.curImage)
+
+        if interpolation_method == ToolboxWindow.INTERPOLATE_MASK_SAM:
+            result = self._sam_time_propagate(all_rois, inplace=False)
+            if not result:
+                return
+            for roi_name, propagated in result.items():
+                mask = propagated.get(self.current_timepoint)
+                if mask is not None:
+                    self.roiManager.set_mask(roi_name, slice_number, np.asarray(mask, dtype=np.uint8))
+        else:
+            roi_names = self._selected_roi_names(all_rois)
+            interpolated_any = False
+            for roi_name in roi_names:
+                new_mask = self._time_interpolate_mask(roi_name, slice_number, self.current_timepoint)
+                if new_mask is None or not np.any(new_mask):
+                    continue
+                self.roiManager.set_mask(roi_name, slice_number, new_mask)
+                interpolated_any = True
+            if not interpolated_any:
+                self.alert('No ROI is segmented on the current slice in any other time frame')
+                return
+
+        self.updateMasksFromROIs()
+        self.updateContourPainters()
+        self.reblit()
+
+    @pyqtSlot(str, bool)
+    @timeSnapshotSaver
+    @separate_thread_decorator
+    def time_interpolate_block(self, interpolation_method, all_rois):
+        """ Calculate the mask of the current slice in every time frame from the frames where
+            it is already segmented. The anchor frames themselves are left untouched. """
+        if not self.has_time_dimension():
+            return
+        slice_number = int(self.curImage)
+
+        if interpolation_method == ToolboxWindow.INTERPOLATE_MASK_SAM:
+            self._sam_time_propagate(all_rois, inplace=True)
+        else:
+            roi_names = self._selected_roi_names(all_rois)
+            interpolated_any = False
+            n_steps = len(roi_names) * self.n_timepoints
+            current_step = 0
+            for roi_name in roi_names:
+                anchors = self._get_time_anchors(roi_name, slice_number)
+                if not anchors:
+                    current_step += self.n_timepoints
+                    continue
+                for t in range(self.n_timepoints):
+                    self.setSplash(True, current_step, n_steps, "Interpolating in time...")
+                    current_step += 1
+                    if t in anchors:
+                        continue
+                    new_mask = self._time_interpolate_mask(roi_name, slice_number, t, anchors=anchors)
+                    if new_mask is None or not np.any(new_mask):
+                        continue
+                    self.roiManagers[t].set_mask(roi_name, slice_number, new_mask)
+                    interpolated_any = True
+            self.setSplash(False)
+            if not interpolated_any and not roi_names:
+                return
+
+        self.updateMasksFromROIs()
+        self.updateContourPainters()
+        self.reblit()
 
 
     ########################################################################################

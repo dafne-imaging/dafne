@@ -255,6 +255,9 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     delete_contrast = pyqtSignal(str)
 
     timepoint_changed = pyqtSignal(int)
+    time_copy = pyqtSignal(int, bool) # direction (+1/-1), all_rois
+    time_interpolate = pyqtSignal(str, bool) # method, all_rois
+    time_interpolate_block = pyqtSignal(str, bool) # method, all_rois
 
     BASE_CONTRAST_LABEL = 'Base contrast'
 
@@ -465,6 +468,10 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.contrastDeleteButton.clicked.connect(self.delete_contrast_clicked)
 
         self.timeFrameSlider.valueChanged.connect(self.timeframe_slider_changed)
+        self.timeCopyBackButton.clicked.connect(self.time_copy_back_clicked)
+        self.timeCopyForwardButton.clicked.connect(self.time_copy_forward_clicked)
+        self.timeInterpolateButton.clicked.connect(self.time_interpolate_clicked)
+        self.timeInterpolateAllButton.clicked.connect(self.time_interpolate_all_clicked)
 
         if not config.GlobalConfig['REDIRECT_OUTPUT']:
             self.actionShowLogs.setEnabled(False)
@@ -1277,6 +1284,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.timeFrameSlider.blockSignals(False)
         self.update_timeframe_label()
         self.timeFrameFrame.setVisible(n_timepoints > 1)
+        self.timePropagationGroup.setVisible(n_timepoints > 1)
 
     @pyqtSlot(int)
     def set_current_timepoint(self, timepoint):
@@ -1294,6 +1302,29 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     def timeframe_slider_changed(self, value):
         self.update_timeframe_label()
         self.timepoint_changed.emit(value)
+
+    def _time_interpolation_method(self):
+        if self.time_interpolation_style_sam.isChecked():
+            return ToolboxWindow.INTERPOLATE_MASK_SAM
+        return ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE
+
+    @pyqtSlot()
+    def time_copy_back_clicked(self):
+        self.time_copy.emit(-1, self.checkBox_time_all_ROIs.isChecked())
+
+    @pyqtSlot()
+    def time_copy_forward_clicked(self):
+        self.time_copy.emit(+1, self.checkBox_time_all_ROIs.isChecked())
+
+    @pyqtSlot()
+    def time_interpolate_clicked(self):
+        self.time_interpolate.emit(self._time_interpolation_method(),
+                                   self.checkBox_time_all_ROIs.isChecked())
+
+    @pyqtSlot()
+    def time_interpolate_all_clicked(self):
+        self.time_interpolate_block.emit(self._time_interpolation_method(),
+                                         self.checkBox_time_all_ROIs.isChecked())
 
     @pyqtSlot()
     def delete_contrast_clicked(self):

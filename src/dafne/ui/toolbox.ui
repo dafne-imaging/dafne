@@ -1089,6 +1089,100 @@ padding-right: 10px;</string>
             </widget>
            </item>
            <item>
+            <widget class="QGroupBox" name="timePropagationGroup">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="title">
+              <string>Time propagation</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_timeprop">
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_timecopy">
+                <item>
+                 <widget class="QPushButton" name="timeCopyBackButton">
+                  <property name="toolTip">
+                   <string>Copy all the masks of the current frame to the previous time frame</string>
+                  </property>
+                  <property name="text">
+                   <string>Copy to previous</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="timeCopyForwardButton">
+                  <property name="toolTip">
+                   <string>Copy all the masks of the current frame to the next time frame</string>
+                  </property>
+                  <property name="text">
+                   <string>Copy to next</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_timeinterp">
+                <item>
+                 <widget class="QPushButton" name="timeInterpolateButton">
+                  <property name="toolTip">
+                   <string>Calculate the mask of the current slice in the current time frame from the frames where it is already segmented</string>
+                  </property>
+                  <property name="text">
+                   <string>Interpolate</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="timeInterpolateAllButton">
+                  <property name="toolTip">
+                   <string>Calculate the mask of the current slice in all the time frames from the frames where it is already segmented</string>
+                  </property>
+                  <property name="text">
+                   <string>Interpolate All</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_timestyle">
+                <item>
+                 <widget class="QRadioButton" name="time_interpolation_style_int">
+                  <property name="text">
+                   <string>Interpolation</string>
+                  </property>
+                  <property name="checked">
+                   <bool>false</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QRadioButton" name="time_interpolation_style_sam">
+                  <property name="text">
+                   <string>SAM</string>
+                  </property>
+                  <property name="checked">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="checkBox_time_all_ROIs">
+                <property name="text">
+                 <string>Apply to all ROIs</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
             <spacer name="verticalSpacer_2">
              <property name="orientation">
               <enum>Qt::Vertical</enum>
