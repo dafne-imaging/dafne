@@ -18,7 +18,6 @@
 
 import os
 
-from ..ui.WhatsNew import show_news
 # Hide tensorflow warnings; set to 1 to see warnings
 from ..utils import log
 
