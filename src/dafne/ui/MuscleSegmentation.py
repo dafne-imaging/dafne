@@ -16,6 +16,8 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import gc
 import re
+from urllib.error import URLError
+
 import flexidep
 import os, time, math, sys
 
@@ -198,6 +200,8 @@ class MuscleSegmentation(ImageShow, QObject):
     mask_changed = pyqtSignal(list, np.ndarray)
     mask_slice_changed = pyqtSignal(int, np.ndarray)
     volume_loaded_signal = pyqtSignal(list, np.ndarray)
+    other_mask_changed = pyqtSignal(list, np.ndarray)
+    displayed_slice_changed = pyqtSignal(int)
 
     def __init__(self, *args, **kwargs):
         self.suppressRedraw = False
@@ -211,7 +215,10 @@ class MuscleSegmentation(ImageShow, QObject):
         }
 
         if GlobalConfig['CHECK_UPDATES']:
-            self.check_updates()
+            try:
+                self.check_updates()
+            except URLError:
+                print("Could not check for updates. No internet connection?")
 
         self.news_checker = NewsChecker()
         self.news_checker.news_ready.connect(self.show_news)
@@ -589,10 +596,13 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.toolbox_window.mask_transfer.connect(self.transfer_roi)
 
-        self.toolbox_window.show_3D_viewer_signal.connect(self.emit_mask_changed)
+        self.toolbox_window.show_3D_viewer_signal.connect(self.emit_viewer3d_data)
         self.mask_changed.connect(self.toolbox_window.viewer3D.set_spacing_and_data)
         self.mask_slice_changed.connect(self.toolbox_window.viewer3D.set_slice)
         self.volume_loaded_signal.connect(self.toolbox_window.viewer3D.set_spacing_and_anatomy)
+        self.other_mask_changed.connect(self.toolbox_window.viewer3D.set_other_masks)
+        self.displayed_slice_changed.connect(self.toolbox_window.viewer3D.set_main_slice)
+        self.toolbox_window.viewer3D.main_slice_changed.connect(self.viewer3d_slice_changed)
 
         self.toolbox_window.data_add.connect(self.load_additional_contrast)
         self.toolbox_window.contrast_changed.connect(self.change_contrast)
@@ -2095,7 +2105,17 @@ class MuscleSegmentation(ImageShow, QObject):
                     self.activeMask = mask.copy()
             else:
                 if mask is not None:
-                    self.otherMask += (current_other_mask_index*mask).astype(np.uint8)
+                    print("In other mask")
+                    print("self.otherMask", self.otherMask)
+                    print("mask", mask)
+                    print("current_other_mask_index", current_other_mask_index)
+                    layer_mask = (current_other_mask_index*mask).astype(np.uint8)
+                    print("layer_mask", layer_mask)
+                    try:
+                        self.otherMask += layer_mask
+                    except TypeError:
+                        print("TypeError in otherMask addition")
+                        # probably a thread issue that makes otherMask None; just skip this mask and continue
                     current_other_mask_index += 1
         self.emit_mask_slice_changed()
 
@@ -2106,11 +2126,52 @@ class MuscleSegmentation(ImageShow, QObject):
         roi_name = self.getCurrentROIName()
         if not roi_name:
             return
-        full_mask = np.zeros((self.image.shape[0], self.image.shape[1], len(self.imList)), dtype=np.uint8)
+        spacing = [self.resolution[0], self.resolution[1], self.resolution[2]]
+        mask_shape = (self.image.shape[0], self.image.shape[1], len(self.imList))
+        full_mask = np.zeros(mask_shape, dtype=np.uint8)
         for key_tuple, mask in self.roiManager.all_masks(roi_name=roi_name):
+            if mask is None: continue
             mask_slice = key_tuple[1]
             full_mask[:, :, mask_slice] = mask
-        self.mask_changed.emit([self.resolution[0], self.resolution[1], self.resolution[2]], full_mask)
+        self.mask_changed.emit(spacing, full_mask)
+
+        # labeled volume of the non-active ROIs; the label values (from 2 up) match the
+        # coloring of the "other" masks in the main window
+        other_mask = np.zeros(mask_shape, dtype=np.uint8)
+        current_other_mask_index = 2
+        for other_name in self.roiManager.get_roi_names():
+            if other_name == roi_name:
+                continue
+            for key_tuple, mask in self.roiManager.all_masks(roi_name=other_name):
+                if mask is None: continue
+                other_mask[:, :, key_tuple[1]][mask > 0] = current_other_mask_index
+            current_other_mask_index += 1
+        self.other_mask_changed.emit(spacing, other_mask)
+
+    def emit_viewer3d_data(self):
+        """ Send the current state (displayed volume, slice position, masks) to the
+            triplanar/3D viewer. Used when the viewer is shown and when the displayed
+            volume changes (contrast or time frame switch). """
+        if self.medical_volume is None:
+            return
+        display_volume = self.medical_volume
+        if self.additional_contrasts:
+            display_volume = self.additional_contrasts.get(self.current_contrast, self.medical_volume)
+        self.volume_loaded_signal.emit([self.resolution[0], self.resolution[1], self.resolution[2]],
+                                       display_volume.volume)
+        self.displayed_slice_changed.emit(int(self.curImage))
+        self.emit_mask_changed()
+
+    @pyqtSlot(int)
+    def viewer3d_slice_changed(self, slice_number):
+        """ The user navigated to a new main-plane slice in the triplanar viewer. """
+        if not self.imList or len(self.imList) == 0:
+            return
+        slice_number = int(max(0, min(slice_number, len(self.imList) - 1)))
+        if int(self.curImage) == slice_number:
+            return
+        self.displayImage(slice_number, redraw=False)
+        self.redraw()
 
     def emit_mask_slice_changed(self):
         if not self.toolbox_window.is_3D_viewer_visible(): return
@@ -2176,7 +2237,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.maskOtherImPlot.set_data(other_mask.astype(np.uint8))
         if GlobalConfig['USE_MULTIPLE_OTHER_COLORS']:
-            other_colormap = hue_compass_colormap.generate_colormap(GlobalConfig['ROI_COLOR'], other_mask.max()-1)
+            other_colormap = hue_compass_colormap.generate_colormap(GlobalConfig['ROI_COLOR'], int(other_mask.max()) - 1)
             self.maskOtherImPlot.set_cmap(other_colormap)
             self.maskOtherImPlot.set_clim(vmin=0, vmax=other_colormap.N - 1)
             #('Other mask max', other_mask.max())
@@ -2284,6 +2345,9 @@ class MuscleSegmentation(ImageShow, QObject):
         self.otherMask = None
         self.updateContourPainters()
         self.drawSubregion()
+        toolbox_window = getattr(self, 'toolbox_window', None)
+        if toolbox_window is not None and toolbox_window.is_3D_viewer_visible() and self.curImage is not None:
+            self.displayed_slice_changed.emit(int(self.curImage))
         try:
             self.toolbox_window.set_class(self.classifications[int(self.curImage)])  # update the classification combo
         except:
@@ -3102,7 +3166,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.setSplash(True, 1, 2, "Loading masks")
             self.masksToRois(mask_dictionary, 0)
         self.setSplash(False, 1, 2, "Loading masks")
-        self.volume_loaded_signal.emit([self.resolution[0], self.resolution[1], self.resolution[2]], self.medical_volume.volume)
+        self.emit_viewer3d_data()
 
     def update_all_classifications(self):
         self.classifications = []
@@ -4033,6 +4097,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.contrastWindow = None
         self.displayImage(int(self.curImage))
         self.resetContrast()
+        if self.toolbox_window.is_3D_viewer_visible():
+            self.emit_viewer3d_data()
 
 
     ########################################################################################
@@ -4225,9 +4291,8 @@ class MuscleSegmentation(ImageShow, QObject):
         self.otherMask = None
         self.displayImage(int(self.curImage)) # also refreshes roi list, masks and contour painters
         self.redraw()
-        self.volume_loaded_signal.emit([self.resolution[0], self.resolution[1], self.resolution[2]],
-                                       self.medical_volume.volume)
-        self.emit_mask_changed()
+        if self.toolbox_window.is_3D_viewer_visible():
+            self.emit_viewer3d_data()
 
     def next_timepoint(self):
         if self.has_time_dimension():

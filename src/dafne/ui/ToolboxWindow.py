@@ -1457,7 +1457,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_BOTH
         elif self.interpolation_style_reg.isChecked():
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_REGISTER
-        elif self.interpolation_style_reg.isChecked():
+        elif self.interpolation_style_SAM.isChecked():
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_SAM
         else:
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE
@@ -1468,7 +1468,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_BOTH
         elif self.interpolation_style_reg.isChecked():
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_REGISTER
-        elif self.interpolation_style_reg.isChecked():
+        elif self.interpolation_style_SAM.isChecked():
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_SAM
         else:
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE

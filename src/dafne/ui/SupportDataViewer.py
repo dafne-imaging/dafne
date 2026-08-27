@@ -25,8 +25,8 @@ class ImageShowWithMasks(ImageShow):
         ImageShow.__init__(self, **kwargs)
         self.data = data
         self.masks = masks
-        self.resolution = resolution
         self.loadNumpyArray(data)
+        self.resolution = list(resolution)  # after loadNumpyArray, which resets it
         self.displayImage(int(len(self.imList)/2))
         self.enabled_masks = {
             mask_name: True for mask_name in masks.keys()
@@ -69,7 +69,9 @@ class ImageShowWithMasks(ImageShow):
 
     def reset_view(self):
         self.clear()
+        resolution = self.resolution
         self.loadNumpyArray(self.data)
+        self.resolution = resolution  # loadNumpyArray resets the resolution
         self.displayImage(int(len(self.imList) / 2))
         self.resetContrast()
         self.redraw()
