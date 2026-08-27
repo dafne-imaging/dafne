@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DAFNE_VERSION="2.0.1b3"
+DAFNE_VERSION="2.1.0a0"
 PKG_NAME="dafne_mac_${DAFNE_VERSION}.pkg"
 CODESIGN_IDENTITY="Francesco Santini"
 
