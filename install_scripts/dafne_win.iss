@@ -236,5 +236,33 @@ begin
   Exec(VenvPython, '-m pip install --upgrade flexidep' + FindLinksArg,
        '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
 
+  { --- Install pyradiomics ---------------------------------------------- }
+  Log('Installing pyradiomics...');
+  if not Exec(VenvPip, 'install --upgrade pyradiomics' + FindLinksArg,
+              '', SW_SHOW, ewWaitUntilTerminated, ResultCode)
+     or (ResultCode <> 0) then
+  begin
+    MsgBox('Failed to install pyradiomics.' + #13#10 +
+           'Please check your internet connection and try again.',
+           mbError, MB_OK);
+    Exit;
+  end;
+
+  { --- Replace SimpleITK with SimpleITK-SimpleElastix ------------------- }
+  Log('Removing SimpleITK...');
+  Exec(VenvPip, 'uninstall -y SimpleITK',
+       '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
+
+  Log('Installing SimpleITK-SimpleElastix...');
+  if not Exec(VenvPip, 'install --upgrade SimpleITK-SimpleElastix' + FindLinksArg,
+              '', SW_SHOW, ewWaitUntilTerminated, ResultCode)
+     or (ResultCode <> 0) then
+  begin
+    MsgBox('Failed to install SimpleITK-SimpleElastix.' + #13#10 +
+           'Please check your internet connection and try again.',
+           mbError, MB_OK);
+    Exit;
+  end;
+
   Log('Dafne installation completed successfully.');
 end;

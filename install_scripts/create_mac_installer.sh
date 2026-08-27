@@ -184,6 +184,23 @@ if ! $ARCH_CMD "$VENV_DIR/bin/pip" install -U "${FIND_LINKS_ARGS[@]}" "$PIP_PACK
     exit 1
 fi
 
+# Install pyradiomics
+echo "Installing pyradiomics..." | tee -a "$LOG_FILE"
+if ! $ARCH_CMD "$VENV_DIR/bin/pip" install -U "${FIND_LINKS_ARGS[@]}" pyradiomics 2>&1 | tee -a "$LOG_FILE"; then
+    echo "Failed to install pyradiomics" | tee -a "$LOG_FILE"
+    exit 1
+fi
+
+# Replace SimpleITK with SimpleITK-SimpleElastix
+echo "Removing SimpleITK..." | tee -a "$LOG_FILE"
+$ARCH_CMD "$VENV_DIR/bin/pip" uninstall -y SimpleITK 2>&1 | tee -a "$LOG_FILE"
+
+echo "Installing SimpleITK-SimpleElastix..." | tee -a "$LOG_FILE"
+if ! $ARCH_CMD "$VENV_DIR/bin/pip" install -U "${FIND_LINKS_ARGS[@]}" SimpleITK-SimpleElastix 2>&1 | tee -a "$LOG_FILE"; then
+    echo "Failed to install SimpleITK-SimpleElastix" | tee -a "$LOG_FILE"
+    exit 1
+fi
+
 # Make site-packages writable by all
 SITE_PACKAGES_DIR="$VENV_DIR/lib/"
 echo "Making site-packages writable..." | tee -a "$LOG_FILE"
