@@ -17,6 +17,6 @@ flexidep>=0.0.16
 pyvistaqt
 torch
 torchvision
-dafne-dicomUtils >= 0.2.0
+dafne-dicomUtils >= 0.2.1
 dafne-sam2-tools
 pyobjc-framework-Cocoa ; sys_platform == "darwin"

@@ -4000,7 +4000,7 @@ class MuscleSegmentation(ImageShow, QObject):
         while True:
             accept, values = GenericInputDialog.show_dialog('Additional Contrast', [
                 GenericInputDialog.TextLineInput('Name for additional contrast')
-            ], self.toolbox_window)
+            ], self.fig.canvas)
             if not accept:
                 return
             name = values[0]

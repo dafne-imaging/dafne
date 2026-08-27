@@ -57,7 +57,7 @@ class TriplanarView(ImageShow):
         Clicking (or dragging) moves the crosshair; scrolling changes the displayed slice. """
 
     def __init__(self, controller=None, fixed_axis=MAIN_PLANE_AXIS, title='', **kwargs):
-        ImageShow.__init__(self, use_global_contrast_window=False, **kwargs)
+        ImageShow.__init__(self, use_global_contrast_window=True, **kwargs)
         self.controller = controller
         self.fixed_axis = fixed_axis
         # in-plane volume axes: rows of the displayed image, columns of the displayed image
