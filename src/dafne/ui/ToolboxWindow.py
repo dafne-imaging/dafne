@@ -373,9 +373,6 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
 
         if not activate_registration:
             self.registrationGroup.setVisible(False)
-            self.interpolation_style_reg.setVisible(False)
-            self.interpolation_style_both.setVisible(False)
-            self.interpolation_style_int.setChecked(True)
 
         self.editmode_combo.currentTextChanged.connect(lambda : self.set_edit_mode(self.editmode_combo.currentText()))
         self.editmode_combo.setCurrentText('Mask')
@@ -1314,7 +1311,7 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
         self.timepoint_changed.emit(value)
 
     def _time_interpolation_method(self):
-        if self.time_interpolation_style_sam.isChecked():
+        if self.timeInterpolationStyleCombo.currentIndex() == 0:
             return ToolboxWindow.INTERPOLATE_MASK_SAM
         return ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE
 
@@ -1452,24 +1449,19 @@ class ToolboxWindow(QMainWindow, Ui_SegmentationToolbox):
     # def do_incremental_learn(self):
     #     self.incremental_learn.emit()
 
-    def interpolate_emit(self):
-        if self.interpolation_style_both.isChecked():
-            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_BOTH
-        elif self.interpolation_style_reg.isChecked():
-            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_REGISTER
-        elif self.interpolation_style_SAM.isChecked():
+    def _get_interpolation_style(self):
+        if self.interpolationStyleCombo.currentIndex() == 0:
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_SAM
-        else:
+        elif self.interpolationStyleCombo.currentIndex() == 1:
             interpolation_style = ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE
-        self.interpolate_mask.emit(interpolation_style, self.checkBox_Interpolate_all_ROIs.isChecked())
+        elif self.interpolationStyleCombo.currentIndex() == 2:
+            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_REGISTER
+        else:
+            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_BOTH
+        return interpolation_style
+
+    def interpolate_emit(self):
+        self.interpolate_mask.emit(self._get_interpolation_style(), self.checkBox_Interpolate_all_ROIs.isChecked())
 
     def interpolate_block_emit(self):
-        if self.interpolation_style_both.isChecked():
-            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_BOTH
-        elif self.interpolation_style_reg.isChecked():
-            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_REGISTER
-        elif self.interpolation_style_SAM.isChecked():
-            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_SAM
-        else:
-            interpolation_style = ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE
-        self.interpolate_block.emit(interpolation_style, self.checkBox_Interpolate_all_ROIs.isChecked())
+        self.interpolate_block.emit(self._get_interpolation_style(), self.checkBox_Interpolate_all_ROIs.isChecked())

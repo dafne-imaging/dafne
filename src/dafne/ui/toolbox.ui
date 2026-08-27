@@ -253,9 +253,9 @@ padding-right: 10px;</string>
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>0</y>
+            <y>-1025</y>
             <width>428</width>
-            <height>1545</height>
+            <height>1453</height>
            </rect>
           </property>
           <property name="sizePolicy">
@@ -588,18 +588,22 @@ padding-right: 10px;</string>
                </layout>
               </item>
               <item>
-               <widget class="QCheckBox" name="eraseFromAllROIs_checkbox">
-                <property name="text">
-                 <string>Erase from all ROIs</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="intensityAware_checkbox">
-                <property name="text">
-                 <string>Intensity aware</string>
-                </property>
-               </widget>
+               <layout class="QHBoxLayout" name="horizontalLayout_25">
+                <item>
+                 <widget class="QCheckBox" name="intensityAware_checkbox">
+                  <property name="text">
+                   <string>Intensity aware</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="eraseFromAllROIs_checkbox">
+                  <property name="text">
+                   <string>Erase from all ROIs</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
               </item>
               <item>
                <widget class="QWidget" name="intensityThreshold_widget" native="true">
@@ -990,51 +994,40 @@ padding-right: 10px;</string>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_14">
                 <item>
-                 <widget class="QRadioButton" name="interpolation_style_int">
-                  <property name="text">
-                   <string>Interpolation</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QRadioButton" name="interpolation_style_reg">
-                  <property name="text">
-                   <string>Registration</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_17">
-                <item>
-                 <widget class="QRadioButton" name="interpolation_style_both">
-                  <property name="text">
-                   <string>Both</string>
-                  </property>
-                  <property name="checked">
-                   <bool>false</bool>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QRadioButton" name="interpolation_style_SAM">
-                  <property name="text">
+                 <widget class="QComboBox" name="interpolationStyleCombo">
+                  <property name="currentText">
                    <string>SAM</string>
                   </property>
-                  <property name="checked">
-                   <bool>true</bool>
+                  <item>
+                   <property name="text">
+                    <string>SAM</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Interpolation</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Registration</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Interp+Reg</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="checkBox_Interpolate_all_ROIs">
+                  <property name="text">
+                   <string>all ROIs</string>
                   </property>
                  </widget>
                 </item>
                </layout>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="checkBox_Interpolate_all_ROIs">
-                <property name="text">
-                 <string>Interpolate all ROIs</string>
-                </property>
-               </widget>
               </item>
              </layout>
             </widget>
@@ -1142,33 +1135,27 @@ padding-right: 10px;</string>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_timestyle">
                 <item>
-                 <widget class="QRadioButton" name="time_interpolation_style_int">
-                  <property name="text">
-                   <string>Interpolation</string>
-                  </property>
-                  <property name="checked">
-                   <bool>false</bool>
-                  </property>
+                 <widget class="QComboBox" name="timeInterpolationStyleCombo">
+                  <item>
+                   <property name="text">
+                    <string>SAM</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Interpolation</string>
+                   </property>
+                  </item>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QRadioButton" name="time_interpolation_style_sam">
+                 <widget class="QCheckBox" name="checkBox_time_all_ROIs">
                   <property name="text">
-                   <string>SAM</string>
-                  </property>
-                  <property name="checked">
-                   <bool>true</bool>
+                   <string>all ROIs</string>
                   </property>
                  </widget>
                 </item>
                </layout>
-              </item>
-              <item>
-               <widget class="QCheckBox" name="checkBox_time_all_ROIs">
-                <property name="text">
-                 <string>Apply to all ROIs</string>
-                </property>
-               </widget>
               </item>
              </layout>
             </widget>

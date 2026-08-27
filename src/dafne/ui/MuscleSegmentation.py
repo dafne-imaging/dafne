@@ -1943,7 +1943,7 @@ class MuscleSegmentation(ImageShow, QObject):
     def interpolate(self, interpolation_method, all_rois):
         self.do_interpolate(interpolation_method, all_rois)
 
-    def do_interpolate(self, interpolation_method, all_rois):
+    def do_interpolate(self, interpolation_method, all_rois, set_splash=True):
         #if self.editMode == ToolboxWindow.EDITMODE_CONTOUR: return
         if interpolation_method == ToolboxWindow.INTERPOLATE_MASK_SAM:
             out_volumes = self._interpolate_block(interpolation_method, all_rois, inplace=False)
@@ -1962,7 +1962,9 @@ class MuscleSegmentation(ImageShow, QObject):
             current_roi_name = self.getCurrentROIName()
             roi_names = [current_roi_name] if current_roi_name else []
 
-        for roi_name in roi_names:
+        for i, roi_name in enumerate(roi_names):
+            if set_splash:
+                self.setSplash(True, i, len(roi_names), 'Interpolating masks...')
             if interpolation_method == ToolboxWindow.INTERPOLATE_MASK_INTERPOLATE:
                 new_mask = self._calculateInterpolatedMask(roi_name)
             elif interpolation_method == ToolboxWindow.INTERPOLATE_MASK_REGISTER:
@@ -1979,6 +1981,8 @@ class MuscleSegmentation(ImageShow, QObject):
                 # most for all_rois, where most ROIs won't have data around every slice.
                 continue
             self.roiManager.set_mask(roi_name, int(self.curImage), new_mask.astype(np.uint8))
+            if set_splash:
+                self.setSplash(False)
         self.redraw()
 
     @pyqtSlot(str, bool)
@@ -2011,10 +2015,12 @@ class MuscleSegmentation(ImageShow, QObject):
         initial_index = masks_above_index[0] + 1
         final_index = masks_below_index[0] - 1
         for i in range(initial_index, final_index+1):
+            self.setSplash(True, i-initial_index, final_index - initial_index + 1, 'Interpolating masks...')
             self.curImage = i
             self.displayImage(self.curImage)
             self.redraw()
-            self.do_interpolate(interpolation_method, all_rois)
+            self.do_interpolate(interpolation_method, all_rois, set_splash=False)
+        self.setSplash(False)
         return None
 
     @pyqtSlot(np.ndarray, dict, list)
@@ -2098,6 +2104,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.otherMask = np.zeros(mask_size, dtype=np.uint8)
         self.activeMask = np.zeros(mask_size, dtype=np.uint8)
         current_other_mask_index = 2
+        mask_error = False
         for key_tuple, mask in self.roiManager.all_masks(image_number=self.curImage):
             mask_name = key_tuple[0]
             if mask_name == roi_name:
@@ -2105,18 +2112,16 @@ class MuscleSegmentation(ImageShow, QObject):
                     self.activeMask = mask.copy()
             else:
                 if mask is not None:
-                    print("In other mask")
-                    print("self.otherMask", self.otherMask)
-                    print("mask", mask)
-                    print("current_other_mask_index", current_other_mask_index)
                     layer_mask = (current_other_mask_index*mask).astype(np.uint8)
-                    print("layer_mask", layer_mask)
                     try:
                         self.otherMask += layer_mask
                     except TypeError:
                         print("TypeError in otherMask addition")
+                        mask_error = True
                         # probably a thread issue that makes otherMask None; just skip this mask and continue
                     current_other_mask_index += 1
+        if mask_error:
+            self.otherMask = None
         self.emit_mask_slice_changed()
 
     def emit_mask_changed(self):
@@ -2237,7 +2242,7 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.maskOtherImPlot.set_data(other_mask.astype(np.uint8))
         if GlobalConfig['USE_MULTIPLE_OTHER_COLORS']:
-            other_colormap = hue_compass_colormap.generate_colormap(GlobalConfig['ROI_COLOR'], int(other_mask.max()) - 1)
+            other_colormap = hue_compass_colormap.generate_colormap(GlobalConfig['ROI_COLOR'], len(self.roiManager.allROIs)-1)
             self.maskOtherImPlot.set_cmap(other_colormap)
             self.maskOtherImPlot.set_clim(vmin=0, vmax=other_colormap.N - 1)
             #('Other mask max', other_mask.max())
