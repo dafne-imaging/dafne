@@ -69,6 +69,7 @@ from .WhatsNew import NewsChecker, WhatsNewDialog
 from dicomUtils.misc import realign_medical_volume, dosma_volume_from_path, reorient_data_ui, \
     get_nifti_orientation
 from . import GenericInputDialog, hue_compass_colormap
+from .DimensionSelectionDialog import reduce_array_dimensions
 from ..utils.mask_to_spline import mask_average, mask_to_trivial_splines, masks_splines_to_splines_masks
 from ..utils.pySplineInterp import SplineInterpROIClass
 from ..utils.resource_utils import get_resource_path
@@ -100,7 +101,7 @@ from collections import deque, OrderedDict
 import functools
 import csv
 
-from ..utils.ThreadHelpers import separate_thread_decorator
+from ..utils.ThreadHelpers import separate_thread_decorator, main_thread_dialog_runner
 
 from .BrushPatches import SquareBrush, PixelatedCircleBrush
 from .ContourPainter import ContourPainter
@@ -2962,6 +2963,12 @@ class MuscleSegmentation(ImageShow, QObject):
         # separate time frames before the first image is displayed
         medical_volume, affine_valid, title, basepath, basename = dosma_volume_from_path(path, self.fig.canvas)
 
+        if medical_volume.volume.ndim > 4:
+            reduced_data = reduce_array_dimensions(medical_volume.volume, self.fig.canvas)
+            if reduced_data is None:
+                raise ValueError('Loading cancelled by user')
+            medical_volume = MedicalVolume(reduced_data, medical_volume.affine)
+
         self.imList = []
         self.dicomHeaderList = None
         self.medical_volume = None
@@ -3065,11 +3072,17 @@ class MuscleSegmentation(ImageShow, QObject):
             self.basepath = os.path.dirname(path)
             try:
                 if 'data' in bundle:
-                    self.loadNumpyArray(bundle['data'])
+                    base_data = bundle['data']
                 elif 'image' in bundle:
-                    self.loadNumpyArray(bundle['image'])
+                    base_data = bundle['image']
                 else:
                     __error('No data in bundle!') # should never happen because we are checking above
+                    return
+                base_data = reduce_array_dimensions(base_data, self.fig.canvas)
+                if base_data is None:
+                    __cleanup()
+                    return
+                self.loadNumpyArray(base_data)
             except Exception as e:
                 __error(e)
                 return
@@ -4024,6 +4037,12 @@ class MuscleSegmentation(ImageShow, QObject):
             if 'comment' in bundle:
                 self.alert('Loading bundle with comment:\n' + str(bundle['comment']), 'Info')
 
+            if data.ndim > 4:
+                data = main_thread_dialog_runner.run(lambda: reduce_array_dimensions(data, self.fig.canvas))
+                if data is None:
+                    self.setSplash(False)
+                    return
+
             affine = None
             if 'affine' in bundle:
                 affine = bundle['affine']
@@ -4037,8 +4056,15 @@ class MuscleSegmentation(ImageShow, QObject):
             additional_volume = MedicalVolume(data, affine if affine_valid else np.eye(4))
         else:
             try:
-                additional_volume, affine_valid, _, _, _ = dosma_volume_from_path(filename, self.fig.canvas,
-                                                                                    sort=GlobalConfig['DICOM_SORT'])
+                # reorient_data=False: the additional contrast is realigned/resampled onto the
+                # base dataset's grid below anyway, so asking the user for a NIfTI orientation
+                # here would be pointless. dosma_volume_from_path may still show other dialogs
+                # (e.g. choosing a dataset from a multi-frame DICOM file), so route the whole
+                # call through the main thread, since this method runs in a worker thread.
+                additional_volume, affine_valid, _, _, _ = main_thread_dialog_runner.run(
+                    lambda: dosma_volume_from_path(filename, self.fig.canvas,
+                                                    reorient_data=False,
+                                                    sort=GlobalConfig['DICOM_SORT']))
             except Exception as e:
                 print(e, file=sys.stderr)
                 self.alert("Error loading dataset. See the log for details", "Error")
@@ -4051,6 +4077,14 @@ class MuscleSegmentation(ImageShow, QObject):
                 regrouped_volume = self._regroup_dicom_time_series(additional_volume, header_list)
                 if regrouped_volume is not None:
                     additional_volume = regrouped_volume
+
+        if additional_volume.volume.ndim > 4:
+            reduced_data = main_thread_dialog_runner.run(
+                lambda: reduce_array_dimensions(additional_volume.volume, self.fig.canvas))
+            if reduced_data is None:
+                self.setSplash(False)
+                return
+            additional_volume = MedicalVolume(reduced_data, additional_volume.affine)
 
         if additional_volume.volume.ndim > 3:
             # time-resolved additional contrast: only allowed if it matches the frames of the dataset

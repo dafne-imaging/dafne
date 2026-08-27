@@ -13,11 +13,57 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from PyQt5.QtCore import QRunnable, pyqtSlot, QThreadPool
+from PyQt5.QtCore import QRunnable, pyqtSlot, pyqtSignal, QThreadPool, QObject, QMutex, QWaitCondition, QThread, Qt
 from functools import wraps
 import traceback
 
 threadpool = QThreadPool()
+
+
+class MainThreadDialogRunner(QObject):
+    """ Runs a callable (typically one that creates/executes a Qt dialog) on the
+        thread that constructed this object (the GUI thread, if instantiated at
+        module import time as the singleton below), blocking the calling thread
+        until it completes, and returning its result.
+
+        Qt widgets may only be created/shown on the GUI thread; code running in a
+        @separate_thread_decorator-wrapped method must go through this (rather
+        than instantiating a dialog directly) to stay thread-safe. """
+
+    _run_signal = pyqtSignal(object)
+
+    def __init__(self):
+        super().__init__()
+        self._mutex = QMutex()
+        self._condition = QWaitCondition()
+        self._result = None
+        self._run_signal.connect(self._run, Qt.QueuedConnection)
+
+    @pyqtSlot(object)
+    def _run(self, factory):
+        try:
+            self._result = factory()
+        except Exception:
+            traceback.print_exc()
+            self._result = None
+        finally:
+            self._mutex.lock()
+            self._condition.wakeAll()
+            self._mutex.unlock()
+
+    def run(self, factory):
+        if QThread.currentThread() is self.thread():
+            return factory()
+        self._mutex.lock()
+        self._run_signal.emit(factory)
+        self._condition.wait(self._mutex)
+        result = self._result
+        self._mutex.unlock()
+        return result
+
+
+# constructed at import time (main thread), so its thread affinity is the GUI thread
+main_thread_dialog_runner = MainThreadDialogRunner()
 
 class Runner(QRunnable):
 
