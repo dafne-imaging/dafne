@@ -160,22 +160,14 @@
          </spacer>
         </item>
         <item>
-         <layout class="QHBoxLayout" name="horizontalLayout">
-          <item>
-           <widget class="QToolButton" name="selectAllButton">
-            <property name="text">
-             <string>All</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QToolButton" name="selectNoneButton">
-            <property name="text">
-             <string>None</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
+         <widget class="QCheckBox" name="allROITristateBox">
+          <property name="text">
+           <string>All ROIs</string>
+          </property>
+          <property name="tristate">
+           <bool>true</bool>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>

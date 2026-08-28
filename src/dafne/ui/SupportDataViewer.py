@@ -151,6 +151,7 @@ class SupportDataViewerDialog(QDialog, Ui_SupportDataViewerDialog):
         roiGroup_layout = self.roiGroup.layout()
         colors = self.imshowWidget.mask_colormap.colors
         current_color = 1
+        self.mask_checkboxes = []
         for mask_name in masks:
             mask_checkbox = QtWidgets.QCheckBox(self.roiGroup)
             mask_checkbox.setChecked(True)
@@ -160,24 +161,38 @@ class SupportDataViewerDialog(QDialog, Ui_SupportDataViewerDialog):
             roiGroup_layout.insertWidget(len(roiGroup_layout)-2, mask_checkbox)
             def make_callback(mask_name, mask_checkbox):
                 def clicked_callback():
+                    all_checked = all(cb.isChecked() for cb in self.mask_checkboxes)
+                    all_unchecked = all(not cb.isChecked() for cb in self.mask_checkboxes)
+                    if all_checked:
+                        self.allROITristateBox.setCheckState(Qt.CheckState.Checked)
+                    elif all_unchecked:
+                        self.allROITristateBox.setCheckState(Qt.CheckState.Unchecked)
+                    else:
+                        self.allROITristateBox.setCheckState(Qt.CheckState.PartiallyChecked)
                     self.imshowWidget.enable_mask(mask_name, mask_checkbox.isChecked())
                 return clicked_callback
-            def make_disable(mask_checkbox):
-                @pyqtSlot()
-                def disable_function():
-                    mask_checkbox.setChecked(False)
-                return disable_function
-            def make_enable(mask_checkbox):
-                @pyqtSlot()
-                def enable_function():
-                    mask_checkbox.setChecked(True)
-                return enable_function
 
             mask_checkbox.clicked.connect(make_callback(mask_name, mask_checkbox))
-            self.selectAllButton.clicked.connect(make_enable(mask_checkbox))
-            self.selectNoneButton.clicked.connect(make_disable(mask_checkbox))
-        self.selectAllButton.clicked.connect(self.imshowWidget.enable_all_masks)
-        self.selectNoneButton.clicked.connect(self.imshowWidget.disable_all_masks)
+            self.mask_checkboxes.append(mask_checkbox)
+
+        self.allROITristateBox.clicked.connect(self.tristate_clicked)
+        self.allROITristateBox.setCheckState(Qt.CheckState.Checked)
+
+    @pyqtSlot()
+    def tristate_clicked(self):
+        state = self.allROITristateBox.checkState()
+        if state == Qt.CheckState.PartiallyChecked:
+            self.allROITristateBox.setCheckState(Qt.CheckState.Checked)
+            state = Qt.CheckState.Checked
+        if state == Qt.CheckState.Unchecked:
+            self.imshowWidget.enable_all_masks(False)
+            for mask_checkbox in self.mask_checkboxes:
+                mask_checkbox.setChecked(False)
+        elif state == Qt.CheckState.Checked:
+            self.imshowWidget.enable_all_masks(True)
+            for mask_checkbox in self.mask_checkboxes:
+                mask_checkbox.setChecked(True)
+
 
     def emit_signal(self):
         data = self.imshowWidget.data
