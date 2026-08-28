@@ -4,7 +4,7 @@ from typing import Iterable
 
 import numpy as np
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtCore import pyqtSignal, Qt, pyqtSlot
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QDialog, QApplication, QBoxLayout
 from dicomUtils.ui.pyDicomView import ImageShowWidget, ImageShow
@@ -39,9 +39,16 @@ class ImageShowWithMasks(ImageShow):
         self.enabled_masks[mask_name] = enabled
         self.redraw()
 
+    def enable_all_masks(self, enabled=True):
+        for mask_name in self.masks.keys():
+            self.enabled_masks[mask_name] = enabled
+        self.redraw()
+
     def disable_mask(self, mask_name):
         self.enable_mask(mask_name, False)
-        self.redraw()
+
+    def disable_all_masks(self, mask_name):
+        self.enable_all_masks(False)
 
     def refreshCB(self):
         mask_layer = np.zeros_like(self.imList[int(self.curImage)], dtype=np.uint8)
@@ -150,12 +157,27 @@ class SupportDataViewerDialog(QDialog, Ui_SupportDataViewerDialog):
             mask_checkbox.setText(mask_name)
             mask_checkbox.setStyleSheet(f"QCheckBox {{ background-color: {_rgba_to_css([*colors[current_color][:3], 0.2])}; }}")
             current_color += 1
-            roiGroup_layout.insertWidget(len(roiGroup_layout)-1, mask_checkbox)
+            roiGroup_layout.insertWidget(len(roiGroup_layout)-2, mask_checkbox)
             def make_callback(mask_name, mask_checkbox):
                 def clicked_callback():
                     self.imshowWidget.enable_mask(mask_name, mask_checkbox.isChecked())
                 return clicked_callback
+            def make_disable(mask_checkbox):
+                @pyqtSlot()
+                def disable_function():
+                    mask_checkbox.setChecked(False)
+                return disable_function
+            def make_enable(mask_checkbox):
+                @pyqtSlot()
+                def enable_function():
+                    mask_checkbox.setChecked(True)
+                return enable_function
+
             mask_checkbox.clicked.connect(make_callback(mask_name, mask_checkbox))
+            self.selectAllButton.clicked.connect(make_enable(mask_checkbox))
+            self.selectNoneButton.clicked.connect(make_disable(mask_checkbox))
+        self.selectAllButton.clicked.connect(self.imshowWidget.enable_all_masks)
+        self.selectNoneButton.clicked.connect(self.imshowWidget.disable_all_masks)
 
     def emit_signal(self):
         data = self.imshowWidget.data

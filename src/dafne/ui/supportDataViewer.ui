@@ -14,6 +14,25 @@
    <string>Dialog</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
+   <item row="1" column="4">
+    <widget class="QToolButton" name="mirrorYButton">
+     <property name="minimumSize">
+      <size>
+       <width>48</width>
+       <height>48</height>
+      </size>
+     </property>
+     <property name="text">
+      <string>My</string>
+     </property>
+     <property name="iconSize">
+      <size>
+       <width>32</width>
+       <height>32</height>
+      </size>
+     </property>
+    </widget>
+   </item>
    <item row="1" column="5">
     <spacer name="horizontalSpacer_2">
      <property name="orientation">
@@ -37,44 +56,29 @@
      </property>
     </widget>
    </item>
-   <item row="0" column="7" rowspan="2">
-    <widget class="QGroupBox" name="roiGroup">
-     <property name="title">
-      <string>ROIs to transfer</string>
+   <item row="1" column="6">
+    <widget class="QToolButton" name="transferButton">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>48</height>
+      </size>
      </property>
-     <layout class="QVBoxLayout" name="verticalLayout">
-      <item>
-       <spacer name="verticalSpacer">
-        <property name="orientation">
-         <enum>Qt::Vertical</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>20</width>
-          <height>40</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-     </layout>
+     <property name="text">
+      <string>Transfer</string>
+     </property>
     </widget>
    </item>
-   <item row="1" column="1">
-    <widget class="QToolButton" name="transposeButton">
+   <item row="1" column="2">
+    <widget class="QToolButton" name="rotateButton">
      <property name="minimumSize">
       <size>
        <width>48</width>
        <height>48</height>
       </size>
      </property>
-     <property name="baseSize">
-      <size>
-       <width>64</width>
-       <height>64</height>
-      </size>
-     </property>
      <property name="text">
-      <string>T</string>
+      <string>R</string>
      </property>
      <property name="iconSize">
       <size>
@@ -103,16 +107,22 @@
      </property>
     </widget>
    </item>
-   <item row="1" column="2">
-    <widget class="QToolButton" name="rotateButton">
+   <item row="1" column="1">
+    <widget class="QToolButton" name="transposeButton">
      <property name="minimumSize">
       <size>
        <width>48</width>
        <height>48</height>
       </size>
      </property>
+     <property name="baseSize">
+      <size>
+       <width>64</width>
+       <height>64</height>
+      </size>
+     </property>
      <property name="text">
-      <string>R</string>
+      <string>T</string>
      </property>
      <property name="iconSize">
       <size>
@@ -122,37 +132,55 @@
      </property>
     </widget>
    </item>
-   <item row="1" column="4">
-    <widget class="QToolButton" name="mirrorYButton">
-     <property name="minimumSize">
-      <size>
-       <width>48</width>
-       <height>48</height>
-      </size>
-     </property>
-     <property name="text">
-      <string>My</string>
-     </property>
-     <property name="iconSize">
-      <size>
-       <width>32</width>
-       <height>32</height>
-      </size>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="6">
-    <widget class="QToolButton" name="transferButton">
-     <property name="minimumSize">
-      <size>
-       <width>0</width>
-       <height>48</height>
-      </size>
-     </property>
-     <property name="text">
-      <string>Transfer</string>
-     </property>
-    </widget>
+   <item row="0" column="8" rowspan="2">
+    <layout class="QVBoxLayout" name="verticalLayout_2">
+     <item>
+      <widget class="QGroupBox" name="roiGroup">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="title">
+        <string>ROIs to transfer</string>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout">
+        <item>
+         <spacer name="verticalSpacer">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout">
+          <item>
+           <widget class="QToolButton" name="selectAllButton">
+            <property name="text">
+             <string>All</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="selectNoneButton">
+            <property name="text">
+             <string>None</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+     </item>
+    </layout>
    </item>
   </layout>
  </widget>
