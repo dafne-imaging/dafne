@@ -4300,11 +4300,14 @@ class MuscleSegmentation(ImageShow, QObject):
                 image_list = ImListProxy(self.time_frames[t])
             else:
                 image_list = self.imList
-            registration_manager = RegistrationManager(image_list,
-                                                       None,
-                                                       os.getcwd(),
-                                                       GlobalConfig['TEMP_DIR'])
-            registration_manager.set_standard_transforms_name(self.basepath, self._timepoint_basename(t))
+            if self.registration_available:
+                registration_manager = RegistrationManager(image_list,
+                                                           None,
+                                                           os.getcwd(),
+                                                           GlobalConfig['TEMP_DIR'])
+                registration_manager.set_standard_transforms_name(self.basepath, self._timepoint_basename(t))
+            else:
+                registration_manager = None
             self.registrationManagers[t] = registration_manager
         self.registrationManager = self.registrationManagers[self.current_timepoint]
         self.toolbox_window.set_timepoints(self.n_timepoints)
