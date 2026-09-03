@@ -2844,15 +2844,24 @@ class MuscleSegmentation(ImageShow, QObject):
     def saveROIPickle(self, roiPickleName=None, async_write = False):
 
         @separate_thread_decorator
-        def write_file(name, bytes_to_write):
-            with open(name, 'wb') as f:
-                f.write(bytes_to_write)
+        def write_file(name, bytes_to_write, fail_silently = False):
+            try:
+                with open(name, 'wb') as f:
+                    f.write(bytes_to_write)
+            except IOError as e:
+                if not fail_silently:
+                    self.alert("Error saving ROIs to file: " + name + "\n" + str(e))
+                else:
+                    print("Warning! Error saving ROIs to file: " + name)
+                    print(str(e))
 
         showWarning = True
+        fail_silently = False
         if not roiPickleName:
             roiPickleName = self.getRoiFileName()
             showWarning = False # don't show a empty roi warning if autosaving
             async_write = True
+            fail_silently = True
 
         #print("Saving ROIs", roiPickleName)
         if self.has_time_dimension():
@@ -2871,9 +2880,17 @@ class MuscleSegmentation(ImageShow, QObject):
                 dumpObj['currentTimepoint'] = self.current_timepoint
             if async_write:
                 bytes_to_write = pickle.dumps(dumpObj)
-                write_file(roiPickleName, bytes_to_write) # write file asynchronously for a smoother experience in autosave
+                write_file(roiPickleName, bytes_to_write, fail_silently) # write file asynchronously for a smoother experience in autosave
             else:
-                pickle.dump(dumpObj, open(roiPickleName, 'wb'))
+                try:
+                    with open(roiPickleName, 'wb') as f:
+                        pickle.dump(dumpObj, f)
+                except IOError as e:
+                    if not fail_silently:
+                        self.alert("Error saving ROIs to file: " + roiPickleName + "\n" + str(e))
+                    else:
+                        print("Warning! Error saving ROIs to file: " + roiPickleName)
+                        print(str(e))
         else:
             if showWarning: self.alert('ROIs are empty - not saved')
 
@@ -3433,21 +3450,26 @@ class MuscleSegmentation(ImageShow, QObject):
         if self._is_current_model_3D():
             next_index = self.save_3D_bundle_for_IL(dataForTraining, segForTraining, meanDiceScore, set_splash=True, force_save=True)
 
-        if outputType == 'dicom':
-            save_dicom_masks(pathOut, allMasks, self.affine, self.dicomHeaderList)
-        elif outputType == 'nifti':
-            if self._is_current_model_3D():
-                save_nifti_masks_3D(pathOut, next_index, allMasks, self.original_affine, self.affine, self.original_headers)
-            else:
-                save_nifti_masks(pathOut, allMasks, self.affine)
-        elif outputType == 'npy':
-            save_npy_masks(pathOut, allMasks, self.affine)
-        elif outputType == 'compact_dicom':
-            save_single_dicom_dataset(pathOut, allMasks, self.affine, self.dicomHeaderList)
-        elif outputType == 'compact_nifti':
-            save_single_nifti(pathOut, allMasks, self.affine)
-        else: # assume the most generic outputType == 'npz':
-            save_npz_masks(pathOut, allMasks, self.affine)
+        try:
+            if outputType == 'dicom':
+                save_dicom_masks(pathOut, allMasks, self.affine, self.dicomHeaderList)
+            elif outputType == 'nifti':
+                if self._is_current_model_3D():
+                    save_nifti_masks_3D(pathOut, next_index, allMasks, self.original_affine, self.affine, self.original_headers)
+                else:
+                    save_nifti_masks(pathOut, allMasks, self.affine)
+            elif outputType == 'npy':
+                save_npy_masks(pathOut, allMasks, self.affine)
+            elif outputType == 'compact_dicom':
+                save_single_dicom_dataset(pathOut, allMasks, self.affine, self.dicomHeaderList)
+            elif outputType == 'compact_nifti':
+                save_single_nifti(pathOut, allMasks, self.affine)
+            else: # assume the most generic outputType == 'npz':
+                save_npz_masks(pathOut, allMasks, self.affine)
+        except IOError as e:
+            self.alert("Error saving results to file: " + pathOut + "\n" + str(e))
+            self.setSplash(False, 4, 4, "End")
+            return
 
         # perform incremental learning
         if GlobalConfig['DO_INCREMENTAL_LEARNING']:
