@@ -34,6 +34,9 @@ HEIGHT = 800
 
 OPACITY_ARRAY = np.array([0, 0.2, 0.3, 0.6, 0.2, 0])
 COLORMAP = 'bone'
+# anatomy volume data is rescaled to this fixed 8-bit range before being handed to VTK, see
+# visualize_anatomy(); set_global_anat_opacity() must build its lookup table over the same range.
+ANATOMY_SCALAR_RANGE = (0, 255)
 
 CROSSHAIR_COLOR = '#40c0ff'
 
@@ -367,7 +370,7 @@ class Viewer3D(QWidget):
         if not self.render_3d_enabled or self.actor_anatomy is None:
             return
 
-        lut = pv.LookupTable(cmap=COLORMAP)
+        lut = pv.LookupTable(cmap=COLORMAP, scalar_range=ANATOMY_SCALAR_RANGE)
         lut.apply_opacity(OPACITY_ARRAY * self.anatomy_opacity)
         self.actor_anatomy.prop.apply_lookup_table(lut)
         self.plotter.render()
@@ -380,7 +383,17 @@ class Viewer3D(QWidget):
         if self.anatomy is None or self.spacing is None or self.anatomy_opacity == 0:
             self.plotter.render()
             return
-        anatomy = self.anatomy.astype(np.uint16)
+        # VTK sizes the GPU opacity lookup table in proportion to the scalar range (clim), not
+        # to the number of opacity control points. Using the raw 16-bit intensity range as clim
+        # can demand a table far larger than many OpenGL implementations support (especially
+        # software/Mesa ones), which is silently clamped and produces an incorrect opacity
+        # mapping. Rescale to 8 bits (after clipping outliers, as calcContrast() does for the
+        # 2D views) so the table size stays small and predictable regardless of the input range.
+        clim_max = np.percentile(self.anatomy, 99.5)
+        if clim_max <= 0:
+            clim_max = float(self.anatomy.max()) or 1.0
+        anatomy = np.clip(self.anatomy, 0, clim_max) * (255.0 / clim_max)
+        anatomy = anatomy.astype(np.uint8)
         vol = pv.ImageData(dimensions=np.array(anatomy.shape)+1, spacing=self.spacing)
         vol.cell_data['values'] = anatomy.flatten(order='F')
 
@@ -388,7 +401,7 @@ class Viewer3D(QWidget):
 
         self.actor_anatomy = self.plotter.add_volume(vol,
                                                      scalars='values',
-                                                     clim=[anatomy.min(), anatomy.max()],
+                                                     clim=list(ANATOMY_SCALAR_RANGE),
                                                      opacity=opacity,
                                                      cmap=COLORMAP,
                                                      show_scalar_bar=False)
