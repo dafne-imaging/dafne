@@ -45,13 +45,20 @@ def main():
     parser.add_argument('-q', '--quit', action='store_true', help='Quit after loading the dataset (useful with -r or -q options).')
     parser.add_argument('-rm', '--remote-model', action='store_true', help='Force remote model')
     parser.add_argument('-lm', '--local-model', action='store_true', help='Force local model')
-    
+    parser.add_argument('--no-3d-render', action='store_true',
+                         help='Disable only the pyvista/VTK 3D volume rendering pane of the triplanar '
+                              'viewer (pyvista/VTK is never imported); the triplanar 2D views still work. '
+                              'Use this if the app crashes with a low-level X11/OpenGL error on startup.')
+
     args = parser.parse_args()
 
     # must happen before any Qt object is created
     setup_app_identity()
 
     load_config()
+
+    if args.no_3d_render:
+        GlobalConfig['DISABLE_3D_RENDER'] = True
 
     if args.remote_model:
         GlobalConfig['MODEL_PROVIDER'] = 'Remote'

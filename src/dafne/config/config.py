@@ -110,7 +110,8 @@ static_config = {
     'ENABLE_NIFTI': True,
     'OUTPUT_LOG_FILE': os.path.join(app_dirs.user_log_dir, 'dafne_output.log'),
     'ERROR_LOG_FILE': os.path.join(app_dirs.user_log_dir, 'dafne_error.log'),
-    'REDIRECT_OUTPUT': True # redirect stdout/stderr to logfiles
+    'REDIRECT_OUTPUT': True, # redirect stdout/stderr to logfiles
+    'DISABLE_3D_RENDER': False # disable only the pyvista/VTK volume rendering pane of the triplanar viewer (set via the --no-3d-render command line flag)
 }
 
 ## Initialization

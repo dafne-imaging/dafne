@@ -13,9 +13,21 @@ from dicomUtils.ui.pyDicomView import ImageShow, ImageShowWidget
 from . import hue_compass_colormap
 from ..config.config import GlobalConfig
 
-os.environ["QT_API"] = "pyqt5"
-import pyvista as pv
-from pyvistaqt import QtInteractor
+# pyvista/VTK are only imported lazily (see _ensure_vtk_imported below), since VTK's OpenGL
+# context creation can crash with low-level X11 errors on some systems (e.g. Wayland/XWayland
+# sessions). The triplanar 2D views do not depend on them and work with GlobalConfig['DISABLE_3D_RENDER'].
+pv = None
+QtInteractor = None
+
+
+def _ensure_vtk_imported():
+    global pv, QtInteractor
+    if pv is None:
+        os.environ["QT_API"] = "pyqt5"
+        import pyvista as _pv
+        from pyvistaqt import QtInteractor as _QtInteractor
+        pv = _pv
+        QtInteractor = _QtInteractor
 
 WIDTH = 900
 HEIGHT = 800
@@ -202,9 +214,13 @@ class Viewer3D(QWidget):
         self.anatomy_opacity = 0.2
         self.position = [0, 0, 0]
 
-        self.plotter = QtInteractor(self)
-        self.plotter.background_color = 'black'
-        self.plotter.add_camera_orientation_widget()
+        self.render_3d_enabled = not GlobalConfig['DISABLE_3D_RENDER']
+        self.plotter = None
+        if self.render_3d_enabled:
+            _ensure_vtk_imported()
+            self.plotter = QtInteractor(self)
+            self.plotter.background_color = 'black'
+            self.plotter.add_camera_orientation_widget()
 
         # Triplanar views: main plane on the top left, 3D view on the bottom right
         self.view_widgets = []
@@ -225,35 +241,38 @@ class Viewer3D(QWidget):
             layout.addWidget(view_widget, row, col)
 
         # 3D view cell with its controls
-        plotter_widget = QWidget(self)
-        plotter_layout = QVBoxLayout()
-        plotter_layout.setContentsMargins(0, 0, 0, 0)
-        plotter_layout.setSpacing(0)
-        plotter_layout.addWidget(self.plotter)
+        self.anat_opacity_slider = None
+        self.show_other_rois_checkbox = None
+        if self.render_3d_enabled:
+            plotter_widget = QWidget(self)
+            plotter_layout = QVBoxLayout()
+            plotter_layout.setContentsMargins(0, 0, 0, 0)
+            plotter_layout.setSpacing(0)
+            plotter_layout.addWidget(self.plotter)
 
-        fit_button = QPushButton("Fit to scene")
-        plotter_layout.addWidget(fit_button)
-        fit_button.clicked.connect(self.plotter.reset_camera)
+            fit_button = QPushButton("Fit to scene")
+            plotter_layout.addWidget(fit_button)
+            fit_button.clicked.connect(self.plotter.reset_camera)
 
-        opacity_widget = QWidget()
-        opacity_widget_layout = QHBoxLayout()
-        opacity_widget.setLayout(opacity_widget_layout)
-        opacity_widget_layout.addWidget(QLabel('Anatomy opacity:'))
-        self.anat_opacity_slider = QSlider(Qt.Horizontal)
-        self.anat_opacity_slider.setMinimum(0)
-        self.anat_opacity_slider.setMaximum(100)
-        self.anat_opacity_slider.setValue(20)
-        self.anat_opacity_slider.valueChanged.connect(self.set_global_anat_opacity)
-        opacity_widget_layout.addWidget(self.anat_opacity_slider)
+            opacity_widget = QWidget()
+            opacity_widget_layout = QHBoxLayout()
+            opacity_widget.setLayout(opacity_widget_layout)
+            opacity_widget_layout.addWidget(QLabel('Anatomy opacity:'))
+            self.anat_opacity_slider = QSlider(Qt.Horizontal)
+            self.anat_opacity_slider.setMinimum(0)
+            self.anat_opacity_slider.setMaximum(100)
+            self.anat_opacity_slider.setValue(20)
+            self.anat_opacity_slider.valueChanged.connect(self.set_global_anat_opacity)
+            opacity_widget_layout.addWidget(self.anat_opacity_slider)
 
-        self.show_other_rois_checkbox = QCheckBox('Show other ROIs')
-        self.show_other_rois_checkbox.setChecked(True)
-        self.show_other_rois_checkbox.stateChanged.connect(self.toggle_other_rois)
-        opacity_widget_layout.addWidget(self.show_other_rois_checkbox)
-        plotter_layout.addWidget(opacity_widget)
+            self.show_other_rois_checkbox = QCheckBox('Show other ROIs')
+            self.show_other_rois_checkbox.setChecked(True)
+            self.show_other_rois_checkbox.stateChanged.connect(self.toggle_other_rois)
+            opacity_widget_layout.addWidget(self.show_other_rois_checkbox)
+            plotter_layout.addWidget(opacity_widget)
 
-        plotter_widget.setLayout(plotter_layout)
-        layout.addWidget(plotter_widget, 1, 1)
+            plotter_widget.setLayout(plotter_layout)
+            layout.addWidget(plotter_widget, 1, 1)
 
         for row in (0, 1):
             layout.setRowStretch(row, 1)
@@ -272,6 +291,8 @@ class Viewer3D(QWidget):
         return self.data
 
     def show_other_rois(self):
+        if self.show_other_rois_checkbox is None:
+            return True
         return self.show_other_rois_checkbox.isChecked()
 
     @pyqtSlot(int)
@@ -343,7 +364,7 @@ class Viewer3D(QWidget):
     @pyqtSlot(int)
     def set_global_anat_opacity(self, value):
         self.anatomy_opacity = float(value)/100
-        if self.actor_anatomy is None:
+        if not self.render_3d_enabled or self.actor_anatomy is None:
             return
 
         lut = pv.LookupTable(cmap=COLORMAP)
@@ -352,7 +373,7 @@ class Viewer3D(QWidget):
         self.plotter.render()
 
     def visualize_anatomy(self):
-        if not self.isVisible():
+        if not self.render_3d_enabled or not self.isVisible():
             return
         self.plotter.remove_actor(self.actor_anatomy, render=False)
         self.actor_anatomy = None
@@ -404,7 +425,7 @@ class Viewer3D(QWidget):
         self.data = None
 
     def update_data(self):
-        if not self.isVisible():
+        if not self.render_3d_enabled or not self.isVisible():
             return
 
         camera_position = self.plotter.camera_position
@@ -475,7 +496,7 @@ class Viewer3D(QWidget):
         self.refresh_triplanar()
 
     def visualize_other_masks(self):
-        if not self.isVisible():
+        if not self.render_3d_enabled or not self.isVisible():
             return
         for actor in self.other_actors:
             self.plotter.remove_actor(actor, render=False)
