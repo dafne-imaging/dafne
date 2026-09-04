@@ -17,11 +17,16 @@
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
+import sys
 
 # Hide tensorflow warnings; set to 1 to see warnings
 from ..utils import log
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # or any {'0', '1', '2', '3'}
+
+# Suppress harmless "Wayland does not support QWindow::requestActivate()" warnings
+# (and similar qt.qpa.wayland noise); does not override a rule set in the environment.
+os.environ.setdefault('QT_LOGGING_RULES', 'qt.qpa.wayland=false')
 
 from ..ui.MuscleSegmentation import MuscleSegmentation
 from ..config import GlobalConfig, load_config
@@ -33,6 +38,15 @@ import argparse
 import matplotlib.pyplot as plt
 
 MODELS_DIR = 'models_old'
+
+
+def _is_linux_wayland():
+    """ pyvista/VTK's on-screen OpenGL context creation is known to crash with low-level
+        X11 errors under XWayland (see --no-3d-render), so the 3D render pane is disabled
+        by default on Linux/Wayland sessions unless overridden with --3d-render. """
+    return sys.platform.startswith('linux') and bool(
+        os.environ.get('WAYLAND_DISPLAY') or os.environ.get('XDG_SESSION_TYPE', '').lower() == 'wayland'
+    )
 
 
 def main():
@@ -48,7 +62,11 @@ def main():
     parser.add_argument('--no-3d-render', action='store_true',
                          help='Disable only the pyvista/VTK 3D volume rendering pane of the triplanar '
                               'viewer (pyvista/VTK is never imported); the triplanar 2D views still work. '
-                              'Use this if the app crashes with a low-level X11/OpenGL error on startup.')
+                              'Use this if the app crashes with a low-level X11/OpenGL error on startup. '
+                              'This is the default on Linux/Wayland sessions; see --3d-render.')
+    parser.add_argument('--3d-render', dest='force_3d_render', action='store_true',
+                         help='Force-enable the 3D volume rendering pane even on a Linux/Wayland session '
+                              '(where it is disabled by default).')
 
     args = parser.parse_args()
 
@@ -58,6 +76,12 @@ def main():
     load_config()
 
     if args.no_3d_render:
+        GlobalConfig['DISABLE_3D_RENDER'] = True
+    elif args.force_3d_render:
+        GlobalConfig['DISABLE_3D_RENDER'] = False
+    elif _is_linux_wayland():
+        print('Wayland session detected: disabling the 3D volume rendering pane by default '
+              '(pass --3d-render to force it on).')
         GlobalConfig['DISABLE_3D_RENDER'] = True
 
     if args.remote_model:
