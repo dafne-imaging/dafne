@@ -207,6 +207,12 @@ class RegistrationManager:
 
         transformixImageFilter.SetTransformParameterMap(transform)
 
+        # newer versions of Elastix/Transformix require a MovingImage to be set even when only
+        # transforming a point set. The image content is irrelevant for point transformation, so
+        # a blank placeholder image with the same size as the registered images is used.
+        size = tuple(int(s) for s in transform[0]['Size'])
+        transformixImageFilter.SetMovingImage(sitk.Image(size, sitk.sitkFloat32))
+
         self.move_to_temp_dir()
 
         # create Transformix point file
