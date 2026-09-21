@@ -203,6 +203,8 @@ class Viewer3D(QWidget):
 
     hide_signal = pyqtSignal()
     main_slice_changed = pyqtSignal(int)
+    # emits (x, y) main-window coordinates of the crosshair, or None when it should be hidden
+    main_crosshair_changed = pyqtSignal(object)
 
     def __init__(self):
         super().__init__()
@@ -277,6 +279,16 @@ class Viewer3D(QWidget):
             plotter_widget.setLayout(plotter_layout)
             layout.addWidget(plotter_widget, 1, 1)
 
+        crosshair_widget = QWidget(self)
+        crosshair_layout = QHBoxLayout()
+        crosshair_widget.setLayout(crosshair_layout)
+        self.show_crosshair_checkbox = QCheckBox('Show crosshair on main window')
+        self.show_crosshair_checkbox.setChecked(False)
+        self.show_crosshair_checkbox.stateChanged.connect(self.toggle_main_crosshair)
+        crosshair_layout.addWidget(self.show_crosshair_checkbox)
+        crosshair_layout.addStretch(1)
+        layout.addWidget(crosshair_widget, 2, 0, 1, 2)
+
         for row in (0, 1):
             layout.setRowStretch(row, 1)
             layout.setColumnStretch(row, 1)
@@ -302,6 +314,20 @@ class Viewer3D(QWidget):
     def toggle_other_rois(self, state):
         self.visualize_other_masks()
         self.refresh_triplanar()
+
+    @pyqtSlot(int)
+    def toggle_main_crosshair(self, state):
+        self._emit_main_crosshair()
+
+    def _emit_main_crosshair(self):
+        """ Tell the main window where to draw its crosshair (or that it should be hidden). """
+        if self.show_crosshair_checkbox is None:
+            return
+        main_view = self.views[0]  # the main plane is always the first view (see view_definitions)
+        if self.show_crosshair_checkbox.isChecked() and self.isVisible():
+            self.main_crosshair_changed.emit((self.position[main_view.axis_x], self.position[main_view.axis_y]))
+        else:
+            self.main_crosshair_changed.emit(None)
 
     ### position handling
 
@@ -330,6 +356,7 @@ class Viewer3D(QWidget):
                 view.redraw()
         if MAIN_PLANE_AXIS in changed_axes and notify_main:
             self.main_slice_changed.emit(self.position[MAIN_PLANE_AXIS])
+        self._emit_main_crosshair()
 
     @pyqtSlot(int)
     def set_main_slice(self, slice_number):
@@ -554,3 +581,11 @@ class Viewer3D(QWidget):
         self.hide_signal.emit()
         event.ignore()
         self.hide()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._emit_main_crosshair()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.main_crosshair_changed.emit(None)

@@ -77,6 +77,7 @@ from ..utils.resource_utils import get_resource_path
 matplotlib.use("Qt5Agg")
 
 from .ToolboxWindow import ToolboxWindow
+from .Viewer3D import CROSSHAIR_COLOR
 from dicomUtils.ui.pyDicomView import ImageShow, ImListProxy
 from ..utils.mask_utils import save_npy_masks, save_npz_masks, save_dicom_masks, save_nifti_masks, \
     save_single_dicom_dataset, save_single_nifti, save_nifti_masks_3D
@@ -424,11 +425,20 @@ class MuscleSegmentation(ImageShow, QObject):
         except:
             pass
 
+        try:
+            self.removeMainCrosshair()
+        except:
+            pass
+
         self.maskImPlot = None
         self.maskOtherImPlot = None
         self.activeMask = None
         self.otherMask = None
         self.region_rectangle = None
+
+        self.main_crosshair_vline = None
+        self.main_crosshair_hline = None
+        self.main_crosshair_position = None  # (x, y) or None if hidden
 
         self.roiColor = GlobalConfig['ROI_COLOR']
         self.roiOther = GlobalConfig['ROI_OTHER_COLOR']
@@ -604,6 +614,7 @@ class MuscleSegmentation(ImageShow, QObject):
         self.other_mask_changed.connect(self.toolbox_window.viewer3D.set_other_masks)
         self.displayed_slice_changed.connect(self.toolbox_window.viewer3D.set_main_slice)
         self.toolbox_window.viewer3D.main_slice_changed.connect(self.viewer3d_slice_changed)
+        self.toolbox_window.viewer3D.main_crosshair_changed.connect(self.set_main_crosshair)
 
         self.toolbox_window.data_add.connect(self.load_additional_contrast)
         self.toolbox_window.contrast_changed.connect(self.change_contrast)
@@ -2098,6 +2109,50 @@ class MuscleSegmentation(ImageShow, QObject):
 
         self.region_rectangle = None
 
+    def removeMainCrosshair(self):
+        """ Remove the crosshair coming from the 3D/triplanar viewer from the plot """
+        try:
+            self.main_crosshair_vline.remove()
+        except:
+            pass
+        self.main_crosshair_vline = None
+
+        try:
+            self.main_crosshair_hline.remove()
+        except:
+            pass
+        self.main_crosshair_hline = None
+
+    def drawMainCrosshair(self):
+        """ Plot the crosshair coming from the 3D/triplanar viewer, if visible """
+        if self.main_crosshair_position is None:
+            self.removeMainCrosshair()
+            return
+
+        x, y = self.main_crosshair_position
+        if self.main_crosshair_vline is None:
+            self.main_crosshair_vline = self.axes.axvline(x, color=CROSSHAIR_COLOR, linewidth=0.8,
+                                                           alpha=0.7, zorder=200)
+            self.main_crosshair_vline.set_animated(True)
+        else:
+            self.main_crosshair_vline.set_xdata([x, x])
+
+        if self.main_crosshair_hline is None:
+            self.main_crosshair_hline = self.axes.axhline(y, color=CROSSHAIR_COLOR, linewidth=0.8,
+                                                           alpha=0.7, zorder=200)
+            self.main_crosshair_hline.set_animated(True)
+        else:
+            self.main_crosshair_hline.set_ydata([y, y])
+
+        self.axes.draw_artist(self.main_crosshair_vline)
+        self.axes.draw_artist(self.main_crosshair_hline)
+
+    @pyqtSlot(object)
+    def set_main_crosshair(self, position):
+        """ Receives the crosshair position (x, y) from the 3D/triplanar viewer, or None
+            to hide it (checkbox unchecked or 3D viewer window hidden). """
+        self.main_crosshair_position = position
+        self.reblit()
 
     def updateMasksFromROIs(self):
         roi_name = self.getCurrentROIName()
@@ -2378,6 +2433,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.removeMasks()
             self.removeContours()
             self.removeSubregion()
+            self.removeMainCrosshair()
             self.redraw()
             return
         self.fig.canvas.restore_region(self.blitBg)
@@ -2396,6 +2452,7 @@ class MuscleSegmentation(ImageShow, QObject):
             elif self.editMode == ToolboxWindow.EDITMODE_MASK:
                 self.drawMasks()
             self.drawSubregion()
+        self.drawMainCrosshair()
 
     def redraw(self):
         self.redraw_signal.emit()
@@ -2418,6 +2475,10 @@ class MuscleSegmentation(ImageShow, QObject):
             pass
         try:
             self.removeSubregion()
+        except:
+            pass
+        try:
+            self.removeMainCrosshair()
         except:
             pass
         self.fig.canvas.draw()
