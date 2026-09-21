@@ -2320,6 +2320,7 @@ class MuscleSegmentation(ImageShow, QObject):
             self.updateRoiList()
             self.redraw()
 
+
     # convert a 2D mask, a 3D dataset or a 4D (time-resolved) dataset to rois
     def masksToRois(self, maskDict, imIndex):
         for name, mask in maskDict.items():
@@ -2327,14 +2328,14 @@ class MuscleSegmentation(ImageShow, QObject):
                 if self.has_time_dimension():
                     n_frames = min(mask.shape[3], self.n_timepoints)
                     for t in range(n_frames):
-                        for sl in range(mask.shape[2]):
-                            self.roiManagers[t].set_mask(name, sl, mask[:, :, sl, t])
+                        for sl in range(imIndex, imIndex + mask.shape[2]):
+                            self.roiManagers[t].set_mask(name, sl, mask[:, :, sl-imIndex, t])
                 else: # 4D mask on a 3D dataset: only load the first time frame
-                    for sl in range(mask.shape[2]):
-                        self.maskToRois2D(name, mask[:, :, sl, 0], sl, False)
+                    for sl in range(imIndex, imIndex + mask.shape[2]):
+                        self.maskToRois2D(name, mask[:, :, sl-imIndex, 0], sl, False)
             elif len(mask.shape) > 2: # multislice
-                for sl in range(mask.shape[2]):
-                    self.maskToRois2D(name, mask[:,:,sl], sl, False)
+                for sl in range(imIndex, imIndex + mask.shape[2]):
+                    self.maskToRois2D(name, mask[:,:,sl-imIndex], sl, False)
             else:
                 self.maskToRois2D(name, mask, imIndex, False)
         self.updateRoiList()
@@ -4848,7 +4849,7 @@ class MuscleSegmentation(ImageShow, QObject):
         
         self.setSplash(True, 2, 3, "Converting masks...")
         print("Done")
-        self.masksToRois(masks_out, image[:,:,imIndex[0]:imIndex[-1]+1])
+        self.masksToRois(masks_out, min_slice)
         self.activeMask = None
         self.otherMask = None # TODO: Is it correct?
         print("Segmentation/import time:", time.time() - t)
