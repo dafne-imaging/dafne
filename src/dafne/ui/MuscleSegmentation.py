@@ -4842,15 +4842,14 @@ class MuscleSegmentation(ImageShow, QObject):
 
         current_volume = self.additional_contrasts.get(self.current_contrast, self.medical_volume)
         image = current_volume[:,:,imIndex[0]:imIndex[-1]+1]
+        original_orientation = image.orientation
         image = ensure_compatible_orientation(image, segmenter.get_metadata())
-        print("Resolution", self.resolution)
-        print("Affine", self.affine)
-        if self.affine is not None:
-            affine = self.affine
-        else:
-            affine = np.diag([*self.resolution, 1.0])
-        #affine = self.affine or np.diag([1.0, 1.0, 1.0, 1.0])
-        inputData = {'image': image.volume.astype(np.float32), 'affine': affine, 'resolution': self.resolution,
+        # the resolution and affine must describe the (possibly reoriented) image passed to the model
+        resolution = list(image.pixel_spacing)
+        affine = image.affine
+        print("Resolution", resolution)
+        print("Affine", affine)
+        inputData = {'image': image.volume.astype(np.float32), 'affine': affine, 'resolution': resolution,
                     'split_laterality': False, 'classification': class_str}
 
         image_index = 2
@@ -4864,6 +4863,16 @@ class MuscleSegmentation(ImageShow, QObject):
 
         print("Segmenting image...")
         masks_out = segmenter(inputData)
+
+        # bring the masks back to the orientation of the displayed volume.
+        # Time-resolved (4D) masks are reformatted in one go: only the first three axes are reoriented
+        if image.orientation != original_orientation:
+            for key, mask in masks_out.items():
+                if mask.ndim < 3:
+                    continue
+                masks_out[key] = np.ascontiguousarray(
+                    MedicalVolume(mask, image.affine).reformat(original_orientation).volume)
+
         for key, mask in masks_out.items():
             print("Total mask voxels", key, np.sum(mask))
         torch.cuda.empty_cache()
